@@ -2836,6 +2836,9 @@ static inline ext4_group_t ext4_flex_group(struct ext4_sb_info *sbi,
 	return block_group >> sbi->s_log_groups_per_flex;
 }
 
+/*
+ * 一个flex bg里面有多少个bg
+ */
 static inline unsigned int ext4_flex_bg_size(struct ext4_sb_info *sbi)
 {
 	return 1 << sbi->s_log_groups_per_flex;
