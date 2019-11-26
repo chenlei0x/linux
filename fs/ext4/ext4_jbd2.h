@@ -400,9 +400,9 @@ int ext4_force_commit(struct super_block *sb);
 /*
  * Ext4 inode journal modes
  */
-#define EXT4_INODE_JOURNAL_DATA_MODE	0x01 /* journal data mode */
-#define EXT4_INODE_ORDERED_DATA_MODE	0x02 /* ordered data mode */
-#define EXT4_INODE_WRITEBACK_DATA_MODE	0x04 /* writeback data mode */
+#define EXT4_INODE_JOURNAL_DATA_MODE	0x01 /* journal data mode-----meta + data 都journal*/
+#define EXT4_INODE_ORDERED_DATA_MODE	0x02 /* ordered data mode ---- data 先刷进磁盘，meta进journal*/
+#define EXT4_INODE_WRITEBACK_DATA_MODE	0x04 /* writeback data mode ---- meta依然刷进磁盘，但是不保证data已经事先刷进磁盘了*/
 
 static inline int ext4_inode_journal_mode(struct inode *inode)
 {

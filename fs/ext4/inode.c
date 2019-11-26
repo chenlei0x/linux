@@ -219,6 +219,12 @@ void ext4_evict_inode(struct inode *inode)
 		 * Note that directories do not have this problem because they
 		 * don't use page cache.
 		 */
+
+		/*
+		 * i_nlink 好像会在journal 里面被引用
+		 * 这里如果直接调用jbd2_journal_invalidatepage 会引发数据丢失
+		 * 如果没有丢掉这些buffer，后面就找不到了？？？
+		 */
 		if (inode->i_ino != EXT4_JOURNAL_INO &&
 		    ext4_should_journal_data(inode) &&
 		    (S_ISLNK(inode->i_mode) || S_ISREG(inode->i_mode)) &&
@@ -275,6 +281,7 @@ void ext4_evict_inode(struct inode *inode)
 	 * block mappings. Setting i_size to 0 will remove its fast symlink
 	 * status. Erase i_data so that it becomes a valid empty block map.
 	 */
+	/* ext4_inode_info->vfs_inode ===》struct inode */
 	if (ext4_inode_is_fast_symlink(inode))
 		memset(EXT4_I(inode)->i_data, 0, sizeof(EXT4_I(inode)->i_data));
 	inode->i_size = 0;
@@ -5618,6 +5625,9 @@ static int ext4_index_trans_blocks(struct inode *inode, int lblocks,
  * they could still across block group boundary.
  *
  * Also account for superblock, inode, quota and xattr blocks
+ *
+ * 计算需要的block数量，其中包含index block， bg BM， bg desc table等等。。。
+ * 需要考虑最差情况
  */
 static int ext4_meta_trans_blocks(struct inode *inode, int lblocks,
 				  int pextents)

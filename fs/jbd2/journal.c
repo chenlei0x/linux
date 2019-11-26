@@ -2475,6 +2475,9 @@ static void journal_free_journal_head(struct journal_head *jh)
  *
  * May sleep.
  */
+ /*
+  * 给buffer_head private增加一个 journal_head, 并置标志位
+  */
 struct journal_head *jbd2_journal_add_journal_head(struct buffer_head *bh)
 {
 	struct journal_head *jh;
