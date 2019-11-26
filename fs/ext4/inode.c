@@ -4406,6 +4406,7 @@ int ext4_truncate(struct inode *inode)
 			return 0;
 	}
 
+	/* 计算 journal 需要多少block */
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
 		credits = ext4_writepage_trans_blocks(inode);
 	else
