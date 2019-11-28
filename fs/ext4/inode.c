@@ -3983,6 +3983,7 @@ static int __ext4_block_zero_page_range(handle_t *handle,
 	}
 
 	/* Ok, it's mapped. Make sure it's up-to-date */
+	/* buffer uptodate 和 page uptodate 是主从关系吗？？？？*/
 	if (PageUptodate(page))
 		set_buffer_uptodate(bh);
 
@@ -4008,6 +4009,7 @@ static int __ext4_block_zero_page_range(handle_t *handle,
 		if (err)
 			goto unlock;
 	}
+	/*清空这个页中的某一个block的一部分 [offset, offset + length)*/
 	zero_user(page, offset, length);
 	BUFFER_TRACE(bh, "zeroed end of block");
 
@@ -4061,6 +4063,7 @@ static int ext4_block_zero_page_range(handle_t *handle,
  * up to the end of the block which corresponds to `from'.
  * This required during truncate. We need to physically zero the tail end
  * of that block so it doesn't yield old data if the file is later grown.
+ * 清空 from 直到该block结束
  */
 static int ext4_block_truncate_page(handle_t *handle,
 		struct address_space *mapping, loff_t from)
@@ -5731,8 +5734,8 @@ int ext4_mark_iloc_dirty(handle_t *handle,
 /*
  * On success, We end up with an outstanding reference count against
  * iloc->bh.  This _must_ be cleaned up later.
+ * 告诉journal 我们要对inode 对应的block发起写入！！！
  */
-
 int
 ext4_reserve_inode_write(handle_t *handle, struct inode *inode,
 			 struct ext4_iloc *iloc)

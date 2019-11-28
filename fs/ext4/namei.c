@@ -2905,6 +2905,11 @@ int ext4_orphan_del(handle_t *handle, struct inode *inode)
 
 	ino_next = NEXT_ORPHAN(inode);
 	if (prev == &sbi->s_orphan) {
+		/* 
+		 * prev = s_orphan 这种情况下删了这个inode 需要更新super block
+		 * 因为 sb.s_orphan 需要指向 下一个需要被删的orphan，也就是
+		 * ino_next
+		 */
 		jbd_debug(4, "superblock will point to %u\n", ino_next);
 		BUFFER_TRACE(sbi->s_sbh, "get_write_access");
 		err = ext4_journal_get_write_access(handle, sbi->s_sbh);
