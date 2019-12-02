@@ -396,7 +396,7 @@ struct flex_groups {
 #define EXT4_TOPDIR_FL			0x00020000 /* Top of directory hierarchies*/
 #define EXT4_HUGE_FILE_FL               0x00040000 /* Set to each huge file */
 #define EXT4_EXTENTS_FL			0x00080000 /* Inode uses extents */
-#define EXT4_EA_INODE_FL	        0x00200000 /* Inode used for large EA */
+#define EXT4_EA_INODE_FL	        0x00200000 /* Inode used for large EA  扩展attribute ext4_xattr_inode_create*/
 #define EXT4_EOFBLOCKS_FL		0x00400000 /* Blocks allocated beyond EOF */
 #define EXT4_INLINE_DATA_FL		0x10000000 /* Inode has inline data. */
 #define EXT4_PROJINHERIT_FL		0x20000000 /* Create with parents projid */
@@ -1377,8 +1377,11 @@ struct ext4_sb_info {
 	ext4_group_t s_groups_count;	/* Number of groups in the fs */
 	ext4_group_t s_blockfile_groups;/* Groups acceptable for non-extent files */
 	unsigned long s_overhead;  /* # of fs overhead clusters */
+
+	//如果没有bigalloc的话，cluster大小和block相等
 	unsigned int s_cluster_ratio;	/* Number of blocks per cluster */
 	unsigned int s_cluster_bits;	/* log2 of s_cluster_ratio */
+	
 	loff_t s_bitmap_maxbytes;	/* max bytes for bitmap files */
 	struct buffer_head * s_sbh;	/* Buffer containing the super block */
 	struct ext4_super_block *s_es;	/* Pointer to the super block in the buffer */

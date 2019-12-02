@@ -201,6 +201,7 @@ void ext4_evict_inode(struct inode *inode)
 	trace_ext4_evict_inode(inode);
 
 	if (inode->i_nlink) {
+		// 还有地方在引用
 		/*
 		 * When journalling data dirty buffers are tracked only in the
 		 * journal. So although mm thinks everything is clean and
