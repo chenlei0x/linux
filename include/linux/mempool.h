@@ -13,6 +13,17 @@ struct kmem_cache;
 typedef void * (mempool_alloc_t)(gfp_t gfp_mask, void *pool_data);
 typedef void (mempool_free_t)(void *element, void *pool_data);
 
+/*
+ * 内核中经常需要申请大量的相同类型的较小数据结构的内存，例如skb、urb
+ * 这样容易出现内存碎片
+ * 使用SLAB预先分配一片空间专门用来给这类数据结构使用，能够提高申请和回收速度，减少内存碎片
+ * SLAB适合于大量的、细小的数据结构的内存申请的情况
+ *
+ * 内存池，大多用于块设备，如文件系统
+ * 在处理大量的数据时，可能内核可用的内存不足，使用内存池预先申请一块内存
+ * 这样使用内存池api mempool_alloc，首先尝试alloc_fn ，如果失败就从内存池中获取预分配的内存，能够保证
+ * mempool_alloc一定申请成功，不会陷入睡眠（当然预分配的内存没有了，也会睡眠）。
+ */
 typedef struct mempool_s {
 	spinlock_t lock;
 	int min_nr;		/* nr of elements at *elements */
