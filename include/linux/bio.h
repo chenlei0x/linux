@@ -161,6 +161,10 @@ static inline bool bio_full(struct bio *bio)
 	__BIOVEC_PHYS_MERGEABLE(vec1, vec2)
 #endif
 
+/*
+ * 检测 addr1 到 addr2 之间长度是否大于mask值，mask值假如是0xffff
+ * 如果 addr1 = 0 addr2 - 1 = 0x1ffff 则该宏返回false，说明过长！
+ */
 #define __BIO_SEG_BOUNDARY(addr1, addr2, mask) \
 	(((addr1) | (mask)) == (((addr2) - 1) | (mask)))
 #define BIOVEC_SEG_BOUNDARY(q, b1, b2) \

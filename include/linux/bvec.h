@@ -33,6 +33,9 @@ struct bio_vec {
 	unsigned int	bv_offset;
 };
 
+/*
+ * 用来描述一个 bio_vec
+ */
 struct bvec_iter {
 	sector_t		bi_sector;	/* device address in 512 byte
 						   sectors */
@@ -69,6 +72,9 @@ struct bvec_iter {
 	.bv_offset	= bvec_iter_offset((bvec), (iter)),	\
 })
 
+/*
+ * iter 前进 bytes 个字节
+ */
 static inline bool bvec_iter_advance(const struct bio_vec *bv,
 		struct bvec_iter *iter, unsigned bytes)
 {
@@ -88,6 +94,7 @@ static inline bool bvec_iter_advance(const struct bio_vec *bv,
 		iter->bi_done += len;
 
 		if (iter->bi_bvec_done == __bvec_iter_bvec(bv, *iter)->bv_len) {
+			// 这个bio_vec已经done了，所以前进到下一个bio_vec
 			iter->bi_bvec_done = 0;
 			iter->bi_idx++;
 		}
@@ -95,6 +102,9 @@ static inline bool bvec_iter_advance(const struct bio_vec *bv,
 	return true;
 }
 
+/*
+ * advance 的反向操作
+ */
 static inline bool bvec_iter_rewind(const struct bio_vec *bv,
 				     struct bvec_iter *iter,
 				     unsigned int bytes)

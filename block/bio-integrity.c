@@ -458,6 +458,7 @@ int bio_integrity_clone(struct bio *bio, struct bio *bio_src,
 	if (IS_ERR(bip))
 		return PTR_ERR(bip);
 
+	/*bip_vcnt 和 bi_vcnt 一样吗？*/
 	memcpy(bip->bip_vec, bip_src->bip_vec,
 	       bip_src->bip_vcnt * sizeof(struct bio_vec));
 

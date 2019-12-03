@@ -796,10 +796,21 @@ int ext4_bg_has_super(struct super_block *sb, ext4_group_t group)
 static unsigned long ext4_bg_num_gdb_meta(struct super_block *sb,
 					ext4_group_t group)
 {
+/*
+ * metagroup 包含多少bg 等于 一个block可容纳的bg desc的数量
+ */
+ 	//第几个metagroup
 	unsigned long metagroup = group / EXT4_DESC_PER_BLOCK(sb);
+	//metagroup中的第一个group#
 	ext4_group_t first = metagroup * EXT4_DESC_PER_BLOCK(sb);
+	//metagroup中的最后个group#
 	ext4_group_t last = first + EXT4_DESC_PER_BLOCK(sb) - 1;
 
+	/*
+	  根据手册来讲，meta block group中，只有第一个，第二个，和
+	  最后一个group才有bg desc table，且他们都是一样的。table中
+	  每个元素都是bg desc，描述整个meta block group中的每个bg
+	*/
 	if (group == first || group == first + 1 || group == last)
 		return 1;
 	return 0;
@@ -851,7 +862,12 @@ static unsigned ext4_num_base_meta_clusters(struct super_block *sb,
 
 	/* Check for superblock and gdt backups in this group */
 	num = ext4_bg_has_super(sb, block_group);
-
+	/*
+	 * 如果使能meta_bg，则即使该group含有desc blocks，也只是该meta group
+	 * 中的每个bg 的desc
+	 * 如果没有使能，则该group若为第一个group，则包含了所有的desc，其中含有
+	 * 预留的
+	 */
 	if (!ext4_has_feature_meta_bg(sb) ||
 	    block_group < le32_to_cpu(sbi->s_es->s_first_meta_bg) *
 			  sbi->s_desc_per_block) {
@@ -889,6 +905,9 @@ ext4_fsblk_t ext4_inode_to_goal_block(struct inode *inode)
 		 * files will start at the second block group.  This
 		 * tends to speed up directory access and improves
 		 * fsck times.
+		 *
+		 * 假如 ext4_flex_bg_size 返回16，则如下的操作刚好能够找到
+		 * bg bitmap，inode table所在
 		 */
 		block_group &= ~(flex_size-1);
 		if (S_ISREG(inode->i_mode))
@@ -911,4 +930,3 @@ ext4_fsblk_t ext4_inode_to_goal_block(struct inode *inode)
 		colour = (current->pid % 16) * ((last_block - bg_start) / 16);
 	return bg_start + colour;
 }
-

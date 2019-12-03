@@ -80,6 +80,7 @@ static struct kmem_cache *bio_find_or_create_slab(unsigned int extra_size)
 	mutex_lock(&bio_slab_lock);
 
 	i = 0;
+	/* 从bio_slbas 里面找到一个 slab_size == sz 或者 空的 */
 	while (i < bio_slab_nr) {
 		bslab = &bio_slabs[i];
 
@@ -96,6 +97,7 @@ static struct kmem_cache *bio_find_or_create_slab(unsigned int extra_size)
 	if (slab)
 		goto out_unlock;
 
+	/* bio_slabs 数组太小了 扩大一倍吧*/
 	if (bio_slab_nr == bio_slab_max && entry == -1) {
 		new_bio_slab_max = bio_slab_max << 1;
 		new_bio_slabs = krealloc(bio_slabs,
