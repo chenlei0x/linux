@@ -163,7 +163,7 @@ struct blk_integrity {
 	const struct blk_integrity_profile	*profile;
 	unsigned char				flags;
 	unsigned char				tuple_size;
-	unsigned char				interval_exp;
+	unsigned char				interval_exp; /* 2^interval_exp 对应一个 tuple_size的校验*/
 	unsigned char				tag_size;
 };
 

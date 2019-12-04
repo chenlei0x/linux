@@ -80,7 +80,7 @@ static struct kmem_cache *bio_find_or_create_slab(unsigned int extra_size)
 	mutex_lock(&bio_slab_lock);
 
 	i = 0;
-	/* 从bio_slbas 里面找到一个 slab_size == sz 或者 空的 */
+	/* 从bio_slabs 里面找到一个 slab_size == sz 或者 空的 */
 	while (i < bio_slab_nr) {
 		bslab = &bio_slabs[i];
 
@@ -737,6 +737,7 @@ EXPORT_SYMBOL(bio_clone_bioset);
  *
  *	This should only be used by REQ_PC bios.
  */
+ /* page len offset 刚好是一个vec 把他田间到bio中*/
 int bio_add_pc_page(struct request_queue *q, struct bio *bio, struct page
 		    *page, unsigned int len, unsigned int offset)
 {
@@ -835,6 +836,7 @@ EXPORT_SYMBOL(bio_add_pc_page);
  *
  * Return %true on success or %false on failure.
  */
+ /* 如果 page[off, off + len) 刚好接着最后一个bio_vec 那么合并*/
 bool __bio_try_merge_page(struct bio *bio, struct page *page,
 		unsigned int len, unsigned int off)
 {
@@ -1996,6 +1998,7 @@ EXPORT_SYMBOL_GPL(bio_trim);
  */
 mempool_t *biovec_create_pool(int pool_entries)
 {
+	/*这里是bvec_slabs 不是 bio_slabs*/
 	struct biovec_slab *bp = bvec_slabs + BVEC_POOL_MAX;
 
 	return mempool_create_slab_pool(pool_entries, bp->slab);
@@ -2182,7 +2185,7 @@ static void __init biovec_init_slabs(void)
 			bvs->slab = NULL;
 			continue;
 		}
-
+		/*从这个slab里面一次申请 nr_vecs 个bio_vec*/
 		size = bvs->nr_vecs * sizeof(struct bio_vec);
 		bvs->slab = kmem_cache_create(bvs->name, size, 0,
                                 SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);

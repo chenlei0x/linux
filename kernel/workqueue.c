@@ -2601,6 +2601,7 @@ static bool flush_workqueue_prep_pwqs(struct workqueue_struct *wq,
  * This function sleeps until all work items which were queued on entry
  * have finished execution, but it is not livelocked by new incoming ones.
  */
+ /* 会睡眠直到work完成*/
 void flush_workqueue(struct workqueue_struct *wq)
 {
 	struct wq_flusher this_flusher = {

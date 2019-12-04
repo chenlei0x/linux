@@ -190,6 +190,7 @@ static inline unsigned int bio_integrity_bytes(struct blk_integrity *bi,
 static blk_status_t bio_integrity_process(struct bio *bio,
 		struct bvec_iter *proc_iter, integrity_processing_fn *proc_fn)
 {
+	/*磁盘上也有一blk_integrity    结构  */
 	struct blk_integrity *bi = blk_get_integrity(bio->bi_disk);
 	struct blk_integrity_iter iter;
 	struct bvec_iter bviter;
