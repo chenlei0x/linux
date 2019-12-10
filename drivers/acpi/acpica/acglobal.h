@@ -51,7 +51,7 @@
  ****************************************************************************/
 
 /* Master list of all ACPI tables that were found in the RSDT/XSDT */
-
+/* acpi_ns_load_table 中初始化*/
 ACPI_GLOBAL(struct acpi_table_list, acpi_gbl_root_table_list);
 
 /* DSDT information. Used to check for DSDT corruption */

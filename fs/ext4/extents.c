@@ -57,6 +57,12 @@
 #define EXT4_EXT_DATA_VALID1	0x8  /* first half contains valid data */
 #define EXT4_EXT_DATA_VALID2	0x10 /* second half contains valid data */
 
+
+/*
+ * 校验extent block
+ * [extent_header, extent_tail)
+ * 校验和放在extent_tail.et_checksum
+ */
 static __le32 ext4_extent_block_csum(struct inode *inode,
 				     struct ext4_extent_header *eh)
 {
@@ -130,6 +136,10 @@ static int ext4_ext_truncate_extend_restart(handle_t *handle,
 	err = ext4_journal_extend(handle, needed - handle->h_buffer_credits);
 	if (err <= 0)
 		return err;
+	/*
+	 * err > 0 说明这个transaction 已经满了
+	 * 所以得restart 给安排到下一个transaction去
+	 */
 	err = ext4_truncate_restart_trans(handle, inode, needed);
 	if (err == 0)
 		err = -EAGAIN;
@@ -168,17 +178,22 @@ int __ext4_ext_dirty(const char *where, unsigned int line, handle_t *handle,
 
 	WARN_ON(!rwsem_is_locked(&EXT4_I(inode)->i_data_sem));
 	if (path->p_bh) {
+		/* extent block 脏了 刷他*/
 		ext4_extent_block_csum_set(inode, ext_block_hdr(path->p_bh));
 		/* path points to block */
 		err = __ext4_handle_dirty_metadata(where, line, handle,
 						   inode, path->p_bh);
 	} else {
+		/* 内嵌extent 到inode里*/
 		/* path points to leaf/index in inode body */
 		err = ext4_mark_inode_dirty(handle, inode);
 	}
 	return err;
 }
 
+/*
+ * 需要继续看
+ */
 static ext4_fsblk_t ext4_ext_find_goal(struct inode *inode,
 			      struct ext4_ext_path *path,
 			      ext4_lblk_t block)
@@ -206,12 +221,14 @@ static ext4_fsblk_t ext4_ext_find_goal(struct inode *inode,
 		 */
 		ex = path[depth].p_ext;
 		if (ex) {
+			/* 走到这里应该是给定extent 找到 block参数 对应真正的物理block！！！*/
 			ext4_fsblk_t ext_pblk = ext4_ext_pblock(ex);
 			ext4_lblk_t ext_block = le32_to_cpu(ex->ee_block);
 
 			if (block > ext_block)
 				return ext_pblk + (block - ext_block);
 			else
+			/*？？？？？？ 没明白 那不就超出范围了吗？？？*/
 				return ext_pblk - (ext_block - block);
 		}
 
@@ -241,6 +258,11 @@ ext4_ext_new_meta_block(handle_t *handle, struct inode *inode,
 	return newblock;
 }
 
+
+/*
+ * 一个block能装下多少个ext4_extent.
+ * 这里没有考虑tail吗？？？
+ */
 static inline int ext4_ext_space_block(struct inode *inode, int check)
 {
 	int size;
@@ -253,6 +275,11 @@ static inline int ext4_ext_space_block(struct inode *inode, int check)
 #endif
 	return size;
 }
+
+/*
+ * 一个block能装下多少个ext4_extent_idx.
+ * 这里没有考虑tail吗？？？
+ */
 
 static inline int ext4_ext_space_block_idx(struct inode *inode, int check)
 {
@@ -267,6 +294,10 @@ static inline int ext4_ext_space_block_idx(struct inode *inode, int check)
 	return size;
 }
 
+
+/*
+ * memory inode 里面可以存多少ext4_extent
+ */
 static inline int ext4_ext_space_root(struct inode *inode, int check)
 {
 	int size;
@@ -281,6 +312,9 @@ static inline int ext4_ext_space_root(struct inode *inode, int check)
 	return size;
 }
 
+/*
+ * memory inode 里面可以存多少ext4_extent_idx
+ */
 static inline int ext4_ext_space_root_idx(struct inode *inode, int check)
 {
 	int size;
@@ -3214,9 +3248,10 @@ static int ext4_split_extent_at(handle_t *handle,
 
 	depth = ext_depth(inode);
 	ex = path[depth].p_ext;
-	ee_block = le32_to_cpu(ex->ee_block);
+	ee_block = le32_to_cpu(ex->ee_block); /* ex 对应的起始 logic block*/
 	ee_len = ext4_ext_get_actual_len(ex);
-	newblock = split - ee_block + ext4_ext_pblock(ex);
+	/*split 为logic 分割点，转换为phy 分割点*/
+	newblock = split - ee_block + ext4_ext_pblock(ex); 
 
 	BUG_ON(split < ee_block || split >= (ee_block + ee_len));
 	BUG_ON(!ext4_ext_is_unwritten(ex) &&
@@ -3229,6 +3264,7 @@ static int ext4_split_extent_at(handle_t *handle,
 		goto out;
 
 	if (split == ee_block) {
+		/* 妥妥的 不用分了*/
 		/*
 		 * case b: block @split is the block that the extent begins with
 		 * then we just change the state of the extent, and splitting
@@ -3248,7 +3284,7 @@ static int ext4_split_extent_at(handle_t *handle,
 
 	/* case a */
 	memcpy(&orig_ex, ex, sizeof(orig_ex));
-	ex->ee_len = cpu_to_le16(split - ee_block);
+	ex->ee_len = cpu_to_le16(split - ee_block); /* 左边extent 长度*/
 	if (split_flag & EXT4_EXT_MARK_UNWRIT1)
 		ext4_ext_mark_unwritten(ex);
 

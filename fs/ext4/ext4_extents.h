@@ -65,6 +65,7 @@
  * crammed into the end of the block without having to rebalance the tree.
  */
 struct ext4_extent_tail {
+	/*[extent_header, extent_tail) 的校验和*/
 	__le32	et_checksum;	/* crc32c(uuid+inum+extent_block) */
 };
 
@@ -73,7 +74,7 @@ struct ext4_extent_tail {
  * It's used at the bottom of the tree.
  */
 struct ext4_extent {
-	__le32	ee_block;	/* first logical block extent covers */
+	__le32	ee_block;	/* first logical block extent covers */ /*该extent 起始block 对应的文件block */
 	__le16	ee_len;		/* number of blocks covered by extent */
 	__le16	ee_start_hi;	/* high 16 bits of physical block */
 	__le32	ee_start_lo;	/* low 32 bits of physical block */
@@ -98,7 +99,7 @@ struct ext4_extent_header {
 	__le16	eh_magic;	/* probably will support different formats */
 	__le16	eh_entries;	/* number of valid entries */
 	__le16	eh_max;		/* capacity of store in entries */
-	__le16	eh_depth;	/* has tree real underlying blocks? */
+	__le16	eh_depth;	/* has tree real underlying blocks?  depth 从0计数？？ */
 	__le32	eh_generation;	/* generation of the tree */
 };
 
@@ -121,6 +122,9 @@ find_ext4_extent_tail(struct ext4_extent_header *eh)
  * Creation/lookup routines use it for traversal/splitting/etc.
  * Truncate uses it to simulate recursive walking.
  */
+ /*
+  * 应该是用来描述extent树一层上的某一个节点
+  */
 struct ext4_ext_path {
 	ext4_fsblk_t			p_block;
 	__u16				p_depth;
@@ -128,7 +132,7 @@ struct ext4_ext_path {
 	struct ext4_extent		*p_ext;
 	struct ext4_extent_idx		*p_idx;
 	struct ext4_extent_header	*p_hdr;
-	struct buffer_head		*p_bh;
+	struct buffer_head		*p_bh; /* 指向extent block*/
 };
 
 /*

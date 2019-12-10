@@ -640,6 +640,9 @@ error_out:
  * transaction capable of guaranteeing the requested number of
  * credits. We preserve reserved handle if there's any attached to the
  * passed in handle.
+ * jbd2_journal_extend 可能没法允许让你扩充credits，所以你需要调用这个函数
+ * 这个函数会让这个handle从他的transaction上脱离，并提交这个transaction并
+ * 提交到下一个transaction上去。并在下一个transaction上扩展credits
  */
 int jbd2__journal_restart(handle_t *handle, int nblocks, gfp_t gfp_mask)
 {
