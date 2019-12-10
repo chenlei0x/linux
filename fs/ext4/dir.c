@@ -36,6 +36,8 @@ static int ext4_dx_readdir(struct file *, struct dir_context *);
  * indexing).
  *
  * Return 1 if it is a dx dir, 0 if not
+ *
+ * 检测是否是hash-indexed的dir
  */
 static int is_dx_dir(struct inode *inode)
 {

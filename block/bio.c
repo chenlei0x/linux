@@ -478,6 +478,12 @@ struct bio *bio_alloc_bioset(gfp_t gfp_mask, unsigned int nr_iovecs,
 		 * bios we would be blocking to the rescuer workqueue before
 		 * we retry with the original gfp_flags.
 		 */
+		 /*
+		  * generic_make_request 函数返回之前？？？ 所申请的bio不会被释放，
+		  *
+		  * 那么如果事先申请了很多bio，耗尽了bio_set中的pool中预留的bio，那么在
+		  * generic_make_request函数运行过程中就有可能造成死锁
+		  */
 
 		if (current->bio_list &&
 		    (!bio_list_empty(&current->bio_list[0]) ||
