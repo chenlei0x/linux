@@ -30,6 +30,9 @@ struct notifier_block;		/* in notifier.h */
 #define IOREMAP_MAX_ORDER	(7 + PAGE_SHIFT)	/* 128 pages */
 #endif
 
+/*
+ * 代表一组page 这些page 可能是分散开的 不连续的
+ */
 struct vm_struct {
 	struct vm_struct	*next;
 	void			*addr;
@@ -41,6 +44,9 @@ struct vm_struct {
 	const void		*caller;
 };
 
+/*
+ * 用于管理内核的一段连续的虚拟地址空间
+ */
 struct vmap_area {
 	unsigned long va_start;
 	unsigned long va_end;

@@ -1351,6 +1351,9 @@ void unmap_kernel_range(unsigned long addr, unsigned long size)
 }
 EXPORT_SYMBOL_GPL(unmap_kernel_range);
 
+/*
+ * 把每个page 映射到 area所代表的虚拟内存地址空间上
+ */
 int map_vm_area(struct vm_struct *area, pgprot_t prot, struct page **pages)
 {
 	unsigned long addr = (unsigned long)area->addr;
@@ -1410,6 +1413,7 @@ static struct vm_struct *__get_vm_area_node(unsigned long size,
 	if (!(flags & VM_NO_GUARD))
 		size += PAGE_SIZE;
 
+	/* 申请一段虚拟地址空间*/
 	va = alloc_vmap_area(size, align, start, end, node, gfp_mask);
 	if (IS_ERR(va)) {
 		kfree(area);
@@ -1697,6 +1701,9 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		return NULL;
 	}
 
+	/*
+	 * 给vm_struct中挨个填充page
+	 */
 	for (i = 0; i < area->nr_pages; i++) {
 		struct page *page;
 
@@ -1715,6 +1722,9 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 			cond_resched();
 	}
 
+	/*
+	 * pages 映射到area 对应的虚拟地址空间上
+	 */
 	if (map_vm_area(area, prot, pages))
 		goto fail;
 	return area->addr;
