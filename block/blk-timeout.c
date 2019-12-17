@@ -224,6 +224,9 @@ void blk_add_timer(struct request *req)
 	 */
 	expiry = blk_rq_timeout(round_jiffies_up(req->deadline));
 
+	/*
+	 * timer_pending 返回false 只能说明timer 不在timer链表中了，不代表timer所对应的函数已经被执行！
+	 */
 	if (!timer_pending(&q->timeout) ||
 	    time_before(expiry, q->timeout.expires)) {
 		unsigned long diff = q->timeout.expires - expiry;

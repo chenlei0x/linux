@@ -148,6 +148,9 @@ static int __init hest_parse_ghes_count(struct acpi_hest_header *hest_hdr, void 
 	return 0;
 }
 
+/*
+ * 注册ghes_dev
+ */
 static int __init hest_parse_ghes(struct acpi_hest_header *hest_hdr, void *data)
 {
 	struct platform_device *ghes_dev;
@@ -199,6 +202,9 @@ static int __init hest_ghes_dev_register(unsigned int ghes_count)
 	if (!ghes_arr.ghes_devs)
 		return -ENOMEM;
 
+	/*
+	 * 再针对每个表 调用hest_parse_ghes，挨个注册
+	 */
 	rc = apei_hest_parse(hest_parse_ghes, &ghes_arr);
 	if (rc)
 		goto err;
@@ -230,6 +236,7 @@ void __init acpi_hest_init(void)
 		return;
 	}
 
+	/*hest_tab 应该是从ACPI表里面索引出来的*/
 	status = acpi_get_table(ACPI_SIG_HEST, 0,
 				(struct acpi_table_header **)&hest_tab);
 	if (status == AE_NOT_FOUND) {
@@ -247,6 +254,10 @@ void __init acpi_hest_init(void)
 		goto err;
 
 	if (!ghes_disable) {
+		/*
+		 * hest 大表由很多小表组成，针对每一个表调用hest_parse_ghes_count，
+		 * 算出有多少个符合要求的表
+		 */
 		rc = apei_hest_parse(hest_parse_ghes_count, &ghes_count);
 		if (rc)
 			goto err;

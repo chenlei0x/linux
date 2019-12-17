@@ -2889,6 +2889,7 @@ EXPORT_SYMBOL(blk_finish_request);
 
 /**
  * blk_end_bidi_request - Complete a bidi request
+ * bidi - bidirectional requests!!!
  * @rq:         the request to complete
  * @error:      block status code
  * @nr_bytes:   number of bytes to complete @rq

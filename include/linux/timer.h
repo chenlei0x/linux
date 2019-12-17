@@ -192,6 +192,8 @@ static inline void timer_setup(struct timer_list *timer,
  * to this timer, eg. interrupt contexts, or other CPUs on SMP.
  *
  * return value: 1 if the timer is pending, 0 if not.
+ * 
+ * timer_pending 返回false 只能说明timer 不在timer链表中了，不代表timer所对应的函数已经被执行！
  */
 static inline int timer_pending(const struct timer_list * timer)
 {

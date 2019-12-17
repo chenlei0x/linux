@@ -430,6 +430,8 @@ EXPORT_SYMBOL_GPL(__round_jiffies_up_relative);
  * round down.  This is useful for timeouts for which the exact time
  * of firing does not matter too much, as long as they don't fire too
  * early.
+ * 把 jiffies 按秒 向上对齐。
+ * 例如 如果j = 201，HZ=200 则返回 400
  */
 unsigned long round_jiffies_up(unsigned long j)
 {
@@ -927,6 +929,9 @@ static struct timer_base *lock_timer_base(struct timer_list *timer,
 	}
 }
 
+/*
+ * pending_only 意思应该是我只修改处于pending状态的timer
+ */
 static inline int
 __mod_timer(struct timer_list *timer, unsigned long expires, bool pending_only)
 {
@@ -1600,6 +1605,7 @@ void update_process_times(int user_tick)
 /**
  * __run_timers - run all expired timers (if any) on this CPU.
  * @base: the timer vector to be processed.
+ * 处理timer
  */
 static inline void __run_timers(struct timer_base *base)
 {
