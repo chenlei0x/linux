@@ -3147,6 +3147,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
 		return -ENOENT;
 
 	*opened &= ~FILE_CREATED;
+	/*在dir cache上查找这个需要打开的文件*/
 	dentry = d_lookup(dir, &nd->last);
 	for (;;) {
 		if (!dentry) {
@@ -3166,6 +3167,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
 		dput(dentry);
 		dentry = NULL;
 	}
+	/*这个dentry有效，那么就是他了*/
 	if (dentry->d_inode) {
 		/* Cached positive dentry: will open in f_op->open */
 		goto out_no_open;

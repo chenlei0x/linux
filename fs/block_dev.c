@@ -974,6 +974,7 @@ static struct block_device *bd_acquire(struct inode *inode)
 	if (bdev)
 		bd_forget(inode);
 
+	/*拿到一个空的block device*/
 	bdev = bdget(inode->i_rdev);
 	if (bdev) {
 		spin_lock(&bdev_lock);

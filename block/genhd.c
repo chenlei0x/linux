@@ -98,8 +98,12 @@ struct hd_struct *__disk_get_part(struct gendisk *disk, int partno)
 {
 	struct disk_part_tbl *ptbl = rcu_dereference(disk->part_tbl);
 
+	
 	if (unlikely(partno < 0 || partno >= ptbl->len))
 		return NULL;
+	/* 
+	 * ptbl->part[0] 对应gendisk::part0
+	 */
 	return rcu_dereference(ptbl->part[partno]);
 }
 
