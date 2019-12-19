@@ -2000,6 +2000,11 @@ static void blk_mq_exit_hw_queues(struct request_queue *q,
 	}
 }
 
+/*
+ * 初始化hctx
+ * 多个队列每个cpu对应一个ctx
+ * 每个ctx 都有其唯一的hctx关联
+ */
 static int blk_mq_init_hctx(struct request_queue *q,
 		struct blk_mq_tag_set *set,
 		struct blk_mq_hw_ctx *hctx, unsigned hctx_idx)
@@ -2035,6 +2040,9 @@ static int blk_mq_init_hctx(struct request_queue *q,
 
 	hctx->nr_ctx = 0;
 
+	/*
+	 * 调用具体设备的init_hctx,在NVME上，nvme_init_hctx 使得 hctx 和硬件队列一一关联。
+	 */
 	if (set->ops->init_hctx &&
 	    set->ops->init_hctx(hctx, set->driver_data, hctx_idx))
 		goto free_bitmap;

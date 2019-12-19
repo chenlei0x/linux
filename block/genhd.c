@@ -817,6 +817,7 @@ EXPORT_SYMBOL(get_gendisk);
  *
  * RETURNS:
  * Resulting block_device on success, NULL on failure.
+ * 通过gendisk 和 partno 拿到partno对应的block_device
  */
 struct block_device *bdget_disk(struct gendisk *disk, int partno)
 {

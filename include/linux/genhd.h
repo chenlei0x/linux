@@ -193,7 +193,7 @@ struct gendisk {
 	struct hd_struct part0;
 
 	const struct block_device_operations *fops;
-	struct request_queue *queue;
+	struct request_queue *queue; /*这个设备的IO queue，也就是说 从裸设备上直接读写走的是另外一个queue*/
 	void *private_data;
 
 	int flags;
