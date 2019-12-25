@@ -785,7 +785,7 @@ struct gendisk *get_gendisk(dev_t devt, int *partno)
 
 	if (MAJOR(devt) != BLOCK_EXT_MAJOR) {
 		struct kobject *kobj;
-
+		/*通过devt 找到真正的disk*/
 		kobj = kobj_lookup(bdev_map, devt, partno);
 		if (kobj)
 			disk = dev_to_disk(kobj_to_dev(kobj));

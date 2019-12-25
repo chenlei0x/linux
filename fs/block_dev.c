@@ -892,6 +892,7 @@ struct block_device *bdget(dev_t dev)
 	struct block_device *bdev;
 	struct inode *inode;
 
+	/*申请一个bdev_inode 并通过bdev_set 将bdev_inode->bdev.bd_dev 设置为dev*/
 	inode = iget5_locked(blockdev_superblock, hash(dev),
 			bdev_test, bdev_set, &dev);
 
@@ -917,6 +918,7 @@ struct block_device *bdget(dev_t dev)
 		spin_unlock(&bdev_lock);
 		unlock_new_inode(inode);
 	}
+	/*返回的bdev 其实是bdev_inode中的一部分*/
 	return bdev;
 }
 
@@ -986,7 +988,7 @@ static struct block_device *bd_acquire(struct inode *inode)
 			 * without igrab().
 			 */
 			bdgrab(bdev);
-			inode->i_bdev = bdev;
+			inode->i_bdev = bdev; /*左边的inode 是shmem_mknod中生成的，右边的其实是blockdev_superblock中的bdev_inode.bdev*/
 			inode->i_mapping = bdev->bd_inode->i_mapping;
 		}
 		spin_unlock(&bdev_lock);
@@ -1421,6 +1423,7 @@ static void __blkdev_put(struct block_device *bdev, fmode_t mode, int for_part);
  *
  *  mutex_lock(part->bd_mutex)
  *    mutex_lock_nested(whole->bd_mutex, 1)
+ * 这里才是通过bdev->bd_dev(maj, min)找到真正的设备
  */
 
 static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
@@ -1740,6 +1743,9 @@ struct block_device *blkdev_get_by_dev(dev_t dev, fmode_t mode, void *holder)
 }
 EXPORT_SYMBOL(blkdev_get_by_dev);
 
+/*
+ * 参数中的inode 是 shmem_mknod中创建的inode，只有i_fops 和 i_rdev有效
+ */
 static int blkdev_open(struct inode * inode, struct file * filp)
 {
 	struct block_device *bdev;
@@ -1760,7 +1766,7 @@ static int blkdev_open(struct inode * inode, struct file * filp)
 		filp->f_mode |= FMODE_EXCL;
 	if ((filp->f_flags & O_ACCMODE) == 3)
 		filp->f_mode |= FMODE_WRITE_IOCTL;
-
+	/*bd_acquire只是创建了一个新的bdev_inode结构体而已，其实没有找到对应的设备*/
 	bdev = bd_acquire(inode);
 	if (bdev == NULL)
 		return -ENOMEM;

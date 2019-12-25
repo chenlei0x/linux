@@ -3022,6 +3022,7 @@ static int shmem_statfs(struct dentry *dentry, struct kstatfs *buf)
 
 /*
  * File creation. Allocate an inode, and we're done..
+ * 只创建一个inode，并把dev赋值给 i_rdev 并对i_fop 赋值为 &def_blk_fops
  */
 static int
 shmem_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev)
