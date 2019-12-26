@@ -790,6 +790,7 @@ struct gendisk *get_gendisk(dev_t devt, int *partno)
 		if (kobj)
 			disk = dev_to_disk(kobj_to_dev(kobj));
 	} else {
+		/*nvme major 就是BLOCK_EXT_MAJOR */
 		struct hd_struct *part;
 
 		spin_lock_bh(&ext_devt_lock);

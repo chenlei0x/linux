@@ -2386,6 +2386,7 @@ static void nvme_alloc_ns(struct nvme_ctrl *ctrl, unsigned nsid)
 		}
 	}
 
+	/*对于nvme来说，minors 为 0，所以不会对bdev_map 有任何操作*/
 	disk = alloc_disk_node(0, node);
 	if (!disk)
 		goto out_free_id;

@@ -29,6 +29,9 @@ struct kobj_map {
 	struct mutex *lock;
 };
 
+/*
+ * 用来注册同一个major号下，minor范围的
+ */
 int kobj_map(struct kobj_map *domain, dev_t dev, unsigned long range,
 	     struct module *module, kobj_probe_t *probe,
 	     int (*lock)(dev_t, void *), void *data)
@@ -51,7 +54,7 @@ int kobj_map(struct kobj_map *domain, dev_t dev, unsigned long range,
 		p->lock = lock;
 		p->dev = dev;
 		p->range = range;
-		p->data = data;
+		p->data = data; /*如果是注册块设备，这里就是disk！！！*/
 	}
 	mutex_lock(domain->lock);
 	for (i = 0, p -= n; i < n; i++, p++, index++) {
