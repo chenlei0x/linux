@@ -127,7 +127,9 @@ void blk_mq_sched_dispatch_requests(struct blk_mq_hw_ctx *hctx)
 		blk_mq_sched_mark_restart_hctx(hctx);
 		do_sched_dispatch = blk_mq_dispatch_rq_list(q, &rq_list);
 	} else if (!has_sched_dispatch) {
+		/* 先收集所有的ctx 的req，放到rq_list 上*/
 		blk_mq_flush_busy_ctxs(hctx, &rq_list);
+		/*根据rq->mq_ctx->cpu 分发到每个hwctx 对应的硬件queue上,*/
 		blk_mq_dispatch_rq_list(q, &rq_list);
 	}
 

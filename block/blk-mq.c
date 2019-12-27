@@ -229,6 +229,9 @@ EXPORT_SYMBOL_GPL(blk_mq_quiesce_queue_nowait);
  * sure no dispatch can happen until the queue is unquiesced via
  * blk_mq_unquiesce_queue().
  */
+/*
+ *  这个函数返回时，可以确保之后都往hwctx 提交不了了
+ */
 void blk_mq_quiesce_queue(struct request_queue *q)
 {
 	struct blk_mq_hw_ctx *hctx;
@@ -891,6 +894,7 @@ static bool flush_busy_ctx(struct sbitmap *sb, unsigned int bitnr, void *data)
 /*
  * Process software queues that have been marked busy, splicing them
  * to the for-dispatch
+ * 把hw ctx 对应的 ctx中的所有request 全部收集起来，挂到list上面
  */
 void blk_mq_flush_busy_ctxs(struct blk_mq_hw_ctx *hctx, struct list_head *list)
 {
@@ -911,6 +915,9 @@ static inline unsigned int queued_to_index(unsigned int queued)
 	return min(BLK_MQ_MAX_DISPATCH_ORDER - 1, ilog2(queued) + 1);
 }
 
+/*
+ * 根据rq->mq_ctx->cpu 给 rq 分配一个对应的 hctx，并挂到对应的hctx->tags->rqs队列上
+ */
 bool blk_mq_get_driver_tag(struct request *rq, struct blk_mq_hw_ctx **hctx,
 			   bool wait)
 {
@@ -1037,6 +1044,9 @@ static bool blk_mq_dispatch_wait_add(struct blk_mq_hw_ctx *hctx)
 	return true;
 }
 
+/*
+ * 分发到hwctx 对应的硬件queue上
+ */
 bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list)
 {
 	struct blk_mq_hw_ctx *hctx;
@@ -1458,6 +1468,9 @@ void blk_mq_request_bypass_insert(struct request *rq)
 	blk_mq_run_hw_queue(hctx, false);
 }
 
+/*
+ * 放到 ctx 里面去
+ */
 void blk_mq_insert_requests(struct blk_mq_hw_ctx *hctx, struct blk_mq_ctx *ctx,
 			    struct list_head *list)
 
