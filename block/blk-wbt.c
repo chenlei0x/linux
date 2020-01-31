@@ -223,6 +223,7 @@ static bool calc_wb_limits(struct rq_wb *rwb)
 		 * increase performance.
 		 */
 		depth = min_t(unsigned int, RWB_DEF_DEPTH, rwb->queue_depth);
+		/*scale_step > 0 要减少depth 同时降低 cur_win_nsec*/
 		if (rwb->scale_step > 0)
 			depth = 1 + ((depth - 1) >> min(31, rwb->scale_step));
 		else if (rwb->scale_step < 0) {
@@ -417,6 +418,8 @@ static void wb_timer_fn(struct blk_stat_callback *cb)
 	 * If we exceeded the latency target, step down. If we did not,
 	 * step one level up. If we don't know enough to say either exceeded
 	 * or ok, then don't do anything.
+	 *
+	 * LAT_EXCEEDED 超时表明已经超出了当前的时间窗口，减小窗口窗口
 	 */
 	switch (status) {
 	case LAT_EXCEEDED:
@@ -523,6 +526,11 @@ static inline bool may_queue(struct rq_wb *rwb, struct rq_wait *rqw,
 	    rqw->wait.head.next != &wait->entry)
 		return false;
 
+/* 
+ * 只要inflight 小于 limit，那么就得继续等待，
+ * 也就是说limit代表着当前可以运行中的io
+ * inflight 会在wbt_done 里面减1
+ */
 	return atomic_inc_below(&rqw->inflight, get_limit(rwb, rw));
 }
 

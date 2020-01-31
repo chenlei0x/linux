@@ -64,6 +64,7 @@ struct rq_wait {
 struct rq_wb {
 	/*
 	 * Settings that govern how we throttle
+	 * 以下这三个值，都是通过queue_depth 计算出来的
 	 */
 	unsigned int wb_background;		/* background writeback */
 	unsigned int wb_normal;			/* normal writeback */
@@ -87,8 +88,8 @@ struct rq_wb {
 	s64 sync_issue;
 	void *sync_cookie;
 
-	unsigned int wc;
-	unsigned int queue_depth;
+	unsigned int wc; 
+	unsigned int queue_depth;  /*初始值 RWB_DEF_DEPTH queue depth 决定了wb_max ===> wb_normal ==> wb_backgroud*/
 
 	unsigned long last_issue;		/* last non-throttled issue */
 	unsigned long last_comp;		/* last non-throttled comp */

@@ -146,6 +146,7 @@ static struct static_key_true *cgroup_subsys_on_dfl_key[] = {
  * The default hierarchy, reserved for the subsystems that are otherwise
  * unattached - it never has more than a single cgroup, and all tasks are
  * part of that cgroup.
+ * 默认的 cgroup root，包含了所有的subsys
  */
 struct cgroup_root cgrp_dfl_root;
 EXPORT_SYMBOL_GPL(cgrp_dfl_root);
@@ -297,6 +298,10 @@ static int cgroup_idr_alloc(struct idr *idr, void *ptr, int start, int end,
 
 	idr_preload(gfp_mask);
 	spin_lock_bh(&cgroup_idr_lock);
+	/* 
+	 * ret 为idr 分配的id号， ptr 为这个id号对应的指针
+	 * 可以用idr接口通过id号找到这个ptr
+	 */
 	ret = idr_alloc(idr, ptr, start, end, gfp_mask & ~__GFP_DIRECT_RECLAIM);
 	spin_unlock_bh(&cgroup_idr_lock);
 	idr_preload_end();
@@ -483,6 +488,7 @@ static struct cgroup_subsys_state *cgroup_e_css(struct cgroup *cgrp,
 	/*
 	 * This function is used while updating css associations and thus
 	 * can't test the csses directly.  Test ss_mask.
+	 * 如果本层cgroup 找不到对应的css 就一直往上找
 	 */
 	while (!(cgroup_ss_mask(cgrp) & (1 << ss->id))) {
 		cgrp = cgroup_parent(cgrp);
@@ -5128,6 +5134,7 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss, bool early)
 	INIT_LIST_HEAD(&ss->cfts);
 
 	/* Create the root cgroup state for this subsystem */
+	/* ss->root 指向该 subsys(mem, cpu, cpuacct)的root 节点，例如 /sys/fs/cgroup/memory */
 	ss->root = &cgrp_dfl_root;
 	css = ss->css_alloc(cgroup_css(&cgrp_dfl_root.cgrp, ss));
 	/* We don't handle early failures gracefully */
@@ -5212,6 +5219,7 @@ static u16 cgroup_disable_mask __initdata;
  *
  * Register cgroup filesystem and /proc file, and initialize
  * any subsystems that didn't request early init.
+ * start_kernel 会调用这个函数
  */
 int __init cgroup_init(void)
 {
