@@ -2878,6 +2878,9 @@ static bool css_visible(struct cgroup_subsys_state *css)
  * Returns 0 on success, -errno on failure.  On failure, csses which have
  * been processed already aren't cleaned up.  The caller is responsible for
  * cleaning up with cgroup_apply_control_disable().
+ * hierarchy上的每个文件夹都对应着一个cgroup
+ * cgroup中包含一个或者多个subsys
+ * 该函数用来给cgroup树创建其对应的subsys
  */
 static int cgroup_apply_control_enable(struct cgroup *cgrp)
 {
@@ -2886,6 +2889,10 @@ static int cgroup_apply_control_enable(struct cgroup *cgrp)
 	struct cgroup_subsys *ss;
 	int ssid, ret;
 
+	/*
+	 * dsct 指向一个cgroup
+	 * d_css 指向这个cgroup.self
+	 */
 	cgroup_for_each_live_descendant_pre(dsct, d_css, cgrp) {
 		for_each_subsys(ss, ssid) {
 			struct cgroup_subsys_state *css = cgroup_css(dsct, ss);
