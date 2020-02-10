@@ -45,7 +45,7 @@ struct blkcg {
 	struct cgroup_subsys_state	css;
 	spinlock_t			lock;
 
-	struct radix_tree_root		blkg_tree;
+	struct radix_tree_root		blkg_tree; /*k-v = q->id - blkcg_gq */
 	struct blkcg_gq	__rcu		*blkg_hint;
 	struct hlist_head		blkg_list;
 
@@ -103,11 +103,15 @@ struct blkcg_policy_data {
 };
 
 /* association between a blk cgroup and a request queue */
+/*
+ * blkcg_gq存在的意义在于每个blkcg可能包含多个q（而不是每个）的数据
+ * 所以把这些q对应的数据通过blkcg_tree组织起来
+ */
 struct blkcg_gq {
 	/* Pointer to the associated request_queue */
 	struct request_queue		*q;
-	struct list_head		q_node;
-	struct hlist_node		blkcg_node;
+	struct list_head		q_node;  /*属于同一个request_queue的用这个连接起来*/
+	struct hlist_node		blkcg_node; /*属于同一个blkcg 的blkcg_gq 用这个连接起来*/
 	struct blkcg			*blkcg;
 
 	/*
@@ -131,7 +135,7 @@ struct blkcg_gq {
 	struct blkg_rwstat		stat_bytes;
 	struct blkg_rwstat		stat_ios;
 
-	struct blkg_policy_data		*pd[BLKCG_MAX_POLS];
+	struct blkg_policy_data		*pd[BLKCG_MAX_POLS]; /*每个pd 都是该blkcg_gq独占的 在blkg_alloc里面被申请内存*/
 
 	struct rcu_head			rcu_head;
 };
@@ -148,17 +152,19 @@ typedef void (blkcg_pol_free_pd_fn)(struct blkg_policy_data *pd);
 typedef void (blkcg_pol_reset_pd_stats_fn)(struct blkg_policy_data *pd);
 
 struct blkcg_policy {
-	int				plid;
+	int				plid; /*block policy 数组下标*/
 	/* cgroup files for the policy */
 	struct cftype			*dfl_cftypes;
 	struct cftype			*legacy_cftypes;
 
 	/* operations */
+	/*以下方法针对各个blkcg*/
 	blkcg_pol_alloc_cpd_fn		*cpd_alloc_fn;
 	blkcg_pol_init_cpd_fn		*cpd_init_fn;
 	blkcg_pol_free_cpd_fn		*cpd_free_fn;
 	blkcg_pol_bind_cpd_fn		*cpd_bind_fn;
 
+	/*以下用来初始化一个blkcg_gq内的各个policy*/
 	blkcg_pol_alloc_pd_fn		*pd_alloc_fn;
 	blkcg_pol_init_pd_fn		*pd_init_fn;
 	blkcg_pol_online_pd_fn		*pd_online_fn;

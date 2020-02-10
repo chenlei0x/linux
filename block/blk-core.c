@@ -357,6 +357,8 @@ EXPORT_SYMBOL(blk_sync_queue);
  *    This variant runs the queue whether or not the queue has been
  *    stopped. Must be called with the queue lock held and interrupts
  *    disabled. See also @blk_run_queue.
+ *
+ * 调用驱动层的request_fn 来消耗request_queue上的queu_head链表
  */
 inline void __blk_run_queue_uncond(struct request_queue *q)
 {
@@ -778,6 +780,7 @@ struct request_queue *blk_alloc_queue(gfp_t gfp_mask)
 }
 EXPORT_SYMBOL(blk_alloc_queue);
 
+/*blk queue 现在是否可用*/
 int blk_queue_enter(struct request_queue *q, bool nowait)
 {
 	while (true) {
@@ -1804,6 +1807,7 @@ void blk_init_request_from_bio(struct request *req, struct bio *bio)
 }
 EXPORT_SYMBOL_GPL(blk_init_request_from_bio);
 
+/*single queue 的make_request_fn*/
 static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 {
 	struct blk_plug *plug;
@@ -1833,6 +1837,8 @@ static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 	/*
 	 * Check if we can merge with the plugged list before grabbing
 	 * any locks.
+	 * 
+	 * 先在进程的plug list里面尝试合并
 	 */
 	if (!blk_queue_nomerges(q)) {
 		if (blk_attempt_plug_merge(q, bio, &request_count, NULL))
@@ -1842,6 +1848,10 @@ static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 
 	spin_lock_irq(q->queue_lock);
 
+	/*
+	 * plug list 里面是合并不了了，那尝试在io调度层合并到某个req里面去
+	 * elv_merge不做合并，他只是返回一个可行的req，这个req可以收纳该bio
+	 */
 	switch (elv_merge(q, &req, bio)) {
 	case ELEVATOR_BACK_MERGE:
 		if (!bio_attempt_back_merge(q, req, bio))
@@ -1871,6 +1881,8 @@ get_rq:
 	wb_acct = wbt_wait(q->rq_wb, bio, q->queue_lock);
 
 	/*
+	 * 擦，实在无处安放这个bio了，只能给他搞个新的request了
+	 *
 	 * Grab a free request. This is might sleep but can not fail.
 	 * Returns with the queue unlocked.
 	 */
@@ -1892,6 +1904,8 @@ get_rq:
 	 * may now be mergeable after it had proven unmergeable (above).
 	 * We don't worry about that case for efficiency. It won't happen
 	 * often, and the elevators are able to handle it.
+	 *
+	 * 用bio初始化这个req
 	 */
 	blk_init_request_from_bio(req, bio);
 
@@ -1917,11 +1931,13 @@ get_rq:
 				trace_block_plug(q);
 			}
 		}
+		/*如果当前进程还处在plug状态，那就把他放到plug里面*/
 		list_add_tail(&req->queuelist, &plug->list);
 		blk_account_io_start(req, true);
 	} else {
+		/*如果没有plug，那就放掉调度层*/
 		spin_lock_irq(q->queue_lock);
-		add_acct_request(q, req, where);
+		add_acct_request(q, req, where); /*这里会调用__elv_add_request*/
 		__blk_run_queue(q);
 out_unlock:
 		spin_unlock_irq(q->queue_lock);

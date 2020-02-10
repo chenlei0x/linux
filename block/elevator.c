@@ -286,6 +286,9 @@ void elv_rqhash_del(struct request_queue *q, struct request *rq)
 }
 EXPORT_SYMBOL_GPL(elv_rqhash_del);
 
+/*
+ * 把rq按照 io最后一个sector为单位挂到e->hash 哈希表上
+ */
 void elv_rqhash_add(struct request_queue *q, struct request *rq)
 {
 	struct elevator_queue *e = q->elevator;
@@ -326,6 +329,8 @@ struct request *elv_rqhash_find(struct request_queue *q, sector_t offset)
 /*
  * RB-tree support functions for inserting/lookup/removal of requests
  * in a sorted RB tree.
+ *
+ * rb树按照pos排序
  */
 void elv_rb_add(struct rb_root *root, struct request *rq)
 {
@@ -380,6 +385,8 @@ EXPORT_SYMBOL(elv_rb_find);
  * Insert rq into dispatch queue of q.  Queue lock must be held on
  * entry.  rq is sort instead into the dispatch queue. To be used by
  * specific elevators.
+ *
+ * 按pos顺序挂到q->queue_head上
  */
 void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 {
@@ -438,6 +445,10 @@ void elv_dispatch_add_tail(struct request_queue *q, struct request *rq)
 }
 EXPORT_SYMBOL(elv_dispatch_add_tail);
 
+/*
+ * 通过bio 的起始sector 从哈希表中找出一个合适的req，哈希表中的
+ * key 为req的最终地址
+ */
 enum elv_merge elv_merge(struct request_queue *q, struct request **req,
 		struct bio *bio)
 {
@@ -526,6 +537,9 @@ bool elv_attempt_insert_merge(struct request_queue *q, struct request *rq)
 	return ret;
 }
 
+/*
+ * merge 之后要做一些处理
+ */
 void elv_merged_request(struct request_queue *q, struct request *rq,
 		enum elv_merge type)
 {
@@ -628,6 +642,7 @@ void elv_drain_elevator(struct request_queue *q)
 
 	lockdep_assert_held(q->queue_lock);
 
+	/*重新挂到q->queue_head上*/
 	while (e->type->ops.sq.elevator_dispatch_fn(q, 1))
 		;
 	if (q->nr_sorted && printed++ < 10) {
@@ -719,6 +734,9 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 }
 EXPORT_SYMBOL(__elv_add_request);
 
+/*
+ * 这是一个公共接口，会被驱动调用
+ */
 void elv_add_request(struct request_queue *q, struct request *rq, int where)
 {
 	unsigned long flags;
@@ -729,6 +747,9 @@ void elv_add_request(struct request_queue *q, struct request *rq, int where)
 }
 EXPORT_SYMBOL(elv_add_request);
 
+/*
+ * 下一个request
+ */
 struct request *elv_latter_request(struct request_queue *q, struct request *rq)
 {
 	struct elevator_queue *e = q->elevator;
@@ -741,6 +762,9 @@ struct request *elv_latter_request(struct request_queue *q, struct request *rq)
 	return NULL;
 }
 
+/*
+ * 上一个request
+ */
 struct request *elv_former_request(struct request_queue *q, struct request *rq)
 {
 	struct elevator_queue *e = q->elevator;
@@ -752,6 +776,9 @@ struct request *elv_former_request(struct request_queue *q, struct request *rq)
 	return NULL;
 }
 
+/*
+ * 申请rq相关的数据结构.
+ */
 int elv_set_request(struct request_queue *q, struct request *rq,
 		    struct bio *bio, gfp_t gfp_mask)
 {

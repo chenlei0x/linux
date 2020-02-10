@@ -532,7 +532,7 @@ struct cgroup_subsys {
 	void (*fork)(struct task_struct *task);
 	void (*exit)(struct task_struct *task);
 	void (*release)(struct task_struct *task);
-	void (*bind)(struct cgroup_subsys_state *root_css);
+	void (*bind)(struct cgroup_subsys_state *root_css); /*当一个subsys 被绑定到一个hierarchy上时会调用*/
 
 	bool early_init:1;
 

@@ -956,6 +956,10 @@ static bool compare_css_sets(struct css_set *cset,
  * @old_cset: the css_set that we're using before the cgroup transition
  * @cgrp: the cgroup that we're moving into
  * @template: out param for the new set of csses, should be clear on entry
+ * 
+ * @cgrp 是我们要移入的cgroup，其中可能含有多个css，old_cset中也指向了多个css，
+ * 把old_cset 中的css 更新为@cgrp中的相应的css，其他的保持不变，结果存放到
+ * @template里面
  */
 static struct css_set *find_existing_css_set(struct css_set *old_cset,
 					struct cgroup *cgrp,
@@ -1580,6 +1584,9 @@ static int css_populate_dir(struct cgroup_subsys_state *css)
 		return cgroup_addrm_files(&cgrp->self, cgrp, cfts, true);
 	}
 
+	/*
+	 * 给该css对应的cgruop 田间文件
+	 */
 	list_for_each_entry(cfts, &css->ss->cfts, node) {
 		ret = cgroup_addrm_files(css, cgrp, cfts, true);
 		if (ret < 0) {
@@ -2280,6 +2287,7 @@ static int cgroup_migrate_execute(struct cgroup_mgctx *mgctx)
 
 			get_css_set(to_cset);
 			to_cset->nr_tasks++;
+			/*把task_struct 结构体中的cgroup字段改为指向的cssa_set指针*/
 			css_set_move_task(task, from_cset, to_cset, true);
 			put_css_set_locked(from_cset);
 			from_cset->nr_tasks--;
@@ -2507,6 +2515,7 @@ int cgroup_migrate_prepare_dst(struct cgroup_mgctx *mgctx)
 		else
 			put_css_set(dst_cset);
 
+		/*并不是所有的css都需要被处理，只有不相等才需要被迁移*/
 		for_each_subsys(ss, ssid)
 			if (src_cset->subsys[ssid] != dst_cset->subsys[ssid])
 				mgctx->ss_mask |= 1 << ssid;
@@ -2759,6 +2768,8 @@ out_finish:
  * Because css offlining is asynchronous, userland may try to re-enable a
  * controller while the previous css is still around.  This function grabs
  * cgroup_mutex and drains the previous css instances of @cgrp's subtree.
+ * 
+ * 等待每个子cgroup offline
  */
 void cgroup_lock_and_drain_offline(struct cgroup *cgrp)
 	__acquires(&cgroup_mutex)
@@ -5303,6 +5314,9 @@ int __init cgroup_init(void)
 		if (ss->threaded)
 			cgrp_dfl_threaded_ss_mask |= 1 << ss->id;
 
+		/*
+		 * 给cgroup root节点添加文件
+		 */
 		if (ss->dfl_cftypes == ss->legacy_cftypes) {
 			WARN_ON(cgroup_add_cftypes(ss, ss->dfl_cftypes));
 		} else {
@@ -5313,6 +5327,10 @@ int __init cgroup_init(void)
 		if (ss->bind)
 			ss->bind(init_css_set.subsys[ssid]);
 
+
+		/*
+		 * init_css_set.subsys 字段在 cgroup_init_subsys函数中被初始化
+		 */
 		mutex_lock(&cgroup_mutex);
 		css_populate_dir(init_css_set.subsys[ssid]);
 		mutex_unlock(&cgroup_mutex);

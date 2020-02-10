@@ -61,22 +61,24 @@ typedef void (elevator_registered_fn) (struct request_queue *);
 
 struct elevator_ops
 {
-	elevator_merge_fn *elevator_merge_fn;
-	elevator_merged_fn *elevator_merged_fn;
+	elevator_merge_fn *elevator_merge_fn;	/*找到合适的req，并返回合并的方法，不执行实际的merge操作                       */
+	elevator_merged_fn *elevator_merged_fn;  /* attempt_back_merge 合并了两个req 之后需要的操作       */
+	
+	/* elv_merge_requests 合并两个req， 因为req + new_bio 可能会和前一个req或者后一个req合并*/
 	elevator_merge_req_fn *elevator_merge_req_fn;
-	elevator_allow_bio_merge_fn *elevator_allow_bio_merge_fn;
-	elevator_allow_rq_merge_fn *elevator_allow_rq_merge_fn;
-	elevator_bio_merged_fn *elevator_bio_merged_fn;
+	elevator_allow_bio_merge_fn *elevator_allow_bio_merge_fn; /* bio能否merge到rq里面 */
+	elevator_allow_rq_merge_fn *elevator_allow_rq_merge_fn; /*两个req之间是否合并*/
+	elevator_bio_merged_fn *elevator_bio_merged_fn; /*合并了bio之后的一些附加操作*/
 
-	elevator_dispatch_fn *elevator_dispatch_fn;
-	elevator_add_req_fn *elevator_add_req_fn;
+	elevator_dispatch_fn *elevator_dispatch_fn; /*重新挂载到q->queue_head上*/
+	elevator_add_req_fn *elevator_add_req_fn; /*添加req到调度层上*/
 	elevator_activate_req_fn *elevator_activate_req_fn;
 	elevator_deactivate_req_fn *elevator_deactivate_req_fn;
 
 	elevator_completed_req_fn *elevator_completed_req_fn;
 
-	elevator_request_list_fn *elevator_former_req_fn;
-	elevator_request_list_fn *elevator_latter_req_fn;
+	elevator_request_list_fn *elevator_former_req_fn; /*找前一个req*/
+	elevator_request_list_fn *elevator_latter_req_fn; /*找下一个req*/
 
 	elevator_init_icq_fn *elevator_init_icq_fn;	/* see iocontext.h */
 	elevator_exit_icq_fn *elevator_exit_icq_fn;	/* ditto */
@@ -86,7 +88,7 @@ struct elevator_ops
 
 	elevator_may_queue_fn *elevator_may_queue_fn;
 
-	elevator_init_fn *elevator_init_fn;
+	elevator_init_fn *elevator_init_fn; /*给rq增加一个elevator*/
 	elevator_exit_fn *elevator_exit_fn;
 	elevator_registered_fn *elevator_registered_fn;
 };

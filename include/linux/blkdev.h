@@ -439,7 +439,7 @@ struct request_queue {
 	/* Called from inside blk_get_request() */
 	void (*initialize_rq_fn)(struct request *rq);
 
-	const struct blk_mq_ops	*mq_ops;
+	const struct blk_mq_ops	*mq_ops; /*标志single queue 还是 multi queue 的标志 非空表示该queue是mq*/
 
 	unsigned int		*mq_map;
 

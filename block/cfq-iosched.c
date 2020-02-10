@@ -402,6 +402,9 @@ struct cfq_data {
 static struct cfq_group *cfq_get_next_cfqg(struct cfq_data *cfqd);
 static void cfq_put_queue(struct cfq_queue *cfqq);
 
+/*
+ * 从cfqg中根据class 和type得到对应的cfqq
+ */
 static struct cfq_rb_root *st_for(struct cfq_group *cfqg,
 					    enum wl_class_t class,
 					    enum wl_type_t type)
@@ -622,16 +625,19 @@ static inline struct blkcg_gq *cfqg_to_blkg(struct cfq_group *cfqg)
 
 static struct blkcg_policy blkcg_policy_cfq;
 
+/*blkg : cg --- q*/
 static inline struct cfq_group *blkg_to_cfqg(struct blkcg_gq *blkg)
 {
 	return pd_to_cfqg(blkg_to_pd(blkg, &blkcg_policy_cfq));
 }
 
+/*blkcg->blkcg_policy_data	*cpd[BLKCG_MAX_POLS]*/
 static struct cfq_group_data *blkcg_to_cfqgd(struct blkcg *blkcg)
 {
 	return cpd_to_cfqgd(blkcg_to_cpd(blkcg, &blkcg_policy_cfq));
 }
 
+/*cfqg---> blkcg_gq ---> parent ---> cfqg*/
 static inline struct cfq_group *cfqg_parent(struct cfq_group *cfqg)
 {
 	struct blkcg_gq *pblkg = cfqg_to_blkg(cfqg)->parent;
@@ -3814,6 +3820,7 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 	struct cfq_group *cfqg;
 
 	rcu_read_lock();
+	/*blkcg 中包含多个blkg， blkg中包含多个policy，cfq是其中的一个policy*/
 	cfqg = cfq_lookup_cfqg(cfqd, bio_blkcg(bio));
 	if (!cfqg) {
 		cfqq = &cfqd->oom_cfqq;
@@ -4422,6 +4429,7 @@ cfq_set_request(struct request_queue *q, struct request *rq, struct bio *bio,
 		gfp_t gfp_mask)
 {
 	struct cfq_data *cfqd = q->elevator->elevator_data;
+	/*cic->icq = [io_context, queue]*/
 	struct cfq_io_cq *cic = icq_to_cic(rq->elv.icq);
 	const int rw = rq_data_dir(rq);
 	const bool is_sync = rq_is_sync(rq);
@@ -4436,6 +4444,7 @@ new_queue:
 	if (!cfqq || cfqq == &cfqd->oom_cfqq) {
 		if (cfqq)
 			cfq_put_queue(cfqq);
+		/*cfq-queue还没有创建*/
 		cfqq = cfq_get_queue(cfqd, is_sync, cic, bio);
 		cic_set_cfqq(cic, cfqq, is_sync);
 	} else {

@@ -345,10 +345,16 @@ struct address_space_operations {
 
 	int (*readpages)(struct file *filp, struct address_space *mapping,
 			struct list_head *pages, unsigned nr_pages);
-
+	/*
+	 * 进行数据写入前的处理，由底层文件系统实现，主要处理需要申请额外的存储空间，
+	 * 以及从后端存储（磁盘或者网络）读取不在缓存里的page数据。该函数返回locked的page。
+	 */
 	int (*write_begin)(struct file *, struct address_space *mapping,
 				loff_t pos, unsigned len, unsigned flags,
 				struct page **pagep, void **fsdata);
+	/*
+	 * 通过调用底层文件系统的a_ops->write_end()将page这是为dirty并unlock。
+	 */
 	int (*write_end)(struct file *, struct address_space *mapping,
 				loff_t pos, unsigned len, unsigned copied,
 				struct page *page, void *fsdata);

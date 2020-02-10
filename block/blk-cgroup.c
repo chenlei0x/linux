@@ -205,6 +205,7 @@ static struct blkcg_gq *blkg_create(struct blkcg *blkcg,
 	blkg->wb_congested = wb_congested;
 
 	/* link parent */
+	/*blkcg 的父节点也是从blkcg，其中也一定含有该queue的blkg*/
 	if (blkcg_parent(blkcg)) {
 		blkg->parent = __blkg_lookup(blkcg_parent(blkcg), q, false);
 		if (WARN_ON_ONCE(!blkg->parent)) {
@@ -268,6 +269,8 @@ err_free_blkg:
  * Returns pointer to the looked up or created blkg on success, ERR_PTR()
  * value on error.  If @q is dead, returns ERR_PTR(-EINVAL).  If @q is not
  * dead and bypassing, returns ERR_PTR(-EBUSY).
+ *
+ * blkcg 中的radix tree 记录该blkcg中的所有的 <q,blkcg_gq>
  */
 struct blkcg_gq *blkg_lookup_create(struct blkcg *blkcg,
 				    struct request_queue *q)
@@ -1135,10 +1138,12 @@ int blkcg_init_queue(struct request_queue *q)
 	bool preloaded;
 	int ret;
 
+	/*blkcg_gq 连接着request queue 和 blkcg*/
 	new_blkg = blkg_alloc(&blkcg_root, q, GFP_KERNEL);
 	if (!new_blkg)
 		return -ENOMEM;
 
+	/*radix tree节点从某个cache上申请，提前扩大一下他*/
 	preloaded = !radix_tree_preload(GFP_KERNEL);
 
 	/*

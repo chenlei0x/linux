@@ -244,6 +244,9 @@ static unsigned int __blk_recalc_rq_segments(struct request_queue *q,
 	fbio = bio;
 	cluster = blk_queue_cluster(q);
 	seg_size = 0;
+	/*
+	 * bio 描述的是物理磁盘上一段连续的空间，但是在内存上可能由多段不连续的内存组成
+	 */
 	nr_phys_segs = 0;
 	for_each_bio(bio) {
 		bio_for_each_segment(bv, bio, iter) {
@@ -595,6 +598,7 @@ static int ll_merge_requests_fn(struct request_queue *q, struct request *req,
 
 	total_phys_segments = req->nr_phys_segments + next->nr_phys_segments;
 	if (blk_phys_contig_segment(q, req->biotail, next->bio)) {
+		/*如果nr_phys_segments == 1 则back size = front size，那么修改了back size，也需要更新front size*/
 		if (req->nr_phys_segments == 1)
 			req->bio->bi_seg_front_size = seg_size;
 		if (next->nr_phys_segments == 1)
@@ -760,6 +764,7 @@ static struct request *attempt_merge(struct request_queue *q,
 
 struct request *attempt_back_merge(struct request_queue *q, struct request *rq)
 {
+	/*找出合适的next*/
 	struct request *next = elv_latter_request(q, rq);
 
 	if (next)
