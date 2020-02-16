@@ -68,6 +68,8 @@ enum {
  * - Linking and unlinking icq's are performed while holding both ioc and q
  *   locks.  Due to the lock ordering, q exit is simple but ioc exit
  *   requires reverse-order double lock dance.
+ *
+ * 某个进程的针对某个queue的context
  */
 struct io_cq {
 	struct request_queue	*q;

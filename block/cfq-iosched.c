@@ -29,10 +29,10 @@ static const u64 cfq_fifo_expire[2] = { NSEC_PER_SEC / 4, NSEC_PER_SEC / 8 };
 static const int cfq_back_max = 16 * 1024;
 /* penalty of a backwards seek */
 static const int cfq_back_penalty = 2;
-static const u64 cfq_slice_sync = NSEC_PER_SEC / 10;
-static u64 cfq_slice_async = NSEC_PER_SEC / 25;
+static const u64 cfq_slice_sync = NSEC_PER_SEC / 10; /*100ms*/
+static u64 cfq_slice_async = NSEC_PER_SEC / 25; /*40ms*/
 static const int cfq_slice_async_rq = 2;
-static u64 cfq_slice_idle = NSEC_PER_SEC / 125;
+static u64 cfq_slice_idle = NSEC_PER_SEC / 125;/*8sm*/
 static u64 cfq_group_idle = NSEC_PER_SEC / 125;
 static const u64 cfq_target_latency = (u64)NSEC_PER_SEC * 3/10; /* 300 ms */
 static const int cfq_hist_divisor = 4;
@@ -113,37 +113,60 @@ struct cfq_queue {
 	unsigned int flags;
 	/* parent cfq_data */
 	struct cfq_data *cfqd;
+	
 	/* service_tree member */
+	/*st_for(cfqq->cfqg, cfqq_class(cfqq), cfqq_type(cfqq)) 的anchor*/
 	struct rb_node rb_node;
+	
 	/* service_tree key */
 	u64 rb_key;
+
+	
 	/* prio tree member */
+	/*cfqd->prio_trees[cfqq->org_ioprio] 的anchor*/
 	struct rb_node p_node;
-	/* prio tree root we belong to, if any */
-	struct rb_root *p_root;
-	/* sorted list of pending requests */
+
+	
+	/* 
+	 * prio tree root we belong to, if any
+	 * cfqd->prio_trees[cfqq->org_ioprio]，可能为空
+	 */
+	struct rb_root *p_root;  /*指向cfqd->prio_trees[cfqq->org_ioprio]*/
+	/* sorted list of pending requests， 排序的key = blk_rq_pos， anchor rq->rb_node*/
+
+	
 	struct rb_root sort_list;
+
+	
 	/* if fifo isn't expired, next request to serve */
 	struct request *next_rq;
 	/* requests queued in sort_list */
-	int queued[2];
-	/* currently allocated requests */
+	int queued[2];/*sync 还是 async*/
+	/* currently allocated requests, 2 --- rw */
 	int allocated[2];
-	/* fifo list of requests in sort_list */
-	struct list_head fifo;
+	
+	/*
+	 * fifo list of requests in sort_list 
+	 * request 连接在这里
+	 */
+	struct list_head fifo; 
 
 	/* time when queue got scheduled in to dispatch first request. */
 	u64 dispatch_start;
 	u64 allocated_slice;
-	u64 slice_dispatch;
+	u64 slice_dispatch; /*在这个slice内，dispatch了多少个req。每调用一次 cfq_dispatch_requests，加一*/
 	/* time when first request from queue completed and slice started. */
 	u64 slice_start;
 	u64 slice_end;
-	s64 slice_resid;
+	s64 slice_resid; /*负数表示多跑了多久 negative resid count indicates slice overrun*/
 
 	/* pending priority requests */
 	int prio_pending;
-	/* number of requests that are on the dispatch list or inside driver */
+	/* 
+	 * number of requests that are on the dispatch list or inside driver
+	 * dispatch_request时，该值加一，也就是说只要挂到queue上，就加一
+	 * complete 时该值减一
+	 */
 	int dispatched;
 
 	/* io prio of this group */
@@ -155,7 +178,11 @@ struct cfq_queue {
 	u32 seek_history;
 	sector_t last_request_pos;
 
-	struct cfq_rb_root *service_tree;
+	/*
+	 * 指向 st_for(cfqq->cfqg, cfqq_class(cfqq), cfqq_type(cfqq))
+	 * 如果 cfq_cfqq_on_rr返回true，则该字段有效
+	 */
+	struct cfq_rb_root *service_tree; 
 	struct cfq_queue *new_cfqq;
 	struct cfq_group *cfqg;
 	/* Number of sectors dispatched from queue in single dispatch round */
@@ -233,7 +260,7 @@ struct cfq_group {
 	struct blkg_policy_data pd;
 
 	/* group service_tree member */
-	struct rb_node rb_node;
+	struct rb_node rb_node; /*q->cfqgd->grp_service_tree树的anchor*/
 
 	/* group service_tree key */
 	u64 vdisktime;
@@ -268,11 +295,11 @@ struct cfq_group {
 	 * this cfqg against the child cfqgs.  For the root cfqg, both
 	 * weights are kept in sync for backward compatibility.
 	 */
-	unsigned int weight;
+	unsigned int weight;	/*me VS sibling*/
 	unsigned int new_weight;
 	unsigned int dev_weight;
 
-	unsigned int leaf_weight;
+	unsigned int leaf_weight; /*me VS children*/
 	unsigned int new_leaf_weight;
 	unsigned int dev_leaf_weight;
 
@@ -297,6 +324,7 @@ struct cfq_group {
 	struct cfq_rb_root service_trees[2][3];
 	struct cfq_rb_root service_tree_idle;
 
+	/*最近一次被服务的相关信息*/
 	u64 saved_wl_slice;
 	enum wl_type_t saved_wl_type;
 	enum wl_class_t saved_wl_class;
@@ -314,7 +342,7 @@ struct cfq_group {
 
 struct cfq_io_cq {
 	struct io_cq		icq;		/* must be the first member */
-	struct cfq_queue	*cfqq[2];
+	struct cfq_queue	*cfqq[2];  /*sync 和 async cic_set_cfqq中设置, 这两个元素表明当前正在用的cfqq*/
 	struct cfq_ttime	ttime;
 	int			ioprio;		/* the current ioprio */
 #ifdef CONFIG_CFQ_GROUP_IOSCHED
@@ -328,7 +356,7 @@ struct cfq_io_cq {
 struct cfq_data {
 	struct request_queue *queue;
 	/* Root service tree for cfq_groups */
-	struct cfq_rb_root grp_service_tree;
+	struct cfq_rb_root grp_service_tree; /*所有的cfqg 都在这*/
 	struct cfq_group *root_group;
 
 	/*
@@ -344,19 +372,28 @@ struct cfq_data {
 	 * trees are used when determining if two or more queues are
 	 * interleaving requests (see cfq_close_cooperator).
 	 */
-	struct rb_root prio_trees[CFQ_PRIO_LISTS];
+	 /*每个元素都是一个红黑树，连接所有同优先级的cfqq，cfqq中的连接点为cfqq->p_node*/
+	struct rb_root prio_trees[CFQ_PRIO_LISTS]; 
 
 	unsigned int busy_queues;
 	unsigned int busy_sync_queues;
 
 	int rq_in_driver;
-	int rq_in_flight[2];
+	int rq_in_flight[2]; /*async sync 挂到q->queue_head加一，complete 减一*/
 
 	/*
 	 * queue-depth detection
 	 */
-	int rq_queued;
-	int hw_tag;
+	int rq_queued; /*自加一 当request (rq) is added*/
+	int hw_tag; 
+
+	/*
+	 * Native Command Queuing，简称NCQ
+	 * 原生指令排序(Native Command Queuing，简称NCQ)，原先是改善服务器硬盘存取控制技术,
+	 * 应用在SCSI和SATA 1.0/2.0/3.0接口硬盘读写的加速技术，
+	 * 其接口开启磁盘阵列RAID亦有所提升。透过硬盘固件、硬盘控制器以及操作系统三者的互相配合，
+	 * 改善硬盘内部磁区的读取顺序，可以提高硬盘效能约30%，
+	 * 亦能够轻微减轻硬盘损耗的速率。NCQ对用于服务器上的硬盘的效率提升尤为明显。 */
 	/*
 	 * hw_tag can be
 	 * -1 => indeterminate, (cfq will behave as if NCQ is present, to allow better detection)
@@ -369,7 +406,7 @@ struct cfq_data {
 	/*
 	 * idle window management
 	 */
-	struct hrtimer idle_slice_timer;
+	struct hrtimer idle_slice_timer; /*cfq_idle_slice_timer*/
 	struct work_struct unplug_work;
 
 	struct cfq_queue *active_queue;
@@ -386,9 +423,9 @@ struct cfq_data {
 	unsigned int cfq_slice_async_rq;
 	unsigned int cfq_latency;
 	u64 cfq_fifo_expire[2];
-	u64 cfq_slice[2];
+	u64 cfq_slice[2]; /* async sync*/
 	u64 cfq_slice_idle;
-	u64 cfq_group_idle;
+	u64 cfq_group_idle; /*再等多久，为了有更多的request进来*/
 	u64 cfq_target_latency;
 
 	/*
@@ -941,7 +978,7 @@ static inline void cfq_schedule_dispatch(struct cfq_data *cfqd)
 static inline u64 cfq_prio_slice(struct cfq_data *cfqd, bool sync,
 				 unsigned short prio)
 {
-	u64 base_slice = cfqd->cfq_slice[sync];
+	u64 base_slice = cfqd->cfq_slice[sync]; /*同步100ms，异步40ms*/
 	u64 slice = div_u64(base_slice, CFQ_SLICE_SCALE);
 
 	WARN_ON(prio >= IOPRIO_BE_NR);
@@ -1012,6 +1049,7 @@ static inline unsigned cfq_group_get_avg_queues(struct cfq_data *cfqd,
 
 	min_q = min(cfqg->busy_queues_avg[rt], busy);
 	max_q = max(cfqg->busy_queues_avg[rt], busy);
+	/*(max * divisor - (max - min) + round)/divisor 算均值*/
 	cfqg->busy_queues_avg[rt] = (mult * max_q + min_q + round) /
 		cfq_hist_divisor;
 	return cfqg->busy_queues_avg[rt];
@@ -1023,28 +1061,38 @@ cfq_group_slice(struct cfq_data *cfqd, struct cfq_group *cfqg)
 	return cfqd->cfq_target_latency * cfqg->vfraction >> CFQ_SERVICE_SHIFT;
 }
 
+
+/*
+ * 通过一系列公式，计算出一个cfq_queue所占用的time_slice。
+ * 首先计算cfq_cgroup中的平均cfq_queue个数，以及每个cfq_queue的time slice，
+ * 相乘得到expect_latency为这个cfq_group希望得到的time slice；
+ * 同时调用cfq_group_slice按照权重比例计算出cfq_group的time slice；
+ * 如果这个time slice小于expect_latency，则调整之前根据cfq_queue的优先级计算出的slice，
+ * 否则返回之前调用cfq_prio_to_slice得到的time slice
+ */
 static inline u64
 cfq_scaled_cfqq_slice(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
-	u64 slice = cfq_prio_to_slice(cfqd, cfqq);
+	u64 slice = cfq_prio_to_slice(cfqd, cfqq); /* > 100ms*/
 	if (cfqd->cfq_latency) {
+		/*默认cfqd->cfq_latency为1*/
 		/*
 		 * interested queues (we consider only the ones with the same
 		 * priority class in the cfq group)
 		 */
 		unsigned iq = cfq_group_get_avg_queues(cfqd, cfqq->cfqg,
 						cfq_class_rt(cfqq));
-		u64 sync_slice = cfqd->cfq_slice[1];
-		u64 expect_latency = sync_slice * iq;
-		u64 group_slice = cfq_group_slice(cfqd, cfqq->cfqg);
+		u64 sync_slice = cfqd->cfq_slice[1]; /*100 ms*/
+		u64 expect_latency = sync_slice * iq; /*这个cgroup希望得到的time slice*/
+		u64 group_slice = cfq_group_slice(cfqd, cfqq->cfqg); /*300ms * cfqg->vfraction*/
 
 		if (expect_latency > group_slice) {
-			u64 base_low_slice = 2 * cfqd->cfq_slice_idle;
+			u64 base_low_slice = 2 * cfqd->cfq_slice_idle; /* = 16 ms*/
 			u64 low_slice;
 
 			/* scale low_slice according to IO priority
 			 * and sync vs async */
-			low_slice = div64_u64(base_low_slice*slice, sync_slice);
+			low_slice = div64_u64(base_low_slice*slice, sync_slice); /*(16 * slice / 100)*/
 			low_slice = min(slice, low_slice);
 			/* the adapted slice value is scaled to fit all iqs
 			 * into the target latency */
@@ -1230,6 +1278,9 @@ static u64 cfq_slice_offset(struct cfq_data *cfqd,
 	/*
 	 * just an approximation, should be ok.
 	 */
+	/*
+	 *(cfqg->nr_cfqq - 1) *{ (sync & 最高优先级的slice) - (该cfqq的sliece)}
+	 */
 	return (cfqq->cfqg->nr_cfqq - 1) * (cfq_prio_slice(cfqd, 1, 0) -
 		       cfq_prio_slice(cfqd, cfq_cfqq_sync(cfqq), cfqq->ioprio));
 }
@@ -1249,6 +1300,7 @@ __cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	s64 key = cfqg_key(st, cfqg);
 	bool leftmost = true, rightmost = true;
 
+	/*key值小在左边*/
 	while (*node != NULL) {
 		parent = *node;
 		__cfqg = rb_entry_cfqg(parent);
@@ -1271,6 +1323,8 @@ __cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 
 /*
  * This has to be called only on activation of cfqg
+ *
+ * 更新 cfqg->new_weight ----> cfqg->weight
  */
 static void
 cfq_update_group_weight(struct cfq_group *cfqg)
@@ -1281,6 +1335,9 @@ cfq_update_group_weight(struct cfq_group *cfqg)
 	}
 }
 
+/*
+ * 更新 cfqg->new_leaf_weight ----> cfqg->leaf_weight
+ */
 static void
 cfq_update_group_leaf_weight(struct cfq_group *cfqg)
 {
@@ -1292,6 +1349,7 @@ cfq_update_group_leaf_weight(struct cfq_group *cfqg)
 	}
 }
 
+/*st 指向q->cfqgd->grp_service_tree*/
 static void
 cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 {
@@ -1308,6 +1366,7 @@ cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	 * because cfqg might already have been activated and is
 	 * contributing its current weight to the parent's child_weight.
 	 */
+	 /*更新 cfqg->new_leaf_weight ----> cfqg->leaf_weight*/
 	cfq_update_group_leaf_weight(cfqg);
 	__cfq_group_service_tree_add(st, cfqg);
 
@@ -1320,6 +1379,8 @@ cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	 * Start with the proportion tasks in this cfqg has against active
 	 * children cfqgs - its leaf_weight against children_weight.
 	 */
+	/* pos->nr_active 为0时更新父亲
+	 */
 	propagate = !pos->nr_active++;
 	pos->children_weight += pos->leaf_weight;
 	vfr = vfr * pos->leaf_weight / pos->children_weight;
@@ -1331,9 +1392,10 @@ cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	 * calculation should always continue to the root.
 	 */
 	while ((parent = cfqg_parent(pos))) {
+
 		if (propagate) {
 			cfq_update_group_weight(pos);
-			propagate = !parent->nr_active++;
+			propagate = !parent->nr_active++; 		/*非active的就加1，一直加到一个非active的parent*/
 			parent->children_weight += pos->weight;
 		}
 		vfr = vfr * pos->weight / parent->children_weight;
@@ -1351,6 +1413,7 @@ static inline u64 cfq_get_cfqg_vdisktime_delay(struct cfq_data *cfqd)
 		return CFQ_IOPS_MODE_GROUP_DELAY;
 }
 
+/*把cfqg 添加到 cfq_data->grp_service_tree*/
 static void
 cfq_group_notify_queue_add(struct cfq_data *cfqd, struct cfq_group *cfqg)
 {
@@ -1377,6 +1440,7 @@ cfq_group_notify_queue_add(struct cfq_data *cfqd, struct cfq_group *cfqg)
 	cfq_group_service_tree_add(st, cfqg);
 }
 
+/*把cfqg->rb_node 从 q->cfqgd->grp_service_tree卸载掉*/
 static void
 cfq_group_service_tree_del(struct cfq_rb_root *st, struct cfq_group *cfqg)
 {
@@ -1386,6 +1450,7 @@ cfq_group_service_tree_del(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	/*
 	 * Undo activation from cfq_group_service_tree_add().  Deactivate
 	 * @cfqg and propagate deactivation upwards.
+	 * pos->nr_active 从1 ===>>> 0 则更新父亲
 	 */
 	propagate = !--pos->nr_active;
 	pos->children_weight -= pos->leaf_weight;
@@ -1405,6 +1470,7 @@ cfq_group_service_tree_del(struct cfq_rb_root *st, struct cfq_group *cfqg)
 		pos = parent;
 	}
 
+	/*无论如何都会从树上删除*/
 	/* remove from the service tree */
 	if (!RB_EMPTY_NODE(&cfqg->rb_node))
 		cfq_rb_erase(&cfqg->rb_node, st);
@@ -1461,6 +1527,7 @@ static inline u64 cfq_cfqq_slice_usage(struct cfq_queue *cfqq,
 	return slice_used;
 }
 
+/*cfqg 被服务完了 需要做一些事情*/
 static void cfq_group_served(struct cfq_data *cfqd, struct cfq_group *cfqg,
 				struct cfq_queue *cfqq)
 {
@@ -1820,6 +1887,11 @@ static ssize_t cfqg_set_leaf_weight_device(struct kernfs_open_file *of,
 	return __cfqg_set_weight_device(of, buf, nbytes, off, false, true);
 }
 
+/*
+ * 用来设置一个blkcg内的weight 和 leaf_weight
+ * 并更新所有的blkg
+ * css blkcg cfqgd 一一对应
+ */
 static int __cfq_set_weight(struct cgroup_subsys_state *css, u64 val,
 			    bool on_dfl, bool reset_dev, bool is_leaf_weight)
 {
@@ -1845,6 +1917,9 @@ static int __cfq_set_weight(struct cgroup_subsys_state *css, u64 val,
 	else
 		cfqgd->leaf_weight = val;
 
+	/*
+	 * 对blkcg下的所有blkg(每个blkg对应一个q)设置其new_weight 或者new_leaf_weight
+	 */
 	hlist_for_each_entry(blkg, &blkcg->blkg_list, blkcg_node) {
 		struct cfq_group *cfqg = blkg_to_cfqg(blkg);
 
@@ -2201,6 +2276,9 @@ cfq_link_cfqq_cfqg(struct cfq_queue *cfqq, struct cfq_group *cfqg) {
  * The cfqd->service_trees holds all pending cfq_queue's that have
  * requests waiting to be processed. It is sorted in the order that
  * we will service the queues.
+ * 
+ * 把 cfq_queue(rb_node) 加入到cfqg->service tree中
+ * 再通过cfq_group_notify_queue_add 把cfqg 添加到cfq_data->grp_service_tree
  */
 static void cfq_service_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 				 bool add_front)
@@ -2313,6 +2391,7 @@ cfq_prio_tree_lookup(struct cfq_data *cfqd, struct rb_root *root,
 	return cfqq;
 }
 
+/*cfqq 放到 prior tree上,key = blk_rq_pos，可能并不放上去，如果key重复的话*/
 static void cfq_prio_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
 	struct rb_node **p, *parent;
@@ -2345,6 +2424,7 @@ static void cfq_resort_rr_list(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
 	/*
 	 * Resorting requires the cfqq to be on the RR list already.
+	 * rr 指cfqd->service tree
 	 */
 	if (cfq_cfqq_on_rr(cfqq)) {
 		cfq_service_tree_add(cfqd, cfqq, 0);
@@ -2379,14 +2459,17 @@ static void cfq_del_cfqq_rr(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	cfq_clear_cfqq_on_rr(cfqq);
 
 	if (!RB_EMPTY_NODE(&cfqq->rb_node)) {
+		/*把cfqq 从 cfqg->service_tree上卸掉*/
 		cfq_rb_erase(&cfqq->rb_node, cfqq->service_tree);
 		cfqq->service_tree = NULL;
 	}
 	if (cfqq->p_root) {
+		/*p_node p_root 分别是cfqd->prio_trees[cfqq->org_ioprio] 的 anchor 和 指针*/
 		rb_erase(&cfqq->p_node, cfqq->p_root);
 		cfqq->p_root = NULL;
 	}
 
+	/*再把cfqg 从cfqd->grp_service_tree上卸载掉，这里一定会卸载*/
 	cfq_group_notify_queue_del(cfqd, cfqq->cfqg);
 	BUG_ON(!cfqd->busy_queues);
 	cfqd->busy_queues--;
@@ -2420,6 +2503,8 @@ static void cfq_del_rq_rb(struct request *rq)
 	}
 }
 
+
+/*将rq安装到RQ_CFQQ上*/
 static void cfq_add_rq_rb(struct request *rq)
 {
 	struct cfq_queue *cfqq = RQ_CFQQ(rq);
@@ -2437,10 +2522,14 @@ static void cfq_add_rq_rb(struct request *rq)
 	 * check if this request is a better next-serve candidate
 	 */
 	prev = cfqq->next_rq;
+	/*cfqq->next_rq 和 rq 谁更适合作为下一个要服务的rq*/
 	cfqq->next_rq = cfq_choose_req(cfqd, cfqq->next_rq, rq, cfqd->last_position);
 
 	/*
 	 * adjust priority tree position, if ->next_rq changes
+	 *
+	 * cfqq->next_rq 变了，所以blk_rq_pos(cfqq->next_rq)也会变
+	 * 他在prio_trees中的位置需要调整
 	 */
 	if (prev != cfqq->next_rq)
 		cfq_prio_tree_add(cfqd, cfqq);
@@ -2671,6 +2760,7 @@ __cfq_slice_expired(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 	 * store what was left of this slice, if the queue idled/timed out
 	 */
 	if (timed_out) {
+		/*slice期间没有dispatch过req*/
 		if (cfq_cfqq_slice_new(cfqq))
 			cfqq->slice_resid = cfq_scaled_cfqq_slice(cfqd, cfqq);
 		else
@@ -2680,6 +2770,7 @@ __cfq_slice_expired(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 
 	cfq_group_served(cfqd, cfqq->cfqg, cfqq);
 
+	/*cfq_del_cfqq_rr 和 cfq_resort_rr_list是反操作 都是把cfqq 先卸掉，再装上*/
 	if (cfq_cfqq_on_rr(cfqq) && RB_EMPTY_ROOT(&cfqq->sort_list))
 		cfq_del_cfqq_rr(cfqd, cfqq);
 
@@ -2705,9 +2796,14 @@ static inline void cfq_slice_expired(struct cfq_data *cfqd, bool timed_out)
 /*
  * Get next queue for service. Unless we have a queue preemption,
  * we'll simply select the first cfqq in the service tree.
+ *
+ * 从serving_group中，也就是一个cfqg中，找到[class,type] 对应的树，从中选取第一个queue
  */
 static struct cfq_queue *cfq_get_next_queue(struct cfq_data *cfqd)
 {
+	/*
+	 * cfqd->serving_group 指向一个cfqg
+	 */
 	struct cfq_rb_root *st = st_for(cfqd->serving_group,
 			cfqd->serving_wl_class, cfqd->serving_wl_type);
 
@@ -2719,6 +2815,7 @@ static struct cfq_queue *cfq_get_next_queue(struct cfq_data *cfqd)
 		return NULL;
 	if (RB_EMPTY_ROOT(&st->rb.rb_root))
 		return NULL;
+	/*选cfqg下的cfqq tree(st) 的第一个*/
 	return cfq_rb_first(st);
 }
 
@@ -2775,7 +2872,7 @@ static inline int cfq_rq_close(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 static struct cfq_queue *cfqq_close(struct cfq_data *cfqd,
 				    struct cfq_queue *cur_cfqq)
 {
-	struct rb_root *root = &cfqd->prio_trees[cur_cfqq->org_ioprio];
+	struct rb_root *root = &cfqd->prio_trees[cur_cfqq->org_ioprio]; /*从这个树里面选一个合适的q*/
 	struct rb_node *parent, *node;
 	struct cfq_queue *__cfqq;
 	sector_t sector = cfqd->last_position;
@@ -2978,6 +3075,7 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 	else
 		sl = cfqd->cfq_slice_idle;
 
+	/*cfq_idle_slice_timer slice时间之后执行*/
 	hrtimer_start(&cfqd->idle_slice_timer, ns_to_ktime(sl),
 		      HRTIMER_MODE_REL);
 	cfqg_stats_set_start_idle_time(cfqq->cfqg);
@@ -3030,7 +3128,7 @@ static struct request *cfq_check_fifo(struct cfq_queue *cfqq)
 static inline int
 cfq_prio_to_maxrq(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
-	const int base_rq = cfqd->cfq_slice_async_rq;
+	const int base_rq = cfqd->cfq_slice_async_rq;  /* = 2*/
 
 	WARN_ON(cfqq->ioprio >= IOPRIO_BE_NR);
 
@@ -3101,8 +3199,10 @@ static enum wl_type_t cfq_choose_wl_type(struct cfq_data *cfqd,
 	u64 lowest_key = 0;
 	enum wl_type_t cur_best = SYNC_NOIDLE_WORKLOAD;
 
+	
 	for (i = 0; i <= SYNC_WORKLOAD; ++i) {
 		/* select the one with lowest rb_key */
+		/*从cfqg里面找第一个cfqq，该cfqq一定是即将要被调度的，key的选择详见 cfq_service_tree_add*/
 		queue = cfq_rb_first(st_for(cfqg, wl_class, i));
 		if (queue &&
 		    (!key_valid || queue->rb_key < lowest_key)) {
@@ -3126,6 +3226,7 @@ choose_wl_class_and_type(struct cfq_data *cfqd, struct cfq_group *cfqg)
 	u64 now = ktime_get_ns();
 
 	/* Choose next priority. RT > BE > IDLE */
+	/*先选class*/
 	if (cfq_group_busy_queues_wl(RT_WORKLOAD, cfqd, cfqg))
 		cfqd->serving_wl_class = RT_WORKLOAD;
 	else if (cfq_group_busy_queues_wl(BE_WORKLOAD, cfqd, cfqg))
@@ -3155,6 +3256,7 @@ choose_wl_class_and_type(struct cfq_data *cfqd, struct cfq_group *cfqg)
 
 new_workload:
 	/* otherwise select new workload type */
+	/* 再选type*/
 	cfqd->serving_wl_type = cfq_choose_wl_type(cfqd, cfqg,
 					cfqd->serving_wl_class);
 	st = st_for(cfqg, cfqd->serving_wl_class, cfqd->serving_wl_type);
@@ -3206,6 +3308,7 @@ static struct cfq_group *cfq_get_next_cfqg(struct cfq_data *cfqd)
 
 	if (RB_EMPTY_ROOT(&st->rb.rb_root))
 		return NULL;
+	/*先从cfqd->grp_service_tree里面选一个cfqg*/
 	cfqg = cfq_rb_first_group(st);
 	update_min_vdisktime(st);
 	return cfqg;
@@ -3519,7 +3622,8 @@ static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 		struct cfq_io_cq *cic = RQ_CIC(rq);
 
 		atomic_long_inc(&cic->icq.ioc->refcount);
-		cfqd->active_cic = cic;
+		/*cic代表某个进程需要对queue进行dispatch，所以现在开始我们除了这个进程的请求*/
+		cfqd->active_cic = cic; 
 	}
 
 	return true;
@@ -3528,6 +3632,8 @@ static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 /*
  * Find the cfqq that we need to service and move a request from that to the
  * dispatch list
+ *
+ * 如果不是force 只派发一个request，否则一直派发完
  */
 static int cfq_dispatch_requests(struct request_queue *q, int force)
 {
@@ -3820,7 +3926,10 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 	struct cfq_group *cfqg;
 
 	rcu_read_lock();
-	/*blkcg 中包含多个blkg， blkg中包含多个policy，cfq是其中的一个policy*/
+	/*
+	 * blkcg 中包含多个blkg(每个代表一个queue)， blkg中包含多个policy，cfq是其中的一个policy
+	 * 从该bio所处的css中找到对应的blkcg，再找到该blkcg下该q对应的blkg，再找到对应的policy，再找到对应的cfqg
+	 */
 	cfqg = cfq_lookup_cfqg(cfqd, bio_blkcg(bio));
 	if (!cfqg) {
 		cfqq = &cfqd->oom_cfqq;
@@ -3828,6 +3937,7 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 	}
 
 	if (!is_sync) {
+		/*如果是异步的，则直接从该cfqg中的异步cfqq(s)中根据prio 和class挑选一个cfqq*/
 		if (!ioprio_valid(cic->ioprio)) {
 			struct task_struct *tsk = current;
 			ioprio = task_nice_ioprio(tsk);
@@ -3839,6 +3949,7 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 			goto out;
 	}
 
+	/*同步的话就得创建了*/
 	cfqq = kmem_cache_alloc_node(cfq_pool,
 				     GFP_NOWAIT | __GFP_ZERO | __GFP_NOWARN,
 				     cfqd->queue->node);
@@ -4065,6 +4176,7 @@ static void cfq_preempt_queue(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	 */
 	BUG_ON(!cfq_cfqq_on_rr(cfqq));
 
+	/*抢占放到cfqg的service tree最前面*/
 	cfq_service_tree_add(cfqd, cfqq, 1);
 
 	cfqq->slice_end = 0;
@@ -4444,7 +4556,7 @@ new_queue:
 	if (!cfqq || cfqq == &cfqd->oom_cfqq) {
 		if (cfqq)
 			cfq_put_queue(cfqq);
-		/*cfq-queue还没有创建*/
+		/*cfq-queue还没有创建，异步直接拿现成的，同步得需要创建*/
 		cfqq = cfq_get_queue(cfqd, is_sync, cic, bio);
 		cic_set_cfqq(cic, cfqq, is_sync);
 	} else {
@@ -4453,6 +4565,7 @@ new_queue:
 		 */
 		if (cfq_cfqq_coop(cfqq) && cfq_cfqq_split_coop(cfqq)) {
 			cfq_log_cfqq(cfqd, cfqq, "breaking apart cfqq");
+			/*split_cfqq 返回是否应该分裂*/
 			cfqq = split_cfqq(cic, cfqq);
 			if (!cfqq)
 				goto new_queue;

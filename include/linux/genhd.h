@@ -86,8 +86,8 @@ struct disk_stats {
 	unsigned long ios[2];
 	unsigned long merges[2];
 	unsigned long ticks[2];
-	unsigned long io_ticks;
-	unsigned long time_in_queue;
+	unsigned long io_ticks; /*time elapsed 和下面的time in queue 相比，不考虑io个数*/
+	unsigned long time_in_queue; /*inflight*time_elapse 比如inflight 中有20个io，过了10ms，那就是20*10=200ms*/
 };
 
 #define PARTITION_META_INFO_VOLNAMELTH	64

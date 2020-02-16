@@ -41,7 +41,7 @@
 static DEFINE_MUTEX(blkcg_pol_register_mutex);
 static DEFINE_MUTEX(blkcg_pol_mutex);
 
-struct blkcg blkcg_root;
+struct blkcg blkcg_root; /*在blkcg_css_alloc 中初始化*/
 EXPORT_SYMBOL_GPL(blkcg_root);
 
 struct cgroup_subsys_state * const blkcg_root_css = &blkcg_root.css;
@@ -820,6 +820,7 @@ int blkg_conf_prep(struct blkcg *blkcg, const struct blkcg_policy *pol,
 	int key_len, part, ret;
 	char *body;
 
+	/*echo "8:16 rbps=2097152 wiops=120" > io.max*/
 	if (sscanf(input, "%u:%u%n", &major, &minor, &key_len) != 2)
 		return -EINVAL;
 
@@ -841,6 +842,7 @@ int blkg_conf_prep(struct blkcg *blkcg, const struct blkcg_policy *pol,
 	rcu_read_lock();
 	spin_lock_irq(q->queue_lock);
 
+	/*blkcg下查找q对应的bklg*/
 	blkg = blkg_lookup_check(blkcg, pol, q);
 	if (IS_ERR(blkg)) {
 		ret = PTR_ERR(blkg);
@@ -851,6 +853,8 @@ int blkg_conf_prep(struct blkcg *blkcg, const struct blkcg_policy *pol,
 		goto success;
 
 	/*
+	 * 没有对应的blkg 所以得创建，这里创建需要从bottom一直往上创建到root，
+	 * 给每个blkcg创建一个blkg
 	 * Create blkgs walking down from blkcg_root to @blkcg, so that all
 	 * non-root blkgs have access to their parents.
 	 */
@@ -1153,6 +1157,7 @@ int blkcg_init_queue(struct request_queue *q)
 	 */
 	rcu_read_lock();
 	spin_lock_irq(q->queue_lock);
+	/*创建该q对应的blkcg_gq, 并初始化*/
 	blkg = blkg_create(&blkcg_root, q, new_blkg);
 	if (IS_ERR(blkg))
 		goto err_unlock;
@@ -1296,6 +1301,8 @@ EXPORT_SYMBOL_GPL(io_cgrp_subsys);
  *
  * The caller is responsible for synchronizing [de]activations and policy
  * [un]registerations.  Returns 0 on success, -errno on failure.
+ *
+ * 给queue 的每一个 blkg 申请policy data(s)
  */
 int blkcg_activate_policy(struct request_queue *q,
 			  const struct blkcg_policy *pol)

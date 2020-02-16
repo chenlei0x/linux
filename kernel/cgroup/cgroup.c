@@ -1585,7 +1585,7 @@ static int css_populate_dir(struct cgroup_subsys_state *css)
 	}
 
 	/*
-	 * 给该css对应的cgruop 田间文件
+	 * 给该css对应的cgruop 添加文件
 	 */
 	list_for_each_entry(cfts, &css->ss->cfts, node) {
 		ret = cgroup_addrm_files(css, cgrp, cfts, true);
@@ -1626,6 +1626,7 @@ int rebind_subsystems(struct cgroup_root *dst_root, u16 ss_mask)
 			return -EBUSY;
 
 		/* can't move between two non-dummy roots either */
+		/* 目标和源总得有一个是cgrp_dfl_root*/
 		if (ss->root != &cgrp_dfl_root && dst_root != &cgrp_dfl_root)
 			return -EBUSY;
 	} while_each_subsys_mask();
@@ -1889,6 +1890,7 @@ int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask, int ref_flags)
 	if (ret)
 		goto cancel_ref;
 
+	/*给这个cgroup设置id*/
 	ret = cgroup_init_root_id(root);
 	if (ret)
 		goto cancel_ref;
@@ -1906,10 +1908,15 @@ int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask, int ref_flags)
 	}
 	root_cgrp->kn = root->kf_root->kn;
 
+	/*
+	 * 注意这里的ss 是 root_cgrp->self，不是任何一个subsys，所以添加的都是
+	 * cgroup_xxxxx, tasks 类的文件
+	 */
 	ret = css_populate_dir(&root_cgrp->self);
 	if (ret)
 		goto destroy_root;
 
+	/*把ss_mask对应的subsys全部绑定到这个cgroup_root上*/
 	ret = rebind_subsystems(root, ss_mask);
 	if (ret)
 		goto destroy_root;
@@ -2913,6 +2920,7 @@ static int cgroup_apply_control_enable(struct cgroup *cgrp)
 			if (!(cgroup_ss_mask(dsct) & (1 << ss->id)))
 				continue;
 
+			/*给cgrp下的每一个cgroup创建对应的css*/
 			if (!css) {
 				css = css_create(dsct, ss);
 				if (IS_ERR(css))
@@ -4717,6 +4725,8 @@ static void offline_css(struct cgroup_subsys_state *css)
  * Create a new css associated with @cgrp - @ss pair.  On success, the new
  * css is online and installed in @cgrp.  This function doesn't create the
  * interface files.  Returns 0 on success, -errno on failure.
+ *
+ * 给cgrp 创建ss 对应的css
  */
 static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
 					      struct cgroup_subsys *ss)
@@ -4734,6 +4744,7 @@ static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
 	if (IS_ERR(css))
 		return css;
 
+	/*css ss cgrp联系起来*/
 	init_and_link_css(css, ss, cgrp);
 
 	err = percpu_ref_init(&css->refcnt, css_release, 0, GFP_KERNEL);
@@ -5154,6 +5165,9 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss, bool early)
 	/* Create the root cgroup state for this subsystem */
 	/* ss->root 指向该 subsys(mem, cpu, cpuacct)的root 节点，例如 /sys/fs/cgroup/memory */
 	ss->root = &cgrp_dfl_root;
+	/*
+
+	 */
 	css = ss->css_alloc(cgroup_css(&cgrp_dfl_root.cgrp, ss));
 	/* We don't handle early failures gracefully */
 	BUG_ON(IS_ERR(css));
@@ -5189,6 +5203,7 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss, bool early)
 	 * need to invoke fork callbacks here. */
 	BUG_ON(!list_empty(&init_task.tasks));
 
+	/*css->cgroup->subsys[ss->id] 赋值为 css 才算online*/
 	BUG_ON(online_css(css));
 
 	mutex_unlock(&cgroup_mutex);
@@ -5224,6 +5239,7 @@ int __init cgroup_init_early(void)
 		if (!ss->legacy_name)
 			ss->legacy_name = cgroup_subsys_name[i];
 
+		/*cgrp_dfl_root.cgrp.subsys[] 全为NULL*/
 		if (ss->early_init)
 			cgroup_init_subsys(ss, true);
 	}

@@ -104,11 +104,15 @@ extern int cpuset_slab_spread_node(void);
 
 static inline int cpuset_do_page_mem_spread(void)
 {
+	/*#define PFA_SPREAD_PAGE	--- Spread page cache over cpuset */
+
 	return task_spread_page(current);
 }
 
 static inline int cpuset_do_slab_mem_spread(void)
 {
+	/* PFA_SPREAD_SLAB --- Spread some slab caches over cpuset */
+
 	return task_spread_slab(current);
 }
 

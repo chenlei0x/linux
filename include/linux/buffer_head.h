@@ -26,7 +26,7 @@ enum bh_state_bits {
 			  * IO completion of other buffers in the page
 			  */
 
-	BH_Mapped,	/* Has a disk mapping */
+	BH_Mapped,	/* Has a disk mapping 一个bh bdev 和 blknr 都被正确设置后，会标记为mapped*/
 	BH_New,		/* Disk mapping was newly created by get_block */
 	BH_Async_Read,	/* Is under end_buffer_async_read I/O */
 	BH_Async_Write,	/* Is under end_buffer_async_write I/O */
@@ -269,7 +269,7 @@ void buffer_init(void);
 /*
  * inline definitions
  */
-
+/*page->xxx = bh*/
 static inline void attach_page_buffers(struct page *page,
 		struct buffer_head *head)
 {

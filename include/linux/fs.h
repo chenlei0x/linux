@@ -618,6 +618,11 @@ struct inode {
 	struct timespec		i_ctime;
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	unsigned short          i_bytes;
+	
+	/*
+	 * 由文件系统在第一次mount的时候，通过set_blocksize设定，
+	 * 其值代表了当前文件系统的block大小
+	 */
 	unsigned int		i_blkbits;
 	enum rw_hint		i_write_hint;
 	blkcnt_t		i_blocks;

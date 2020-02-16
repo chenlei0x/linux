@@ -555,7 +555,7 @@ struct request_queue {
 	struct list_head	icq_list;
 #ifdef CONFIG_BLK_CGROUP
 	DECLARE_BITMAP		(blkcg_pols, BLKCG_MAX_POLS);
-	struct blkcg_gq		*root_blkg;
+	struct blkcg_gq		*root_blkg; /*该queue在root blkcg(blkcg_root) 中的blkcg*/
 	struct list_head	blkg_list;
 #endif
 

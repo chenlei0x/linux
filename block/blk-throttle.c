@@ -106,6 +106,7 @@ enum {
 	LIMIT_CNT,
 };
 
+/*数组为2 是为了区分r 还是w*/
 struct throtl_grp {
 	/* must be the first member */
 	struct blkg_policy_data pd;
@@ -484,6 +485,7 @@ static void throtl_service_queue_init(struct throtl_service_queue *sq)
 
 static struct blkg_policy_data *throtl_pd_alloc(gfp_t gfp, int node)
 {
+	/*tg是针对一个queue的 policy_data*/
 	struct throtl_grp *tg;
 	int rw;
 
@@ -536,6 +538,10 @@ static void throtl_pd_init(struct blkg_policy_data *pd)
 	 * they're all separate root groups right below throtl_data.
 	 * Limits of a group don't interact with limits of other groups
 	 * regardless of the position of the group in the hierarchy.
+	 */
+	/*
+	 * 如果blkcg在default hierarchy上，那么sq->parent_sq 指向 td->service_queue
+	 * 否则 指向parent blkg->service_queue
 	 */
 	sq->parent_sq = &td->service_queue;
 	if (cgroup_subsys_on_dfl(io_cgrp_subsys) && blkg->parent)
@@ -1599,8 +1605,9 @@ static ssize_t tg_set_limit(struct kernfs_open_file *of,
 	unsigned long idle_time;
 	unsigned long latency_time;
 	int ret;
-	int index = of_cft(of)->private;
+	int index = of_cft(of)->private; /*在 throtl_files中定义，要么为LIMIT_LOW， 要么为LIMIT_MAX*/
 
+	/*echo "8:16 rbps=2097152 wiops=120" > io.max*/
 	ret = blkg_conf_prep(blkcg, &blkcg_policy_throtl, buf, &ctx);
 	if (ret)
 		return ret;
@@ -2402,7 +2409,7 @@ int blk_throtl_init(struct request_queue *q)
 	td->low_upgrade_time = jiffies;
 	td->low_downgrade_time = jiffies;
 
-	/* activate policy */
+	/* activate policy 给q的每一个blkg申请policy data*/
 	ret = blkcg_activate_policy(q, &blkcg_policy_throtl);
 	if (ret) {
 		free_percpu(td->latency_buckets);

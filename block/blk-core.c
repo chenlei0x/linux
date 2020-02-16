@@ -2514,6 +2514,7 @@ static inline struct request *blk_pm_peek_request(struct request_queue *q,
 }
 #endif
 
+/*只要产生一个新的req时，就会new_io = true 调用该函数*/
 void blk_account_io_start(struct request *rq, bool new_io)
 {
 	struct hd_struct *part;

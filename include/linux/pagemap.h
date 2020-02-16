@@ -250,6 +250,7 @@ pgoff_t page_cache_next_hole(struct address_space *mapping,
 pgoff_t page_cache_prev_hole(struct address_space *mapping,
 			     pgoff_t index, unsigned long max_scan);
 
+/*FGP --- find get page*/
 #define FGP_ACCESSED		0x00000001
 #define FGP_LOCK		0x00000002
 #define FGP_CREAT		0x00000004
@@ -269,6 +270,8 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
  * page cache page, it is returned with an increased refcount.
  *
  * Otherwise, %NULL is returned.
+ *
+ * 只查询，不创建
  */
 static inline struct page *find_get_page(struct address_space *mapping,
 					pgoff_t offset)

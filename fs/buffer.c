@@ -211,13 +211,17 @@ __find_get_block_slow(struct block_device *bdev, sector_t block)
 	static DEFINE_RATELIMIT_STATE(last_warned, HZ, 1);
 
 	index = block >> (PAGE_SHIFT - bd_inode->i_blkbits);
+	/*只去找 不创建*/
 	page = find_get_page_flags(bd_mapping, index, FGP_ACCESSED);
 	if (!page)
 		goto out;
 
 	spin_lock(&bd_mapping->private_lock);
+	/*新创建的page不会创建对应的buffer*/
 	if (!page_has_buffers(page))
 		goto out_unlock;
+
+	/*有page buffer，page里面每个block都会对应成为一个bh吗？*/
 	head = page_buffers(page);
 	bh = head;
 	do {
@@ -860,6 +864,8 @@ int remove_inode_buffers(struct inode *inode)
  *
  * The retry flag is used to differentiate async IO (paging, swapping)
  * which may not fail from ordinary buffer allocations.
+ *
+ * @size 一个bh的大小
  */
 struct buffer_head *alloc_page_buffers(struct page *page, unsigned long size,
 		int retry)
@@ -875,7 +881,7 @@ try_again:
 		if (!bh)
 			goto no_grow;
 
-		bh->b_this_page = head;
+		bh->b_this_page = head; /*新的bh指向前一个bh*/
 		bh->b_blocknr = -1;
 		head = bh;
 
@@ -884,6 +890,8 @@ try_again:
 		/* Link the buffer to its page */
 		set_bh_page(bh, page, offset);
 	}
+
+	/*此时head指向的bh一个链表，他们用b_this_page连接起来，最后一个bh的b_this_page为空*/
 	return head;
 /*
  * In case anything failed, we just free everything we got.
@@ -928,6 +936,7 @@ link_dev_buffers(struct page *page, struct buffer_head *head)
 		bh = bh->b_this_page;
 	} while (bh);
 	tail->b_this_page = head;
+	/*page->xxx = bh*/
 	attach_page_buffers(page, head);
 }
 
@@ -1001,12 +1010,14 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	 */
 	gfp_mask |= __GFP_NOFAIL;
 
+	/*查找并创建page*/
 	page = find_or_create_page(inode->i_mapping, index, gfp_mask);
 	if (!page)
 		return ret;
 
 	BUG_ON(!PageLocked(page));
 
+	/*index << sizebits 表示这个page里面第一个block#*/
 	if (page_has_buffers(page)) {
 		bh = page_buffers(page);
 		if (bh->b_size == size) {
@@ -1021,6 +1032,8 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 
 	/*
 	 * Allocate some buffers for this page
+	 *
+	 * 拿到bh链表，他们用b_this_page连接起来，最后一个bh的b_this_page为空
 	 */
 	bh = alloc_page_buffers(page, size, 0);
 	if (!bh)
@@ -1032,7 +1045,9 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	 * run under the page lock.
 	 */
 	spin_lock(&inode->i_mapping->private_lock);
+	/*最后一个bh的b_this_page指向第一个bh*/
 	link_dev_buffers(page, bh);
+	/* 设置 	bh->b_bdev和	bh->b_blocknr*/
 	end_block = init_page_buffers(page, bdev, (sector_t)index << sizebits,
 			size);
 	spin_unlock(&inode->i_mapping->private_lock);
@@ -1054,12 +1069,13 @@ grow_buffers(struct block_device *bdev, sector_t block, int size, gfp_t gfp)
 	pgoff_t index;
 	int sizebits;
 
-	sizebits = -1;
+	sizebits = -1; /*PAGE 里面含有 2^sizebits 个block*/
 	do {
 		sizebits++;
 	} while ((size << sizebits) < PAGE_SIZE);
 
-	index = block >> sizebits;
+	/*index 指 page offset，单位是页，每页中含有 size * 2^sizebits B的数据*/
+	index = block >> sizebits; 
 
 	/*
 	 * Check for a block which wants to lie outside our maximum possible
@@ -1346,6 +1362,8 @@ lookup_bh_lru(struct block_device *bdev, sector_t block, unsigned size)
  * Perform a pagecache lookup for the matching buffer.  If it's there, refresh
  * it in the LRU and mark it as accessed.  If it is not present then return
  * NULL
+ *
+ * 先在bh_lrus cache里面找，找不到去pagecache里面找
  */
 struct buffer_head *
 __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
@@ -1354,7 +1372,10 @@ __find_get_block(struct block_device *bdev, sector_t block, unsigned size)
 
 	if (bh == NULL) {
 		/* __find_get_block_slow will mark the page accessed */
+		/*没找到  ，去pagecache里面试试*/
 		bh = __find_get_block_slow(bdev, block);
+
+		/*把这个bh 放到 bh_lrus中*/
 		if (bh)
 			bh_lru_install(bh);
 	} else
@@ -1376,6 +1397,7 @@ struct buffer_head *
 __getblk_gfp(struct block_device *bdev, sector_t block,
 	     unsigned size, gfp_t gfp)
 {
+	/*__find_get_block这个函数会调用两次，第二次在__getblk_slow*/
 	struct buffer_head *bh = __find_get_block(bdev, block, size);
 
 	might_sleep();
@@ -1458,6 +1480,7 @@ void invalidate_bh_lrus(void)
 }
 EXPORT_SYMBOL_GPL(invalidate_bh_lrus);
 
+/*bh->XXX = page*/
 void set_bh_page(struct buffer_head *bh,
 		struct page *page, unsigned long offset)
 {

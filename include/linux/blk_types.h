@@ -51,6 +51,8 @@ struct blk_issue_stat {
 /*
  * main unit of I/O for the block layer and lower layers (ie drivers and
  * stacking drivers)
+ *
+ * 描述磁盘上一段连续的sector，但是在内存中可能是分布存放的(用bi_io_vec表示)
  */
 struct bio {
 	struct bio		*bi_next;	/* request queue link */
