@@ -52,13 +52,17 @@ static struct workqueue_struct *kthrotld_workqueue;
  * the list starving others.
  *
  * To avoid such starvation, dispatched bios are queued separately
- * according to where they came from.  When they are again dispatched to
+ * according to where they came from. When they are again dispatched to
  * the parent, they're popped in round-robin order so that no single source
  * hogs the dispatch window.
+ * 被分发的bio按照他们的来源被排队。当他们需要被派发到父节点时，按照rr顺序弹出。
+ * 这样防止一个源
  *
  * throtl_qnode is used to keep the queued bios separated by their sources.
  * Bios are queued to throtl_qnode which in turn is queued to
  * throtl_service_queue and then dispatched in round-robin order.
+ * throtl_qnode 就是用来管理按照来源分类的bio队列。bio在throtl_qnode上排队，继而throtl_qnode
+ * 在throtl_service_queue 上排队，然后按照rr的顺序分发
  *
  * It's also used to track the reference counts on blkg's.  A qnode always
  * belongs to a throtl_grp and gets queued on itself or the parent, so
@@ -68,29 +72,37 @@ static struct workqueue_struct *kthrotld_workqueue;
  */
 struct throtl_qnode {
 	struct list_head	node;		/* service_queue->queued[] */
-	struct bio_list		bios;		/* queued bios */
+	struct bio_list		bios;		/* queued bios  此处连接所有的bio*/
 	struct throtl_grp	*tg;		/* tg this qnode belongs to */
 };
 
 struct throtl_service_queue {
+	/*
+	 * 我属于的sq，但是我可能并不在sq的pending_tree上
+	 * 可能的值: 1. td->service_queue 2. another_tg->service_queue
+	 * 
+	 * ！！！！因为我们重新mount了blkio cgroup 所以 该字段只指向td->service_queue！！！！
+	 */
 	struct throtl_service_queue *parent_sq;	/* the parent service_queue */
 
 	/*
 	 * Bios queued directly to this service_queue or dispatched from
 	 * children throtl_grp's.
+	 *
+	 * queued 中含有qnode_self 和 孩子的parent_qnode
 	 */
-	struct list_head	queued[2];	/* throtl_qnode [READ/WRITE] */
+	struct list_head	queued[2];	/* throtl_qnode [READ/WRITE] throtl_qnode在这里排队*/
 	unsigned int		nr_queued[2];	/* number of queued bios */
 
 	/*
 	 * RB tree of active children throtl_grp's, which are sorted by
 	 * their ->disptime.
 	 */
-	struct rb_root		pending_tree;	/* RB tree of active tgs */
-	struct rb_node		*first_pending;	/* first node in the tree */
+	struct rb_root		pending_tree;	/* RB tree of active tgs 初始为空，连接子tg->rb_node， key： tg->disptime*/
+	struct rb_node		*first_pending;	/* first node in the tree --- pending_tree中的第一个元素 */
 	unsigned int		nr_pending;	/* # queued in the tree */
 	unsigned long		first_pending_disptime;	/* disptime of the first tg */
-	struct timer_list	pending_timer;	/* fires on first_pending_disptime */
+	struct timer_list	pending_timer;	/* fires on first_pending_disptime  初始化throtl_pending_timer_fn*/
 };
 
 enum tg_state_flags {
@@ -106,19 +118,25 @@ enum {
 	LIMIT_CNT,
 };
 
-/*数组为2 是为了区分r 还是w*/
+/*
+ * 数组为2 是为了区分r 还是w
+ * 针对一个blkg的 policy_data
+ */
 struct throtl_grp {
 	/* must be the first member */
 	struct blkg_policy_data pd;
 
-	/* active throtl group service_queue member */
+	/*
+	 * active throtl group service_queue member
+	 * 挂在parent throtl_service_queue
+	 */
 	struct rb_node rb_node;
 
 	/* throtl_data this group belongs to */
 	struct throtl_data *td;
 
 	/* this group's service queue */
-	struct throtl_service_queue service_queue;
+	struct throtl_service_queue service_queue; /*直系子tg，及其qn全部挂在这里，anchor rb_node*/
 
 	/*
 	 * qnode_on_self is used when bios are directly queued to this
@@ -135,6 +153,8 @@ struct throtl_grp {
 	 * Dispatch time in jiffies. This is the estimated time when group
 	 * will unthrottle and is ready to dispatch more bio. It is used as
 	 * key to sort active groups in service tree.
+	 *
+	 * tg 的下一次派发时刻
 	 */
 	unsigned long disptime;
 
@@ -158,8 +178,9 @@ struct throtl_grp {
 	/* Number of bio's dispatched in current slice */
 	unsigned int io_disp[2];
 
-	unsigned long last_low_overflow_time[2];
+	unsigned long last_low_overflow_time[2]; /*是否超过low limit【RW】*/
 
+	/*这期【now - tg->last_check_time】间分发的io 和 bytes */
 	uint64_t last_bytes_disp[2];
 	unsigned int last_io_disp[2];
 
@@ -168,13 +189,14 @@ struct throtl_grp {
 	unsigned long latency_target; /* us */
 	unsigned long latency_target_conf; /* us */
 	/* When did we start a new slice */
+	/* 我们指的bps iops都是指该slice内的*/
 	unsigned long slice_start[2];
 	unsigned long slice_end[2];
 
-	unsigned long last_finish_time; /* ns / 1024 */
-	unsigned long checked_last_finish_time; /* ns / 1024 */
+	unsigned long last_finish_time; /* ns / 1024  blk_throtl_bio_endio更新，最近一次完成io的时刻*/
+	unsigned long checked_last_finish_time; /* ns / 1024  blk_throtl_update_idletime负责更新*/
 	unsigned long avg_idletime; /* ns / 1024 */
-	unsigned long idletime_threshold; /* us */
+	unsigned long idletime_threshold; /* us now - last_finish_time 用来获得和上次完成时刻过了多久 */
 	unsigned long idletime_threshold_conf; /* us */
 
 	unsigned int bio_cnt; /* total bios */
@@ -197,7 +219,8 @@ struct avg_latency_bucket {
 
 struct throtl_data
 {
-	/* service tree for active throtl groups */
+	/* service tree for active throtl groups ----- 原注释可能是错的*/
+	/*active throtl_qnode */
 	struct throtl_service_queue service_queue;
 
 	struct request_queue *queue;
@@ -205,14 +228,22 @@ struct throtl_data
 	/* Total Number of queued bios on READ and WRITE lists */
 	unsigned int nr_queued[2];
 
-	unsigned int throtl_slice;
+	unsigned int throtl_slice; /* HZ/50 ticks*/
 
 	/* Work for dispatching throttled bios */
-	struct work_struct dispatch_work;
+	/*指向 blk_throtl_dispatch_work_fn*/
+	struct work_struct dispatch_work; 
+
+	
+	/*
+	 * LIMIT_LOW,
+	 * LIMIT_MAX,
+	 * LIMIT_CNT,
+	 */
 	unsigned int limit_index;
 	bool limit_valid[LIMIT_CNT];
 
-	unsigned long low_upgrade_time;
+	unsigned long low_upgrade_time; /*jiffies值*/
 	unsigned long low_downgrade_time;
 
 	unsigned int scale;
@@ -293,6 +324,7 @@ static uint64_t throtl_adjusted_limit(uint64_t low, struct throtl_data *td)
 	return low + (low >> 1) * td->scale;
 }
 
+/*tg的bgs 限制*/
 static uint64_t tg_bps_limit(struct throtl_grp *tg, int rw)
 {
 	struct blkcg_gq *blkg = tg_to_blkg(tg);
@@ -323,6 +355,7 @@ static uint64_t tg_bps_limit(struct throtl_grp *tg, int rw)
 	return ret;
 }
 
+/*tg的iops 限制*/
 static unsigned int tg_iops_limit(struct throtl_grp *tg, int rw)
 {
 	struct blkcg_gq *blkg = tg_to_blkg(tg);
@@ -406,11 +439,15 @@ static void throtl_qnode_init(struct throtl_qnode *qn, struct throtl_grp *tg)
  * Add @bio to @qn and put @qn on @queued if it's not already on.
  * @qn->tg's reference count is bumped when @qn is activated.  See the
  * comment on top of throtl_qnode definition for details.
+ *
+ * bio 加入到throtl_qnode中
+ * qn 加入到 queued
  */
 static void throtl_qnode_add_bio(struct bio *bio, struct throtl_qnode *qn,
 				 struct list_head *queued)
 {
 	bio_list_add(&qn->bios, bio);
+	/*把qn 加入到queued里面*/
 	if (list_empty(&qn->node)) {
 		list_add_tail(&qn->node, queued);
 		blkg_get(tg_to_blkg(qn->tg));
@@ -451,22 +488,26 @@ static struct bio *throtl_peek_queued(struct list_head *queued)
 static struct bio *throtl_pop_queued(struct list_head *queued,
 				     struct throtl_grp **tg_to_put)
 {
+	/*queued第一个元素, 也就是第一个qn*/
 	struct throtl_qnode *qn = list_first_entry(queued, struct throtl_qnode, node);
 	struct bio *bio;
 
 	if (list_empty(queued))
 		return NULL;
 
+	/*第一个qn 的第一个bio*/
 	bio = bio_list_pop(&qn->bios);
 	WARN_ON_ONCE(!bio);
 
 	if (bio_list_empty(&qn->bios)) {
+		/*qn里面没有bio了，put一下qn对应的tg*/
 		list_del_init(&qn->node);
 		if (tg_to_put)
 			*tg_to_put = qn->tg;
 		else
 			blkg_put(tg_to_blkg(qn->tg));
 	} else {
+		/*挪后面去*/
 		list_move_tail(&qn->node, queued);
 	}
 
@@ -485,7 +526,7 @@ static void throtl_service_queue_init(struct throtl_service_queue *sq)
 
 static struct blkg_policy_data *throtl_pd_alloc(gfp_t gfp, int node)
 {
-	/*tg是针对一个queue的 policy_data*/
+	/*tg是针对一个blkg的 policy_data*/
 	struct throtl_grp *tg;
 	int rw;
 
@@ -541,9 +582,13 @@ static void throtl_pd_init(struct blkg_policy_data *pd)
 	 */
 	/*
 	 * 如果blkcg在default hierarchy上，那么sq->parent_sq 指向 td->service_queue
-	 * 否则 指向parent blkg->service_queue
+	 * 否则 指向parent_blkg->service_queue
 	 */
 	sq->parent_sq = &td->service_queue;
+	
+	/*
+	 * 默认不会走到下面的分支，因为已经mount到其他dir上了
+	 */
 	if (cgroup_subsys_on_dfl(io_cgrp_subsys) && blkg->parent)
 		sq->parent_sq = &blkg_to_tg(blkg->parent)->service_queue;
 	tg->td = td;
@@ -583,6 +628,7 @@ static void blk_throtl_update_limit_valid(struct throtl_data *td)
 	struct blkcg_gq *blkg;
 	bool low_valid = false;
 
+	/*对于每一个blkg，只要有一个bps iops LOW不等于0， 即valid*/
 	rcu_read_lock();
 	blkg_for_each_descendant_post(blkg, pos_css, td->queue->root_blkg) {
 		struct throtl_grp *tg = blkg_to_tg(blkg);
@@ -642,6 +688,7 @@ static void rb_erase_init(struct rb_node *n, struct rb_root *root)
 	RB_CLEAR_NODE(n);
 }
 
+/*把n从 parent_sq 删掉*/
 static void throtl_rb_erase(struct rb_node *n,
 			    struct throtl_service_queue *parent_sq)
 {
@@ -662,8 +709,10 @@ static void update_min_dispatch_time(struct throtl_service_queue *parent_sq)
 	parent_sq->first_pending_disptime = tg->disptime;
 }
 
+/*把tg挂到parent throtl_service_queue上，anchor: rb_node*/
 static void tg_service_queue_add(struct throtl_grp *tg)
 {
+	/*我属于的sq，但是我可能并不在sq的pending_tree上*/
 	struct throtl_service_queue *parent_sq = tg->service_queue.parent_sq;
 	struct rb_node **node = &parent_sq->pending_tree.rb_node;
 	struct rb_node *parent = NULL;
@@ -863,6 +912,12 @@ static inline void throtl_trim_slice(struct throtl_grp *tg, bool rw)
 
 	if (!nr_slices)
 		return;
+	/* 
+	 * throtl_slice = HZ/50
+	 * tg->td->throtl_slice * nr_slices 经过的总共的tick数量
+	 * tg->td->throtl_slice * nr_slices/HZ 经过的秒数
+	 * 经过的秒数 * bps = 这些秒内发送的bytes字节量
+	 */
 	tmp = tg_bps_limit(tg, rw) * tg->td->throtl_slice * nr_slices;
 	do_div(tmp, HZ);
 	bytes_trim = tmp;
@@ -1074,6 +1129,8 @@ static void throtl_charge_bio(struct throtl_grp *tg, struct bio *bio)
  *
  * Add @bio to @tg's service_queue using @qn.  If @qn is not specified,
  * tg->qnode_on_self[] is used.
+ * 
+ * 步骤: bio ==> qn; qn==> @tg::sq::queued[rw]; tg ==> parent::throtl_service_queue
  */
 static void throtl_add_bio_tg(struct bio *bio, struct throtl_qnode *qn,
 			      struct throtl_grp *tg)
@@ -1096,6 +1153,7 @@ static void throtl_add_bio_tg(struct bio *bio, struct throtl_qnode *qn,
 	throtl_qnode_add_bio(bio, qn, &sq->queued[rw]);
 
 	sq->nr_queued[rw]++;
+	/*把tg 又挂到他所属的service queue上*/
 	throtl_enqueue_tg(tg);
 }
 
@@ -1116,9 +1174,10 @@ static void tg_update_disptime(struct throtl_grp *tg)
 	min_wait = min(read_wait, write_wait);
 	disptime = jiffies + min_wait;
 
-	/* Update dispatch time */
 	throtl_dequeue_tg(tg);
+	/* Update dispatch time */
 	tg->disptime = disptime;
+	/*tg 还需要入parent sq里面*/
 	throtl_enqueue_tg(tg);
 
 	/* see throtl_add_bio_tg() */
@@ -1128,7 +1187,10 @@ static void tg_update_disptime(struct throtl_grp *tg)
 static void start_parent_slice_with_credit(struct throtl_grp *child_tg,
 					struct throtl_grp *parent_tg, bool rw)
 {
+	/*parent_tg 时间片是否用完*/
 	if (throtl_slice_used(parent_tg, rw)) {
+		/*没用完*/
+		/*parent_tg的时间片起始设置为child_tg的slice 起始时间*/
 		throtl_start_new_slice_with_credit(parent_tg, rw,
 				child_tg->slice_start[rw]);
 	}
@@ -1152,6 +1214,7 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 	bio = throtl_pop_queued(&sq->queued[rw], &tg_to_put);
 	sq->nr_queued[rw]--;
 
+	/*得把tg的统计信息更新一下*/
 	throtl_charge_bio(tg, bio);
 
 	/*
@@ -1162,6 +1225,7 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 	 * responsible for issuing these bios.
 	 */
 	if (parent_tg) {
+		/*bio ==> tg::qnode_on_parent; tg::qnode_on_parent ==> parent_tg.sq.queued[rw]*/
 		throtl_add_bio_tg(bio, &tg->qnode_on_parent[rw], parent_tg);
 		start_parent_slice_with_credit(tg, parent_tg, rw);
 	} else {
@@ -1177,6 +1241,10 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 		blkg_put(tg_to_blkg(tg_to_put));
 }
 
+/*
+ * 对这个tg 进行dispatch
+ * 要么把bio往parent上放，要么放到td->service_tree中
+ */
 static int throtl_dispatch_tg(struct throtl_grp *tg)
 {
 	struct throtl_service_queue *sq = &tg->service_queue;
@@ -1186,6 +1254,7 @@ static int throtl_dispatch_tg(struct throtl_grp *tg)
 	struct bio *bio;
 
 	/* Try to dispatch 75% READS and 25% WRITES */
+
 
 	while ((bio = throtl_peek_queued(&sq->queued[READ])) &&
 	       tg_may_dispatch(tg, bio, NULL)) {
@@ -1214,6 +1283,7 @@ static int throtl_select_dispatch(struct throtl_service_queue *parent_sq)
 {
 	unsigned int nr_disp = 0;
 
+	/*从pending tree中一直派发，直到没得派发*/
 	while (1) {
 		struct throtl_grp *tg = throtl_rb_first(parent_sq);
 		struct throtl_service_queue *sq = &tg->service_queue;
@@ -1221,11 +1291,13 @@ static int throtl_select_dispatch(struct throtl_service_queue *parent_sq)
 		if (!tg)
 			break;
 
-		if (time_before(jiffies, tg->disptime))
+		if (time_before(jiffies, tg->disptime)) /*距离下次派发还要等一会，不能干等，溜了*/
 			break;
 
+		/*tg从parent->pending_tree上dequeque*/
 		throtl_dequeue_tg(tg);
 
+		/*然后开始派发*/
 		nr_disp += throtl_dispatch_tg(tg);
 
 		if (sq->nr_queued[0] || sq->nr_queued[1])
@@ -1283,7 +1355,7 @@ again:
 			throtl_log(sq, "bios disp=%u", ret);
 			dispatched = true;
 		}
-
+		/*timer  里面又设置timer*/
 		if (throtl_schedule_next_dispatch(sq, false))
 			break;
 
@@ -1345,7 +1417,7 @@ static void blk_throtl_dispatch_work_fn(struct work_struct *work)
 	if (!bio_list_empty(&bio_list_on_stack)) {
 		blk_start_plug(&plug);
 		while((bio = bio_list_pop(&bio_list_on_stack)))
-			generic_make_request(bio);
+			generic_make_request(bio); /*这里是重点*/
 		blk_finish_plug(&plug);
 	}
 }
@@ -1414,6 +1486,7 @@ static void tg_conf_updated(struct throtl_grp *tg, bool global)
 		if (!cgroup_subsys_on_dfl(io_cgrp_subsys) || !blkg->parent ||
 		    !blkg->parent->parent)
 			continue;
+		/*下面的路径不会走到了，已经挂载到别的地方了*/
 		parent_tg = blkg_to_tg(blkg->parent);
 		/*
 		 * make sure all children has lower idle time threshold and
@@ -1723,7 +1796,7 @@ static struct cftype throtl_files[] = {
 	},
 #endif
 	{
-		.name = "max",
+		.name = "max", /*cgroup_add_dfl_cftypes 里面会让该文件只在default hierarchy里面出现*/
 		.flags = CFTYPE_NOT_ON_ROOT,
 		.seq_show = tg_print_limit,
 		.write = tg_set_limit,
@@ -1783,6 +1856,7 @@ static unsigned long tg_last_low_overflow_time(struct throtl_grp *tg)
 		    !parent->bps[WRITE][LIMIT_LOW] &&
 		    !parent->iops[WRITE][LIMIT_LOW])
 			continue;
+		/*从该tg 顺着其parent 找出最近的 last low overflow time*/
 		if (time_after(__tg_last_low_overflow_time(parent), ret))
 			ret = __tg_last_low_overflow_time(parent);
 	}
@@ -1903,6 +1977,7 @@ static void throtl_upgrade_check(struct throtl_grp *tg)
 		throtl_upgrade_state(tg->td);
 }
 
+/*upgrade to max*/
 static void throtl_upgrade_state(struct throtl_data *td)
 {
 	struct cgroup_subsys_state *pos_css;
@@ -1919,6 +1994,7 @@ static void throtl_upgrade_state(struct throtl_data *td)
 
 		tg->disptime = jiffies - 1;
 		throtl_select_dispatch(sq);
+		/*给每个blkg设定timer*/
 		throtl_schedule_next_dispatch(sq, true);
 	}
 	rcu_read_unlock();
@@ -2032,10 +2108,11 @@ static void throtl_downgrade_check(struct throtl_grp *tg)
 	tg->last_io_disp[WRITE] = 0;
 }
 
+/*更新闲了多久*/
 static void blk_throtl_update_idletime(struct throtl_grp *tg)
 {
 	unsigned long now = ktime_get_ns() >> 10;
-	unsigned long last_finish_time = tg->last_finish_time;
+	unsigned long last_finish_time = tg->last_finish_time; /*在blk_throtl_bio_endio中更新*/
 
 	if (now <= last_finish_time || last_finish_time == 0 ||
 	    last_finish_time == tg->checked_last_finish_time)
@@ -2117,6 +2194,7 @@ static inline void throtl_update_latency_buckets(struct throtl_data *td)
 }
 #endif
 
+/*空*/
 static void blk_throtl_assoc_bio(struct throtl_grp *tg, struct bio *bio)
 {
 #ifdef CONFIG_BLK_DEV_THROTTLING_LOW
@@ -2144,11 +2222,13 @@ bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg,
 
 	spin_lock_irq(q->queue_lock);
 
+	/*空*/
 	throtl_update_latency_buckets(td);
 
 	if (unlikely(blk_queue_bypass(q)))
 		goto out_unlock;
 
+	/*空*/
 	blk_throtl_assoc_bio(tg, bio);
 	blk_throtl_update_idletime(tg);
 
@@ -2213,6 +2293,7 @@ again:
 	tg->last_low_overflow_time[rw] = jiffies;
 
 	td->nr_queued[rw]++;
+	/*qn如果为空，则会塞到自己的qn_self中*/
 	throtl_add_bio_tg(bio, qn, tg);
 	throttled = true;
 
@@ -2383,6 +2464,7 @@ void blk_throtl_drain(struct request_queue *q)
 	spin_lock_irq(q->queue_lock);
 }
 
+/*初始化一个q*/
 int blk_throtl_init(struct request_queue *q)
 {
 	struct throtl_data *td;
@@ -2401,6 +2483,7 @@ int blk_throtl_init(struct request_queue *q)
 	INIT_WORK(&td->dispatch_work, blk_throtl_dispatch_work_fn);
 	throtl_service_queue_init(&td->service_queue);
 
+	/*互相回指一下*/
 	q->td = td;
 	td->queue = q;
 

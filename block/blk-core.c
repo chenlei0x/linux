@@ -2750,6 +2750,7 @@ EXPORT_SYMBOL(blk_fetch_request);
  * Return:
  *     %false - this request doesn't have any more data
  *     %true  - this request has more data
+ * 让一个req 完成@nr_bytes
  **/
 bool blk_update_request(struct request *req, blk_status_t error,
 		unsigned int nr_bytes)
@@ -2765,6 +2766,7 @@ bool blk_update_request(struct request *req, blk_status_t error,
 		     !(req->rq_flags & RQF_QUIET)))
 		print_req_error(req, error);
 
+	/*sector 统计*/
 	blk_account_io_completion(req, nr_bytes);
 
 	total_bytes = 0;

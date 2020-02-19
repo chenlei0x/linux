@@ -599,8 +599,8 @@ struct cgroup_subsys {
 	 * Base cftypes which are automatically registered.  The two can
 	 * point to the same array.
 	 */
-	struct cftype *dfl_cftypes;	/* for the default hierarchy */
-	struct cftype *legacy_cftypes;	/* for the legacy hierarchies */
+	struct cftype *dfl_cftypes;	/* for the default hierarchy __CFTYPE_ONLY_ON_DFL */
+	struct cftype *legacy_cftypes;	/* for the legacy hierarchies  __CFTYPE_NOT_ON_DFL*/
 
 	/*
 	 * A subsystem may depend on other subsystems.  When such subsystem

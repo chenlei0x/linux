@@ -88,6 +88,7 @@ static void blkg_free(struct blkcg_gq *blkg)
  * @gfp_mask: allocation mask to use
  *
  * Allocate a new blkg assocating @blkcg and @q.
+ * 申请blkg 及其blkg policy data
  */
 static struct blkcg_gq *blkg_alloc(struct blkcg *blkcg, struct request_queue *q,
 				   gfp_t gfp_mask)

@@ -3745,7 +3745,7 @@ int cgroup_add_dfl_cftypes(struct cgroup_subsys *ss, struct cftype *cfts)
 	struct cftype *cft;
 
 	for (cft = cfts; cft && cft->name[0] != '\0'; cft++)
-		cft->flags |= __CFTYPE_ONLY_ON_DFL;
+		cft->flags |= __CFTYPE_ONLY_ON_DFL; /*该文件只会出现在default上，如果我们已经重新绑定，该文件不会再出现*/
 	return cgroup_add_cftypes(ss, cfts);
 }
 

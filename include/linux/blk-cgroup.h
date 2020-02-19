@@ -165,7 +165,7 @@ struct blkcg_policy {
 	blkcg_pol_bind_cpd_fn		*cpd_bind_fn;
 
 	/*以下用来初始化一个blkcg_gq内的各个policy*/
-	blkcg_pol_alloc_pd_fn		*pd_alloc_fn;
+	blkcg_pol_alloc_pd_fn		*pd_alloc_fn; /*给一个blkg[blkcg_gq]分配一个专属的blkg_policy_data*/
 	blkcg_pol_init_pd_fn		*pd_init_fn;
 	blkcg_pol_online_pd_fn		*pd_online_fn;
 	blkcg_pol_offline_pd_fn		*pd_offline_fn;

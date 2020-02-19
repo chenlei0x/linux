@@ -39,7 +39,8 @@ struct bio_vec {
 struct bvec_iter {
 	sector_t		bi_sector;	/* device address in 512 byte
 						   sectors */
-	unsigned int		bi_size;	/* residual I/O count */
+	/* residual I/O count，初始为整个bio长度，单位Byte， 后面在bio_advance中会慢慢减小，同时bi_done增加 */
+	unsigned int		bi_size;	
 
 	unsigned int		bi_idx;		/* current index into bvl_vec */
 

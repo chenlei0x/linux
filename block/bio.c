@@ -1921,11 +1921,12 @@ again:
 		bio_clear_flag(bio, BIO_TRACE_COMPLETION);
 	}
 
+	/*如果这个宏CONFIG_BLK_DEV_THROTTLING_LOW没有定义，函数为空*/
 	blk_throtl_bio_endio(bio);
 	/* release cgroup info */
 	bio_uninit(bio);
 	if (bio->bi_end_io)
-		bio->bi_end_io(bio);
+		bio->bi_end_io(bio); /*很多种实现，基本上都是释放一个同步锁*/
 }
 EXPORT_SYMBOL(bio_endio);
 

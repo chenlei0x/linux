@@ -3146,6 +3146,7 @@ static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
 	 * from here on down, it's all bio -- do the initial mapping,
 	 * submit_bio -> generic_make_request may further map this bio around
 	 */
+	 /*申请只有一个bio vec 的bio*/
 	bio = bio_alloc(GFP_NOIO, 1);
 
 	if (wbc) {
@@ -3157,6 +3158,7 @@ static int submit_bh_wbc(int op, int op_flags, struct buffer_head *bh,
 	bio_set_dev(bio, bh->b_bdev);
 	bio->bi_write_hint = write_hint;
 
+	/*只有一个bio vec，所以就添加一次page*/
 	bio_add_page(bio, bh->b_page, bh->b_size, bh_offset(bh));
 	BUG_ON(bio->bi_iter.bi_size != bh->b_size);
 

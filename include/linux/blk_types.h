@@ -82,7 +82,7 @@ struct bio {
 	struct bvec_iter	bi_iter;
 
 	atomic_t		__bi_remaining;
-	bio_end_io_t		*bi_end_io;
+	bio_end_io_t		*bi_end_io; /*很多种实现*/
 
 	void			*bi_private;
 #ifdef CONFIG_BLK_CGROUP
