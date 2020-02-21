@@ -1153,7 +1153,7 @@ static void throtl_add_bio_tg(struct bio *bio, struct throtl_qnode *qn,
 	throtl_qnode_add_bio(bio, qn, &sq->queued[rw]);
 
 	sq->nr_queued[rw]++;
-	/*把tg 又挂到他所属的service queue上*/
+	/*tg->sq 上面有qn了，说明tg要dispatch，所以要enqueue 把tg 又挂到他所属的service queue上*/
 	throtl_enqueue_tg(tg);
 }
 
@@ -1232,6 +1232,10 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 		throtl_qnode_add_bio(bio, &tg->qnode_on_parent[rw],
 				     &parent_sq->queued[rw]);
 		BUG_ON(tg->td->nr_queued[rw] <= 0);
+		/*
+		 * parent_tg 为空，说明父亲是td，那么此时parent_sq就是td->service_queue
+		 * td->nr_queued 代表着所有tg的 service_queue->queued队列上有多少个bio
+		 */
 		tg->td->nr_queued[rw]--;
 	}
 
