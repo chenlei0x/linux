@@ -108,7 +108,7 @@ struct ext4_prealloc_space {
 	unsigned		pa_deleted;
 	ext4_fsblk_t		pa_pstart;	/* phys. block */
 	ext4_lblk_t		pa_lstart;	/* log. block */
-	ext4_grpblk_t		pa_len;		/* len of preallocated chunk */
+	ext4_grpblk_t		pa_len;		/* len of preallocated chunk  单位 cluster*/
 	ext4_grpblk_t		pa_free;	/* how many blocks are free */
 	unsigned short		pa_type;	/* pa type. inode or group */
 	spinlock_t		*pa_obj_lock;
@@ -120,9 +120,10 @@ enum {
 	MB_GROUP_PA = 1
 };
 
+/*fe --- free extent*/
 struct ext4_free_extent {
 	ext4_lblk_t fe_logical;
-	ext4_grpblk_t fe_start;	/* In cluster units */
+	ext4_grpblk_t fe_start;	/* In cluster units, fe_group中的offset */
 	ext4_group_t fe_group;
 	ext4_grpblk_t fe_len;	/* In cluster units */
 };
@@ -141,7 +142,7 @@ struct ext4_locality_group {
 	/* to serialize allocates */
 	struct mutex		lg_mutex;
 	/* list of preallocations */
-	struct list_head	lg_prealloc_list[PREALLOC_TB_SIZE];
+	struct list_head	lg_prealloc_list[PREALLOC_TB_SIZE]; /*连接的也是pa*/
 	spinlock_t		lg_prealloc_lock;
 };
 

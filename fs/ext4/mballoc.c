@@ -3080,7 +3080,7 @@ static void ext4_mb_normalize_group_request(struct ext4_allocation_context *ac)
 	struct ext4_locality_group *lg = ac->ac_lg;
 
 	BUG_ON(lg == NULL);
-	ac->ac_g_ex.fe_len = EXT4_SB(sb)->s_mb_group_prealloc;
+	ac->ac_g_ex.fe_len = EXT4_SB(sb)->s_mb_group_prealloc; /*512 blocks*/
 	mb_debug(1, "#%u: goal %u blocks for locality group\n",
 		current->pid, ac->ac_g_ex.fe_len);
 }
@@ -3088,6 +3088,39 @@ static void ext4_mb_normalize_group_request(struct ext4_allocation_context *ac)
 /*
  * Normalization means making request better in terms of
  * size and alignment
+ * 通过 ac_o_ex 确定 ac_g_ex
+ *
+
+										 ac->ac_o_ex.fe_logical
+	
+												^
+												|
+												|
+												|
+												|
+												+
+		   +-----------------------------------------------------------------------------------+
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   +-----------------------------------------------------------------------------------+
+	
+		   +																				   +
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   |																				   |
+		   |																				   v
+		   v																				 end
+		 start
+
+ac->ac_o_ex.fe_logical 指文件的起始位置
+start end表示需要申请的extent 为了防止空洞或者碎片问题,会基于 fe_logical, 适当扩大 start 和end
+start end 最终会成为 ac_g_ex
+	
  */
 static noinline_for_stack void
 ext4_mb_normalize_request(struct ext4_allocation_context *ac,
@@ -3101,6 +3134,8 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 	ext4_lblk_t start;
 	struct ext4_inode_info *ei = EXT4_I(ac->ac_inode);
 	struct ext4_prealloc_space *pa;
+
+
 
 	/* do normalize only data requests, metadata requests
 	   do not need preallocation */
@@ -3172,6 +3207,7 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 		size	  = (loff_t) EXT4_C2B(EXT4_SB(ac->ac_sb),
 					      ac->ac_o_ex.fe_len) << bsbits;
 	}
+	/*start end 都是logic block,他们用来确定goal extent 的logical 起始和长度*/
 	size = size >> bsbits;
 	start = start_off >> bsbits;
 
@@ -3209,6 +3245,7 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 						  pa->pa_len);
 
 		/* PA must not overlap original request */
+		/*fe_logical不应该落在一个pa中,如果落入了肯定就在inode precalloc 里面申请了*/
 		BUG_ON(!(ac->ac_o_ex.fe_logical >= pa_end ||
 			ac->ac_o_ex.fe_logical < pa->pa_lstart));
 
@@ -3217,6 +3254,11 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 			spin_unlock(&pa->pa_lock);
 			continue;
 		}
+		/*
+		 * 走到这里说明start 和end肯定是有相重叠的,同时
+		 * ac->ac_o_ex.fe_logical没有落在一个pa里面说明
+		 * start,end 并不是完全被一个pa包含,同时又有重叠
+		 */
 		BUG_ON(pa->pa_lstart <= start && pa_end >= end);
 
 		/* adjust start or end to be adjacent to this pa */
@@ -3231,6 +3273,8 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 	}
 	rcu_read_unlock();
 	size = end - start;
+	
+
 
 	/* XXX: extra loop to check we really don't overlap preallocations */
 	rcu_read_lock();
@@ -3267,6 +3311,10 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 	/* define goal start in order to merge */
 	if (ar->pright && (ar->lright == (start + size))) {
 		/* merge to the right */
+		/*
+		 * 如果物理连续,可以merge的话, ar->pright - size 代表着该extent的start
+		 * 我们把它设置换算为 group 和offset,放到ac_f_ex
+		 */
 		ext4_get_group_no_and_offset(ac->ac_sb, ar->pright - size,
 						&ac->ac_f_ex.fe_group,
 						&ac->ac_f_ex.fe_start);
@@ -3274,6 +3322,7 @@ ext4_mb_normalize_request(struct ext4_allocation_context *ac,
 	}
 	if (ar->pleft && (ar->lleft + 1 == start)) {
 		/* merge to the left */
+		/*理由同上,貌似这样会覆盖ac_f_ex*/
 		ext4_get_group_no_and_offset(ac->ac_sb, ar->pleft + 1,
 						&ac->ac_f_ex.fe_group,
 						&ac->ac_f_ex.fe_start);
@@ -3355,9 +3404,15 @@ static void ext4_mb_use_inode_pa(struct ext4_allocation_context *ac,
 	int len;
 
 	/* found preallocated blocks, use them */
+	/*看来一个pa就代表着针对一个extent专门申请的,其起始终结都是固定号的*/
+	/*start end 可能只是pa中的一段*/
 	start = pa->pa_pstart + (ac->ac_o_ex.fe_logical - pa->pa_lstart);
+	/*
+	 * end 最多也就是该pa的end,所以也就是说 上层需要申请400block,
+	 * 但是该pa只能提供300个,那么也ac_b_ex中的长度 也只能是300
+	 */
 	end = min(pa->pa_pstart + EXT4_C2B(sbi, pa->pa_len),
-		  start + EXT4_C2B(sbi, ac->ac_o_ex.fe_len));
+		  start + EXT4_C2B(sbi, ac->ac_o_ex.fe_len)); 
 	len = EXT4_NUM_B2C(sbi, end - start);
 	ext4_get_group_no_and_offset(ac->ac_sb, start, &ac->ac_b_ex.fe_group,
 					&ac->ac_b_ex.fe_start);
@@ -3449,6 +3504,25 @@ ext4_mb_use_preallocated(struct ext4_allocation_context *ac)
 
 		/* all fields in this condition don't change,
 		 * so we can skip locking for them */
+		/*
+		 * ac->ac_o_ex.fe_logical [pa_lstart, pa_lstart + pa_len)
+		 
+		 
+									   fe_logical
+		 
+										   +
+										   |
+			+							   |								  +
+			|							   |								  |
+			|							   v								  |
+			+-----------------------------------------------------------------|
+			|																  |
+			|																  |
+			|																  +
+			+																PA_lstart + PA_len
+		 PA_lstart
+		 
+		 */
 		if (ac->ac_o_ex.fe_logical < pa->pa_lstart ||
 		    ac->ac_o_ex.fe_logical >= (pa->pa_lstart +
 					       EXT4_C2B(sbi, pa->pa_len)))
@@ -3487,6 +3561,7 @@ ext4_mb_use_preallocated(struct ext4_allocation_context *ac)
 		/* The max size of hash table is PREALLOC_TB_SIZE */
 		order = PREALLOC_TB_SIZE - 1;
 
+	/*ac_g_ex 默认和 ac_o_ex 一样*/
 	goal_block = ext4_grp_offs_to_block(ac->ac_sb, &ac->ac_g_ex);
 	/*
 	 * search for the prealloc space that is having
@@ -4226,6 +4301,7 @@ static void ext4_mb_group_or_file(struct ext4_allocation_context *ac)
 	/* don't use group allocation for large files */
 	size = max(size, isize);
 	if (size > sbi->s_mb_stream_request) {
+		/*> 64K*/
 		ac->ac_flags |= EXT4_MB_STREAM_ALLOC;
 		return;
 	}
@@ -4245,6 +4321,8 @@ static void ext4_mb_group_or_file(struct ext4_allocation_context *ac)
 	mutex_lock(&ac->ac_lg->lg_mutex);
 }
 
+
+/*用ar 初始化ac*/
 static noinline_for_stack int
 ext4_mb_initialize_context(struct ext4_allocation_context *ac,
 				struct ext4_allocation_request *ar)
@@ -4567,9 +4645,10 @@ ext4_fsblk_t ext4_mb_new_blocks(handle_t *handle,
 	ac->ac_op = EXT4_MB_HISTORY_PREALLOC;
 	if (!ext4_mb_use_preallocated(ac)) {
 		ac->ac_op = EXT4_MB_HISTORY_ALLOC;
+		/*prealloc 悲剧了, 那么初始化ac_g_ex,准备regular 分配吧*/
 		ext4_mb_normalize_request(ac, ar);
 repeat:
-		/* allocate space in core */
+		/* allocate space in core 硬核的来了*/
 		*errp = ext4_mb_regular_allocator(ac);
 		if (*errp)
 			goto discard_and_exit;

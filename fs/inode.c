@@ -1098,6 +1098,8 @@ EXPORT_SYMBOL(iget5_locked);
  * If the inode is not in cache, allocate a new inode and return it locked,
  * hashed, and with the I_NEW flag set.  The file system gets to fill it in
  * before unlocking it via unlock_new_inode().
+ *
+ * 只用作申请inode 或者从inode cache上查找
  */
 struct inode *iget_locked(struct super_block *sb, unsigned long ino)
 {

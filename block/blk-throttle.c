@@ -102,7 +102,7 @@ struct throtl_service_queue {
 	struct rb_node		*first_pending;	/* first node in the tree --- pending_tree中的第一个元素 */
 	unsigned int		nr_pending;	/* # queued in the tree */
 	unsigned long		first_pending_disptime;	/* disptime of the first tg */
-	struct timer_list	pending_timer;	/* fires on first_pending_disptime  初始化throtl_pending_timer_fn*/
+	struct timer_list	pending_timer;	/* fires on first_pending_disptime  初始化 throtl_pending_timer_fn*/
 };
 
 enum tg_state_flags {
@@ -457,6 +457,7 @@ static void throtl_qnode_add_bio(struct bio *bio, struct throtl_qnode *qn,
 /**
  * throtl_peek_queued - peek the first bio on a qnode list
  * @queued: the qnode list to peek
+ * 只是拿到指针，并不做从链表中摘掉的操作
  */
 static struct bio *throtl_peek_queued(struct list_head *queued)
 {
@@ -1032,6 +1033,8 @@ static bool tg_with_in_bps_limit(struct throtl_grp *tg, struct bio *bio,
 	/*
 	 * This wait time is without taking into consideration the rounding
 	 * up we did. Add that time also.
+	 *
+	 * 当前slice 剩余的时间 + 发送 extra_bytes需要的时间
 	 */
 	jiffy_wait = jiffy_wait + (jiffy_elapsed_rnd - jiffy_elapsed);
 	if (wait)
@@ -1072,12 +1075,14 @@ static bool tg_may_dispatch(struct throtl_grp *tg, struct bio *bio,
 	 * long since now. New slice is started only for empty throttle group.
 	 * If there is queued bio, that means there should be an active
 	 * slice and it should be extended instead.
+	 *
+	 * slice 用光 且没有queued bio时，开始一个新的slice
 	 */
 	if (throtl_slice_used(tg, rw) && !(tg->service_queue.nr_queued[rw]))
 		throtl_start_new_slice(tg, rw);
 	else {
 		if (time_before(tg->slice_end[rw],
-		    jiffies + tg->td->throtl_slice))
+		    jiffies + tg->td->throtl_slice)) /*延长到jiffies + slice*/
 			throtl_extend_slice(tg, rw,
 				jiffies + tg->td->throtl_slice);
 	}
@@ -1197,6 +1202,11 @@ static void start_parent_slice_with_credit(struct throtl_grp *child_tg,
 
 }
 
+/*
+ * 派发一个bio
+ * 能往上一层tg派发就往上一层派发
+ * 如果不行，那就直接把该bio派发到parent_sq->queued中(通过qnode_on_parent)
+ */
 static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 {
 	struct throtl_service_queue *sq = &tg->service_queue;
@@ -1246,8 +1256,8 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 }
 
 /*
- * 对这个tg 进行dispatch
- * 要么把bio往parent上放，要么放到td->service_tree中
+ * 对这个tg 的所有bio进行dispatch
+ * 要么把bio往parent tg上放，要么放到td->service_tree中
  */
 static int throtl_dispatch_tg(struct throtl_grp *tg)
 {
@@ -1301,7 +1311,7 @@ static int throtl_select_dispatch(struct throtl_service_queue *parent_sq)
 		/*tg从parent->pending_tree上dequeque*/
 		throtl_dequeue_tg(tg);
 
-		/*然后开始派发*/
+		/*然后开始派发tg中的所有bio*/
 		nr_disp += throtl_dispatch_tg(tg);
 
 		if (sq->nr_queued[0] || sq->nr_queued[1])

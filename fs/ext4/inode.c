@@ -4502,6 +4502,7 @@ static int __ext4_get_inode_loc(struct inode *inode,
 	inodes_per_block = EXT4_SB(sb)->s_inodes_per_block;
 	inode_offset = ((inode->i_ino - 1) %
 			EXT4_INODES_PER_GROUP(sb));
+	/*inode 所在的block*/
 	block = ext4_inode_table(sb, gdp) + (inode_offset / inodes_per_block);
 	iloc->offset = (inode_offset % inodes_per_block) * EXT4_INODE_SIZE(sb);
 
@@ -4602,6 +4603,7 @@ make_io:
 		get_bh(bh);
 		bh->b_end_io = end_buffer_read_sync;
 		submit_bh(REQ_OP_READ, REQ_META | REQ_PRIO, bh);
+		/*同步的死等*/
 		wait_on_buffer(bh);
 		if (!buffer_uptodate(bh)) {
 			EXT4_ERROR_INODE_BLOCK(inode, block,
@@ -4695,8 +4697,8 @@ int ext4_get_projid(struct inode *inode, kprojid_t *projid)
 struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 {
 	struct ext4_iloc iloc;
-	struct ext4_inode *raw_inode;
-	struct ext4_inode_info *ei;
+	struct ext4_inode *raw_inode; /*磁盘上inode镜像*/
+	struct ext4_inode_info *ei; /*通过raw_inode 来填入ei,ei has-a vfs_inode*/
 	struct inode *inode;
 	journal_t *journal = EXT4_SB(sb)->s_journal;
 	long ret;
@@ -4715,9 +4717,11 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 	ei = EXT4_I(inode);
 	iloc.bh = NULL;
 
+	/*把inode 读上来*/
 	ret = __ext4_get_inode_loc(inode, &iloc, 0);
 	if (ret < 0)
 		goto bad_inode;
+	/*一个block中含有多个inode, 通过iloc 拿到需要的那个inode*/
 	raw_inode = ext4_raw_inode(&iloc);
 
 	if ((ino == EXT4_ROOT_INO) && (raw_inode->i_links_count == 0)) {

@@ -124,13 +124,13 @@ enum SHIFT_DIRECTION {
 #define EXT4_MB_HINT_FIRST		0x0008
 /* search for the best chunk */
 #define EXT4_MB_HINT_BEST		0x0010
-/* data is being allocated */
+/* data is being allocated ac->ac_flags 会有这个标志,表明是为数据做分配 */
 #define EXT4_MB_HINT_DATA		0x0020
 /* don't preallocate (for tails) */
 #define EXT4_MB_HINT_NOPREALLOC		0x0040
 /* allocate for locality group */
-#define EXT4_MB_HINT_GROUP_ALLOC	0x0080
-/* allocate goal blocks or none */
+#define EXT4_MB_HINT_GROUP_ALLOC	0x0080 /*通过 ac->lg {ext4_locality_group} 申请*/
+/* allocate goal blocks or none,要多少分配多少 */
 #define EXT4_MB_HINT_GOAL_ONLY		0x0100
 /* goal is meaningful */
 #define EXT4_MB_HINT_TRY_GOAL		0x0200
@@ -151,11 +151,14 @@ struct ext4_allocation_request {
 	/* logical block in target inode */
 	ext4_lblk_t logical;
 	/* the closest logical allocated block to the left */
+	/*左边的最近的一个申请的logic block, 比如logical = 4 左边的extent为 [1,2],那么该值为2*/
 	ext4_lblk_t lleft;
 	/* the closest logical allocated block to the right */
 	ext4_lblk_t lright;
 	/* phys. target (a hint) */
+	
 	ext4_fsblk_t goal;
+	/*左边最近的已经申请的逻辑block# 对应的phy block#*/
 	/* phys. block for the closest logical allocated block to the left */
 	ext4_fsblk_t pleft;
 	/* phys. block for the closest logical allocated block to the right */
@@ -957,6 +960,8 @@ enum {
 
 /*
  * fourth extended file system inode data in memory
+ *
+ * 通常用ei 代表一个变量
  */
 struct ext4_inode_info {
 	__le32	i_data[15];	/* unconverted */
@@ -969,6 +974,8 @@ struct ext4_inode_info {
 	 * it is used for making block allocation decisions - we try to
 	 * place a file's data blocks near its inode block, and new inodes
 	 * near to their parent directory's inode.
+	 *
+	 * 包含这个inode的block group#
 	 */
 	ext4_group_t	i_block_group;
 	ext4_lblk_t	i_dir_start_lookup;
@@ -1227,7 +1234,7 @@ struct ext4_super_block {
 	__le32	s_r_blocks_count_lo;	/* Reserved blocks count */
 	__le32	s_free_blocks_count_lo;	/* Free blocks count */
 /*10*/	__le32	s_free_inodes_count;	/* Free inodes count */
-	__le32	s_first_data_block;	/* First Data Block */
+	__le32	s_first_data_block;	/* First Data Block 通常都是0*/
 	__le32	s_log_block_size;	/* Block size */
 	__le32	s_log_cluster_size;	/* Allocation cluster size */
 /*20*/	__le32	s_blocks_per_group;	/* # Blocks per group */
@@ -1289,6 +1296,12 @@ struct ext4_super_block {
 	__u8	s_jnl_backup_type;
 	__le16  s_desc_size;		/* size of group descriptor */
 /*100*/	__le32	s_default_mount_opts;
+
+	/*
+	 * 如果没有使能META_BG，那么该字段表明第一个使用meta_bg结构的bg，
+	 * resize的时候如果没有剩余的空位了就会用
+	 * 如果使能了META_BG，该字段表明一个meta bg中的某个bg有多少个groupt desc block
+	 */
 	__le32	s_first_meta_bg;	/* First metablock block group */
 	__le32	s_mkfs_time;		/* When the filesystem was created */
 	__le32	s_jnl_blocks[17];	/* Backup of the journal inode */
@@ -1372,7 +1385,7 @@ struct ext4_sb_info {
 	unsigned long s_clusters_per_group; /* Number of clusters in a group */
 	unsigned long s_inodes_per_group;/* Number of inodes in a group */
 	unsigned long s_itb_per_group;	/* Number of inode table blocks per group */
-	unsigned long s_gdb_count;	/* Number of group descriptor blocks */
+	unsigned long s_gdb_count;	/* Number of group descriptor blocks 如果没有META BG 特性的话，第一个bg中要存放所有bg desc，该字段代表当前一共有多少个valid gdb*/
 	unsigned long s_desc_per_block;	/* Number of group descriptors per block */
 	ext4_group_t s_groups_count;	/* Number of groups in the fs */
 	ext4_group_t s_blockfile_groups;/* Groups acceptable for non-extent files */
@@ -1380,7 +1393,7 @@ struct ext4_sb_info {
 
 	//如果没有bigalloc的话，cluster大小和block相等
 	unsigned int s_cluster_ratio;	/* Number of blocks per cluster */
-	unsigned int s_cluster_bits;	/* log2 of s_cluster_ratio */
+	unsigned int s_cluster_bits;	/* log2 of s_cluster_ratio cluster 和 block之间差几个bit*/
 	
 	loff_t s_bitmap_maxbytes;	/* max bytes for bitmap files */
 	struct buffer_head * s_sbh;	/* Buffer containing the super block */
@@ -1410,7 +1423,7 @@ struct ext4_sb_info {
 	struct percpu_counter s_freeclusters_counter;
 	struct percpu_counter s_freeinodes_counter;
 	struct percpu_counter s_dirs_counter;
-	struct percpu_counter s_dirtyclusters_counter;
+	struct percpu_counter s_dirtyclusters_counter; /*ext4_claim_free_clusters 会增大该字段*/
 	struct blockgroup_lock *s_blockgroup_lock;
 	struct proc_dir_entry *s_proc;
 	struct kobject s_kobj;
@@ -1457,12 +1470,12 @@ struct ext4_sb_info {
 
 	/* tunables */
 	unsigned long s_stripe;
-	unsigned int s_mb_stream_request;
+	unsigned int s_mb_stream_request; /*64K*/
 	unsigned int s_mb_max_to_scan;
 	unsigned int s_mb_min_to_scan;
 	unsigned int s_mb_stats;
 	unsigned int s_mb_order2_reqs;
-	unsigned int s_mb_group_prealloc;
+	unsigned int s_mb_group_prealloc /*512 blocks*/;
 	unsigned int s_max_dir_size_kb;
 	/* where last allocation was done - for stream allocation */
 	unsigned long s_mb_last_group;
@@ -1771,6 +1784,39 @@ EXT4_FEATURE_INCOMPAT_FUNCS(compression,	COMPRESSION)
 EXT4_FEATURE_INCOMPAT_FUNCS(filetype,		FILETYPE)
 EXT4_FEATURE_INCOMPAT_FUNCS(journal_needs_recovery,	RECOVER)
 EXT4_FEATURE_INCOMPAT_FUNCS(journal_dev,	JOURNAL_DEV)
+
+
+/*Without the option META_BG, for safety concerns, all block group descriptors copies 
+are kept in the first block group. 
+Given the default 128MiB(2^27 bytes) block group size and 64-byte group descriptors, 
+ext4 can have at most 2^27/64 = 2^21 block groups. 
+This limits the entire filesystem size to 2^21 * 2^27 = 2^48bytes or 256TiB.
+每个bg 都有自己的bg descriptor，同时也有一份备份，如果没有这个特性，这些bgd 的备份都存放在
+第一个bg中，那么第一个bg的大小影响了能够存放bgd的个数，这会影响bg的个数，
+然后会影响文件系统大小
+
+The solution to this problem is to use the metablock group feature (META_BG),
+which is already in ext3 for all 2.6 releases. With the META_BG feature, ext4 filesystems
+are partitioned into many metablock groups. Each metablock group is a cluster of block groups 
+whose group descriptor structures can be stored in a single disk block. For ext4 filesystems 
+with 4 KB block size, a single metablock group partition includes 64 block groups, or 8 GiB of disk 
+space. The metablock group feature moves the location of the group descriptors from the congested 
+first block group of the whole filesystem into the first group of each metablock group itself. 
+The backups are in the second and last group of each metablock group. This increases the 2^21 
+maximum block groups limit to the hard limit 2^32, allowing support for a 512PiB filesystem.
+
+采用了这个META BG，解决了这个问题，我们把文件系统的所有bg 再次划分为n个metablock group，
+同一个metablock group内的bgd 备份都存放在该metablock group中的固定位置(第一个 bg)
+
+A meta-block group is a collection of block groups which can be described by a single block group
+descriptor block. Since the size of the block group descriptor structure is 32 bytes,
+a meta-block group contains 32 block groups for filesystems with a 1KB block size, and 128 block
+groups for filesystems with a 4KB blocksize.
+
+一个metablock group含有n个bg
+n = block size / block grp desc size
+这个block被称为 block group desc block
+*/
 EXT4_FEATURE_INCOMPAT_FUNCS(meta_bg,		META_BG)
 EXT4_FEATURE_INCOMPAT_FUNCS(extents,		EXTENTS)
 EXT4_FEATURE_INCOMPAT_FUNCS(64bit,		64BIT)
@@ -2131,11 +2177,13 @@ struct dir_private_info {
 };
 
 /* calculate the first block number of the group */
+/*计算bg的第一个物理块地址*/
 static inline ext4_fsblk_t
 ext4_group_first_block_no(struct super_block *sb, ext4_group_t group_no)
 {
+	/*group# * 每个group含有多少个block*/
 	return group_no * (ext4_fsblk_t)EXT4_BLOCKS_PER_GROUP(sb) +
-		le32_to_cpu(EXT4_SB(sb)->s_es->s_first_data_block);
+		le32_to_cpu(EXT4_SB(sb)->s_es->s_first_data_block); /*这个值通常为0*/
 }
 
 /*
@@ -2751,6 +2799,7 @@ static inline int ext4_has_group_desc_csum(struct super_block *sb)
 	return ext4_has_feature_gdt_csum(sb) || ext4_has_metadata_csum(sb);
 }
 
+/*fs中有多少个blk，通过ext4_blocks_count_set 设定，应该是在mkfs中确定的*/
 static inline ext4_fsblk_t ext4_blocks_count(struct ext4_super_block *es)
 {
 	return ((ext4_fsblk_t)le32_to_cpu(es->s_blocks_count_hi) << 32) |
@@ -2769,6 +2818,7 @@ static inline ext4_fsblk_t ext4_free_blocks_count(struct ext4_super_block *es)
 		le32_to_cpu(es->s_free_blocks_count_lo);
 }
 
+/*设置fs有多少个blk，可能会动态调节*/
 static inline void ext4_blocks_count_set(struct ext4_super_block *es,
 					 ext4_fsblk_t blk)
 {

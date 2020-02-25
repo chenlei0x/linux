@@ -1706,6 +1706,7 @@ struct block_device_operations;
 
 struct iov_iter;
 
+/*进程对这个文件数据能做的操作!*/
 struct file_operations {
 	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
@@ -1746,6 +1747,7 @@ struct file_operations {
 			u64);
 } __randomize_layout;
 
+/*进程通过这个文件能做的其他操作操作的不是该文件本身的数据,比如创建文件等*/
 struct inode_operations {
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);

@@ -319,6 +319,10 @@ sb_breadahead(struct super_block *sb, sector_t block)
 	__breadahead(sb->s_bdev, block, sb->s_blocksize);
 }
 
+/*
+ * 不管是创建也好,还是查cache也好,搞到buffer_head
+ * 返回的bh 可能是刚创建的,那么需要caller自己去读取数据
+ */
 static inline struct buffer_head *
 sb_getblk(struct super_block *sb, sector_t block)
 {

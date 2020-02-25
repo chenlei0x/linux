@@ -31,6 +31,7 @@ static unsigned ext4_num_base_meta_clusters(struct super_block *sb,
 
 /*
  * Calculate block group number for a given block number
+ * blk# ===》 blk grp#
  */
 ext4_group_t ext4_get_group_number(struct super_block *sb,
 				   ext4_fsblk_t block)
@@ -49,6 +50,8 @@ ext4_group_t ext4_get_group_number(struct super_block *sb,
 /*
  * Calculate the block group number and offset into the block/cluster
  * allocation bitmap, given a block number
+ *
+ * blk# ===>>> bg#(@blockgrpp) + cluster_offset(@offsetp)
  */
 void ext4_get_group_no_and_offset(struct super_block *sb, ext4_fsblk_t blocknr,
 		ext4_group_t *blockgrpp, ext4_grpblk_t *offsetp)
@@ -57,6 +60,7 @@ void ext4_get_group_no_and_offset(struct super_block *sb, ext4_fsblk_t blocknr,
 	ext4_grpblk_t offset;
 
 	blocknr = blocknr - le32_to_cpu(es->s_first_data_block);
+	/*offset 为以cluster为单位的offset*/
 	offset = do_div(blocknr, EXT4_BLOCKS_PER_GROUP(sb)) >>
 		EXT4_SB(sb)->s_cluster_bits;
 	if (offsetp)
@@ -69,6 +73,7 @@ void ext4_get_group_no_and_offset(struct super_block *sb, ext4_fsblk_t blocknr,
 /*
  * Check whether the 'block' lives within the 'block_group'. Returns 1 if so
  * and 0 otherwise.
+ * block in block_group
  */
 static inline int ext4_block_in_group(struct super_block *sb,
 				      ext4_fsblk_t block,
@@ -82,6 +87,7 @@ static inline int ext4_block_in_group(struct super_block *sb,
 
 /* Return the number of clusters used for file system metadata; this
  * represents the overhead needed by the file system.
+ * 有多少cluster 在 @block_group 中是用作metadata的
  */
 static unsigned ext4_num_overhead_clusters(struct super_block *sb,
 					   ext4_group_t block_group,
@@ -156,6 +162,8 @@ static unsigned ext4_num_overhead_clusters(struct super_block *sb,
 	return num_clusters;
 }
 
+
+/*block_group 中含有多少个cluster*/
 static unsigned int num_clusters_in_group(struct super_block *sb,
 					  ext4_group_t block_group)
 {
@@ -258,10 +266,15 @@ unsigned ext4_free_clusters_after_init(struct super_block *sb,
  * blocks groups.  Each group contains 1 bitmap block for blocks, 1 bitmap
  * block for inodes, N blocks for the inode table and data blocks.
  *
+ * 每个 block_group 含有一个block作为block bitmap 一个block作为inode bitmap
+ * N 个block作为inode table 或者存放数据
+ *
  * The file system contains group descriptors which are located after the
  * super block.  Each descriptor contains the number of the bitmap block and
  * the free blocks count in the block.  The descriptors are loaded in memory
  * when a file system is mounted (see ext4_fill_super).
+ * gd存放在super block之后 gd中包含了bitmap block的block# 和有多少个free block
+ * ext4_fill_super 的时候会把这些gd load进来
  */
 
 /**
@@ -288,6 +301,7 @@ struct ext4_group_desc * ext4_get_group_desc(struct super_block *sb,
 		return NULL;
 	}
 
+ 	/*一个 block 含有多个gd, group_desc 表示在第几个block中, offset 表示在block中的偏移(单位 gd)*/
 	group_desc = block_group >> EXT4_DESC_PER_BLOCK_BITS(sb);
 	offset = block_group & (EXT4_DESC_PER_BLOCK(sb) - 1);
 	if (!sbi->s_group_desc[group_desc]) {
@@ -297,6 +311,7 @@ struct ext4_group_desc * ext4_get_group_desc(struct super_block *sb,
 		return NULL;
 	}
 
+	/*data + offset * gd_size*/
 	desc = (struct ext4_group_desc *)(
 		(__u8 *)sbi->s_group_desc[group_desc]->b_data +
 		offset * EXT4_DESC_SIZE(sb));
@@ -836,12 +851,15 @@ static unsigned long ext4_bg_num_gdb_nometa(struct super_block *sb,
  *	Return the number of blocks used by the group descriptor table
  *	(primary or backup) in this group.  In the future there may be a
  *	different number of descriptor blocks in each group.
+ *
+ * gdb: group desc block
  */
 unsigned long ext4_bg_num_gdb(struct super_block *sb, ext4_group_t group)
 {
 	unsigned long first_meta_bg =
 			le32_to_cpu(EXT4_SB(sb)->s_es->s_first_meta_bg);
-	unsigned long metagroup = group / EXT4_DESC_PER_BLOCK(sb);
+	/*属于第几个meta bg，因为每个bg含有的desc 数量 = EXT4_DESC_PER_BLOCK(sb)*/
+	unsigned long metagroup = group / EXT4_DESC_PER_BLOCK(sb); 
 
 	if (!ext4_has_feature_meta_bg(sb) || metagroup < first_meta_bg)
 		return ext4_bg_num_gdb_nometa(sb, group);
@@ -853,6 +871,10 @@ unsigned long ext4_bg_num_gdb(struct super_block *sb, ext4_group_t group)
 /*
  * This function returns the number of file system metadata clusters at
  * the beginning of a block group, including the reserved gdt blocks.
+ *
+ * This is the number of clusters used by the superblock,
+ * block group descriptors, and reserved block group
+ * descriptor blocks 
  */
 static unsigned ext4_num_base_meta_clusters(struct super_block *sb,
 				     ext4_group_t block_group)
