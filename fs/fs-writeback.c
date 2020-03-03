@@ -99,6 +99,7 @@ static inline struct inode *wb_inode(struct list_head *head)
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(wbc_writepage);
 
+/*打上WB_has_dirty_io标记, 如果该标记从无到有,说明需要启动bdi了*/
 static bool wb_io_lists_populated(struct bdi_writeback *wb)
 {
 	if (wb_has_dirty_io(wb)) {
@@ -131,6 +132,8 @@ static void wb_io_lists_depopulated(struct bdi_writeback *wb)
  * Move @inode->i_io_list to @list of @wb and set %WB_has_dirty_io.
  * Returns %true if @inode is the first occupant of the !dirty_time IO
  * lists; otherwise, %false.
+ *
+ * @inode 移入到 @head上,@head是 @wb中的某个dirty list
  */
 static bool inode_io_list_move_locked(struct inode *inode,
 				      struct bdi_writeback *wb,
@@ -141,6 +144,7 @@ static bool inode_io_list_move_locked(struct inode *inode,
 	list_move(&inode->i_io_list, head);
 
 	/* dirty_time doesn't count as dirty_io until expiration */
+	/* 如果不是b_dirty_time, 说明该wb已经被填充了,所以要打上标记*/
 	if (head != &wb->b_dirty_time)
 		return wb_io_lists_populated(wb);
 
@@ -193,9 +197,10 @@ static void wb_queue_work(struct bdi_writeback *wb,
 		atomic_inc(&work->done->cnt);
 
 	spin_lock_bh(&wb->work_lock);
-
+	/*把work挂到 wb->work_lisit*/
 	if (test_bit(WB_registered, &wb->state)) {
 		list_add_tail(&work->list, &wb->work_list);
+		/*wb_workfn*/
 		mod_delayed_work(bdi_wq, &wb->dwork, 0);
 	} else
 		finish_writeback_work(wb, work);
@@ -284,6 +289,7 @@ locked_inode_to_wb_and_lock_list(struct inode *inode)
 	__acquires(&wb->list_lock)
 {
 	while (true) {
+		/*wb 要么是bdi->wb 要么是分配的*/
 		struct bdi_writeback *wb = inode_to_wb(inode);
 
 		/*
@@ -981,6 +987,7 @@ static void bdi_split_work_to_wbs(struct backing_dev_info *bdi,
 
 #endif	/* CONFIG_CGROUP_WRITEBACK */
 
+/*申请work,并挂到wb里面,然后把wb 挂到bdi_wq*/
 void wb_start_writeback(struct bdi_writeback *wb, long nr_pages,
 			bool range_cyclic, enum wb_reason reason)
 {
@@ -1000,13 +1007,13 @@ void wb_start_writeback(struct bdi_writeback *wb, long nr_pages,
 		wb_wakeup(wb);
 		return;
 	}
-
+	
 	work->sync_mode	= WB_SYNC_NONE;
 	work->nr_pages	= nr_pages;
 	work->range_cyclic = range_cyclic;
 	work->reason	= reason;
 	work->auto_free	= 1;
-
+	/*申请 work 并放入wb中哦*/
 	wb_queue_work(wb, work);
 }
 
@@ -1210,7 +1217,9 @@ static void queue_io(struct bdi_writeback *wb, struct wb_writeback_work *work)
 
 	assert_spin_locked(&wb->list_lock);
 	list_splice_init(&wb->b_more_io, &wb->b_io);
+	/*从 b_dirty 移入到 b_io*/
 	moved = move_expired_inodes(&wb->b_dirty, &wb->b_io, 0, work);
+	/*从b_dirty_time 移入到 b_io*/
 	moved += move_expired_inodes(&wb->b_dirty_time, &wb->b_io,
 				     EXPIRE_DIRTY_ATIME, work);
 	if (moved)
@@ -1364,6 +1373,7 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 
 	trace_writeback_single_inode_start(inode, wbc, nr_to_write);
 
+	/*写入pages*/
 	ret = do_writepages(mapping, wbc);
 
 	/*
@@ -1535,6 +1545,8 @@ static long writeback_chunk_size(struct bdi_writeback *wb,
  * NOTE! This is called with wb->list_lock held, and will
  * unlock and relock that for each inode it ends up doing
  * IO for.
+ *
+ * 针对某个sb下的inode 进行io writeback
  */
 static long writeback_sb_inodes(struct super_block *sb,
 				struct bdi_writeback *wb,
@@ -1558,6 +1570,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 		struct inode *inode = wb_inode(wb->b_io.prev);
 		struct bdi_writeback *tmp_wb;
 
+		/**/
 		if (inode->i_sb != sb) {
 			if (work->sb) {
 				/*
@@ -1628,6 +1641,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 		 * We use I_SYNC to pin the inode in memory. While it is set
 		 * evict_inode() will wait so the inode cannot be freed.
 		 */
+		 /*真正开始回写了,按照wbc的要求刷pagecache*/
 		__writeback_single_inode(inode, &wbc);
 
 		wbc_detach_inode(&wbc);
@@ -1678,6 +1692,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 	return wrote;
 }
 
+/*对连续的属于同一个sb的inode进行回写*/
 static long __writeback_inodes_wb(struct bdi_writeback *wb,
 				  struct wb_writeback_work *work)
 {
@@ -1803,9 +1818,9 @@ static long wb_writeback(struct bdi_writeback *wb,
 		trace_writeback_start(wb, work);
 		if (list_empty(&wb->b_io))
 			queue_io(wb, work);
-		if (work->sb)
+		if (work->sb)/*只对work->sb 的所有inode 回写*/
 			progress = writeback_sb_inodes(work->sb, wb, work);
-		else
+		else/*对所有inode 回写*/
 			progress = __writeback_inodes_wb(wb, work);
 		trace_writeback_written(wb, work);
 
@@ -2011,6 +2026,7 @@ void wakeup_flusher_threads(long nr_pages, enum wb_reason reason)
 	if (!nr_pages)
 		nr_pages = get_nr_dirty_pages();
 
+	/*对每个bdi的每个wb 执行wb_start_writeback*/
 	rcu_read_lock();
 	list_for_each_entry_rcu(bdi, &bdi_list, bdi_list) {
 		struct bdi_writeback *wb;
@@ -2202,6 +2218,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 			struct list_head *dirty_list;
 			bool wakeup_bdi = false;
 
+			/*从inode 拿到他的wb, wb 可能是blockdevice bdi_info 的 wb*/
 			wb = locked_inode_to_wb_and_lock_list(inode);
 
 			WARN(bdi_cap_writeback_dirty(wb->bdi) &&
@@ -2217,6 +2234,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 			else
 				dirty_list = &wb->b_dirty_time;
 
+			/*把inode 挂到wb中的 某一个dirty list上*/
 			wakeup_bdi = inode_io_list_move_locked(inode, wb,
 							       dirty_list);
 

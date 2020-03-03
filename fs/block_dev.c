@@ -243,6 +243,7 @@ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
 	bio.bi_private = current;
 	bio.bi_end_io = blkdev_bio_end_io_simple;
 
+	/*给用户态bufffer 分配真正的页*/
 	ret = bio_iov_iter_get_pages(&bio, iter);
 	if (unlikely(ret))
 		goto out;

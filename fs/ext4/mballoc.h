@@ -183,7 +183,7 @@ struct ext4_allocation_context {
 #define AC_STATUS_BREAK		3
 
 struct ext4_buddy {
-	struct page *bd_buddy_page;
+	struct page *bd_buddy_page; /*为空说明bitmap buddy在同一个page(bd_bitmap_page) 上*/
 	void *bd_buddy;
 	struct page *bd_bitmap_page;
 	void *bd_bitmap;

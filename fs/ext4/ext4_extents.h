@@ -74,7 +74,7 @@ struct ext4_extent_tail {
  * It's used at the bottom of the tree.
  */
 struct ext4_extent {
-	__le32	ee_block;	/* first logical block extent covers */ /*该extent 起始block 对应的文件block */
+	__le32	ee_block;	/* first logical block extent covers */ /*该extent 起始logical block */
 	__le16	ee_len;		/* number of blocks covered by extent */
 	__le16	ee_start_hi;	/* high 16 bits of physical block */
 	__le32	ee_start_lo;	/* low 32 bits of physical block */
@@ -95,13 +95,23 @@ struct ext4_extent_idx {
 /*
  * Each block (leaves and indexes), even inode-stored has header.
  */
+/*
+ * 对于index block, 组成结构为 ext4_extent_header + n*ext4_extent_idx
+ * 对于leaf block, 组成结构为   ext4_extent_header + n*ext4_extent
+ * 以上n = hdr->eh_max
+ */
+
 struct ext4_extent_header {
 	__le16	eh_magic;	/* probably will support different formats */
-	__le16	eh_entries;	/* number of valid entries */
-	__le16	eh_max;		/* capacity of store in entries */
-	__le16	eh_depth;	/* has tree real underlying blocks?  depth 从0计数？？ */
+	__le16	eh_entries;	/* number of valid entries  当前节点中有效entries的数目*/
+	__le16	eh_max;		/* capacity of store in entries当前节点中entry的最大数目 */
+
+	/*ext_inode_hdr(inode)->eh_depth  inode 当前的最大深度,越往树根depth 越大?*/
+	__le16	eh_depth;	/* has tree real underlying blocks?   当前节点在树中的深度 */
 	__le32	eh_generation;	/* generation of the tree */
 };
+
+
 
 #define EXT4_EXT_MAGIC		cpu_to_le16(0xf30a)
 #define EXT4_MAX_EXTENT_DEPTH 5
@@ -123,13 +133,13 @@ find_ext4_extent_tail(struct ext4_extent_header *eh)
  * Truncate uses it to simulate recursive walking.
  */
  /*
-  * 应该是用来描述extent树一层上的某一个节点
+  * 用来描述extent树一层上的某一个节点
   */
 struct ext4_ext_path {
 	ext4_fsblk_t			p_block;
 	__u16				p_depth;
 	__u16				p_maxdepth;
-	struct ext4_extent		*p_ext;
+	struct ext4_extent		*p_ext; /*p_ext 和 p_idx只会有一个有效,因为该节点要么是leaf 要么是index*/
 	struct ext4_extent_idx		*p_idx;
 	struct ext4_extent_header	*p_hdr;
 	struct buffer_head		*p_bh; /* 指向extent block*/

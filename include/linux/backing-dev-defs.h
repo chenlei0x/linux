@@ -81,6 +81,8 @@ struct bdi_writeback_congested {
  * change as blkcg is disabled and enabled higher up in the hierarchy, a wb
  * is tested for blkcg after lookup and removed from index on mismatch so
  * that a new wb for the combination can be created.
+ *
+ * inode 挂在这里
  */
 struct bdi_writeback {
 	struct backing_dev_info *bdi;	/* our parent bdi */
@@ -117,8 +119,8 @@ struct bdi_writeback {
 	int dirty_exceeded;
 
 	spinlock_t work_lock;		/* protects work_list & dwork scheduling */
-	struct list_head work_list;
-	struct delayed_work dwork;	/* work item used for writeback */
+	struct list_head work_list; /*所有的人都会挂到这里*/
+	struct delayed_work dwork;	/* work item used for writeback 初始化为 wb_workfn */
 
 	unsigned long dirty_sleep;	/* last wait */
 

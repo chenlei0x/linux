@@ -425,6 +425,7 @@ static inline bool inode_to_wb_is_valid(struct inode *inode)
 	return true;
 }
 
+/*I_BDEV(inode)->bd_bdi->wb*/
 static inline struct bdi_writeback *inode_to_wb(struct inode *inode)
 {
 	return &inode_to_bdi(inode)->wb;

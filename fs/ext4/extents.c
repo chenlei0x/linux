@@ -222,13 +222,13 @@ static ext4_fsblk_t ext4_ext_find_goal(struct inode *inode,
 		ex = path[depth].p_ext;
 		if (ex) {
 			/* 走到这里应该是给定extent 找到 block参数 对应真正的物理block！！！*/
-			ext4_fsblk_t ext_pblk = ext4_ext_pblock(ex);
-			ext4_lblk_t ext_block = le32_to_cpu(ex->ee_block);
+			ext4_fsblk_t ext_pblk = ext4_ext_pblock(ex); /*extent beginning physical block*/
+			ext4_lblk_t ext_block = le32_to_cpu(ex->ee_block); /*extent beginning logic block*/
 
+			/*物理起始块 + (block - ext_block)*/
 			if (block > ext_block)
 				return ext_pblk + (block - ext_block);
 			else
-			/*？？？？？？ 没明白 那不就超出范围了吗？？？*/
 				return ext_pblk - (ext_block - block);
 		}
 
@@ -544,6 +544,10 @@ int ext4_ext_check_inode(struct inode *inode)
 	return ext4_ext_check(inode, ext_inode_hdr(inode), ext_depth(inode), 0);
 }
 
+/*
+ * 把extent tree中的节点(index或者leaf)读上来并做校验
+ * 校验完了如果是leaf节点把所有的extent在ext4_inode_info->i_es_tree上做cache
+ */
 static struct buffer_head *
 __read_extent_tree_block(const char *function, unsigned int line,
 			 struct inode *inode, ext4_fsblk_t pblk, int depth,
@@ -562,6 +566,7 @@ __read_extent_tree_block(const char *function, unsigned int line,
 		if (err < 0)
 			goto errout;
 	}
+	/*先把bh读上来*/
 	if (buffer_verified(bh) && !(flags & EXT4_EX_FORCE_CACHE))
 		return bh;
 	err = __ext4_ext_check(function, line, inode,
@@ -772,6 +777,9 @@ void ext4_ext_drop_refs(struct ext4_ext_path *path)
  * ext4_ext_binsearch_idx:
  * binary search for the closest index of the given block
  * the header must be checked before calling this
+ *
+ * 对于非leaf block, 组成结构为 ext4_extent_header + n*ext4_extent_idx
+ * 对于leaf block, 组成结构为   ext4_extent_header + n*ext4_extent
  */
 static void
 ext4_ext_binsearch_idx(struct inode *inode,
@@ -796,6 +804,7 @@ ext4_ext_binsearch_idx(struct inode *inode,
 				r, le32_to_cpu(r->ei_block));
 	}
 
+	/*选中对应的ext4_ext_idx*/
 	path->p_idx = l - 1;
 	ext_debug("  -> %u->%lld ", le32_to_cpu(path->p_idx->ei_block),
 		  ext4_idx_pblock(path->p_idx));
@@ -864,6 +873,7 @@ ext4_ext_binsearch(struct inode *inode,
 				r, le32_to_cpu(r->ee_block));
 	}
 
+	/*p_ext 选中*/
 	path->p_ext = l - 1;
 	ext_debug("  -> %d:%llu:[%d]%d ",
 			le32_to_cpu(path->p_ext->ee_block),
@@ -937,20 +947,24 @@ ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 			return ERR_PTR(-ENOMEM);
 		path[0].p_maxdepth = depth + 1;
 	}
-	path[0].p_hdr = eh;
+	path[0].p_hdr = eh;/*ext4_inode_info->i_data 指向了一个类似于index block的内存*/
 	path[0].p_bh = NULL;
 
 	i = depth;
 	/* walk through the tree */
+	/*ppos 累加, i 递减, 越往叶子depth越小*/
 	while (i) {
 		ext_debug("depth %d: num %d, max %d\n",
 			  ppos, le16_to_cpu(eh->eh_entries), le16_to_cpu(eh->eh_max));
 
 		ext4_ext_binsearch_idx(inode, path + ppos, block);
+		/*ext4_ext_binsearch_idx 中确定了选定的ext_idex 并赋值给了p_idx*/
+		/*该p_idx指向的下一个index 或者leaf node 的phy block#*/
 		path[ppos].p_block = ext4_idx_pblock(path[ppos].p_idx);
-		path[ppos].p_depth = i;
+		path[ppos].p_depth = i; /*p_depth 在这里不会为0*/
 		path[ppos].p_ext = NULL;
 
+		/*path[ppos].p_block 依然是 tree 上的一个block, 我们通过该特定接口读取对应的block*/
 		bh = read_extent_tree_block(inode, path[ppos].p_block, --i,
 					    flags);
 		if (IS_ERR(bh)) {
@@ -964,15 +978,16 @@ ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 		path[ppos].p_hdr = eh;
 	}
 
-	path[ppos].p_depth = i;
+	path[ppos].p_depth = i; /* i应该为0 时说明是leaf*/
 	path[ppos].p_ext = NULL;
 	path[ppos].p_idx = NULL;
 
 	/* find extent */
 	ext4_ext_binsearch(inode, path + ppos, block);
 	/* if not an empty leaf */
+	/*最后一个path.p_block指向ext的起始phy block*/
 	if (path[ppos].p_ext)
-		path[ppos].p_block = ext4_ext_pblock(path[ppos].p_ext);
+		path[ppos].p_block = ext4_ext_pblock(path[ppos].p_ext); 
 
 	ext4_ext_show_path(inode, path);
 
@@ -1570,12 +1585,15 @@ static int ext4_ext_search_right(struct inode *inode,
 	ex = path[depth].p_ext;
 	ee_len = ext4_ext_get_actual_len(ex);
 	if (*logical < le32_to_cpu(ex->ee_block)) {
+		/*如果extent 的起始 logical block# 大于所需要寻找的lblk,那这个extent一定是该文件的第一个*/
+		/* 首先他肯定是这个 ext block中的第一个extent*/
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			EXT4_ERROR_INODE(inode,
 					 "first_extent(path[%d].p_hdr) != ex",
 					 depth);
 			return -EFSCORRUPTED;
 		}
+		/*再次所有他父亲的ext_idx 也一定是所在idx block中的第一个*/
 		while (--depth >= 0) {
 			ix = path[depth].p_idx;
 			if (unlikely(ix != EXT_FIRST_INDEX(path[depth].p_hdr))) {
@@ -2426,6 +2444,8 @@ ext4_ext_put_gap_in_cache(struct inode *inode, ext4_lblk_t hole_start,
 /*
  * ext4_ext_rm_idx:
  * removes index from the index block.
+ *
+ * 从index 节点上删除一个extent idx
  */
 static int ext4_ext_rm_idx(handle_t *handle, struct inode *inode,
 			struct ext4_ext_path *path, int depth)
@@ -2435,7 +2455,7 @@ static int ext4_ext_rm_idx(handle_t *handle, struct inode *inode,
 
 	/* free index block */
 	depth--;
-	path = path + depth;
+	path = path + depth; /*path 现在指向最后一个 index node*/
 	leaf = ext4_idx_pblock(path->p_idx);
 	if (unlikely(path->p_hdr->eh_entries == 0)) {
 		EXT4_ERROR_INODE(inode, "path->p_hdr->eh_entries == 0");
@@ -2460,15 +2480,18 @@ static int ext4_ext_rm_idx(handle_t *handle, struct inode *inode,
 
 	ext4_free_blocks(handle, inode, NULL, leaf, 1,
 			 EXT4_FREE_BLOCKS_METADATA | EXT4_FREE_BLOCKS_FORGET);
-
+	/**/
 	while (--depth >= 0) {
-		if (path->p_idx != EXT_FIRST_INDEX(path->p_hdr))
+		if (path->p_idx != EXT_FIRST_INDEX(path->p_hdr)) /*如果p_idx 不是index block中的第一个extent_idx就退出*/
 			break;
-		path--;
+		path--; /*往根方向移动*/
 		err = ext4_ext_get_access(handle, inode, path);
 		if (err)
 			break;
-		path->p_idx->ei_block = (path+1)->p_idx->ei_block;
+		/*ei_block的意思是该idx 所覆盖的文件的起始logical block, 现在他的下一级 idx node 删除了第一个idx,
+		 那么其覆盖的文件的起始logical block 也就变了
+		 */
+		path->p_idx->ei_block = (path+1)->p_idx->ei_block; 
 		err = ext4_ext_dirty(handle, inode, path);
 		if (err)
 			break;
@@ -2604,8 +2627,8 @@ static int ext4_remove_blocks(handle_t *handle, struct inode *inode,
 		ext4_lblk_t num;
 		long long first_cluster;
 
-		num = le32_to_cpu(ex->ee_block) + ee_len - from;
-		pblk = ext4_ext_pblock(ex) + ee_len - num;
+		num = le32_to_cpu(ex->ee_block) + ee_len - from; /*from --- end 中间一共多少个block*/
+		pblk = ext4_ext_pblock(ex) + ee_len - num; /*from 对应的pblock*/
 		/*
 		 * Usually we want to free partial cluster at the end of the
 		 * extent, except for the situation when the cluster is still
@@ -2696,7 +2719,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 	if (!ex)
 		ex = EXT_LAST_EXTENT(eh);
 
-	ex_ee_block = le32_to_cpu(ex->ee_block);
+	ex_ee_block = le32_to_cpu(ex->ee_block); /*这里logical block*/
 	ex_ee_len = ext4_ext_get_actual_len(ex);
 
 	trace_ext4_ext_rm_leaf(inode, start, ex, *partial_cluster);
@@ -2713,8 +2736,8 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 			  unwritten, ex_ee_len);
 		path[depth].p_ext = ex;
 
-		a = ex_ee_block > start ? ex_ee_block : start;
-		b = ex_ee_block+ex_ee_len - 1 < end ?
+		a = ex_ee_block > start ? ex_ee_block : start; /*begin取较大*/
+		b = ex_ee_block+ex_ee_len - 1 < end ? /*end取较小*/
 			ex_ee_block+ex_ee_len - 1 : end;
 
 		ext_debug("  border %u:%u\n", a, b);
@@ -2738,6 +2761,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 			ex_ee_len = ext4_ext_get_actual_len(ex);
 			continue;
 		} else if (b != ex_ee_block + ex_ee_len - 1) {
+			/*b 一定要等于 该ex的最后一个logical block*/
 			EXT4_ERROR_INODE(inode,
 					 "can not handle truncate %u:%u "
 					 "on extent %u:%u",
@@ -2747,7 +2771,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 			goto out;
 		} else if (a != ex_ee_block) {
 			/* remove tail of the extent */
-			num = a - ex_ee_block;
+			num = a - ex_ee_block; /*a 处于extent 中间*/
 		} else {
 			/* remove whole extent: excellent! */
 			num = 0;
@@ -2910,6 +2934,7 @@ again:
 			ext4_journal_stop(handle);
 			return PTR_ERR(path);
 		}
+		/*path[ext_depth(inode)] 肯定指向一个ext node*/
 		depth = ext_depth(inode);
 		/* Leaf not may not exist only if inode has no blocks at all */
 		ex = path[depth].p_ext;
@@ -2923,7 +2948,7 @@ again:
 			goto out;
 		}
 
-		ee_block = le32_to_cpu(ex->ee_block);
+		ee_block = le32_to_cpu(ex->ee_block); /* logical block# */
 		ex_end = ee_block + ext4_ext_get_actual_len(ex) - 1;
 
 		/*

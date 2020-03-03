@@ -2348,6 +2348,7 @@ int ext4_generic_delete_entry(handle_t *handle,
 					 bh->b_data, bh->b_size, i))
 			return -EFSCORRUPTED;
 		if (de == de_del)  {
+			/*直接把空间合并到前面一个ext4_dir_entry_2去了*/
 			if (pde)
 				pde->rec_len = ext4_rec_len_to_disk(
 					ext4_rec_len_from_disk(pde->rec_len,

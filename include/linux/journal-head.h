@@ -35,6 +35,8 @@ struct journal_head {
 	 * as gcc would then (which the C standard allows but which is
 	 * very unuseful) make 64-bit accesses to the bitfield and clobber
 	 * b_jcount if its update races with bitfield modification.
+	 *
+	 * 指向jh所处在transaction上的哪个队列 t_buffers t_forgett t_shadowlist t_reserved_list
 	 */
 	unsigned b_jlist;
 
@@ -81,6 +83,7 @@ struct journal_head {
 	 * Doubly-linked list of buffers on a transaction's data, metadata or
 	 * forget queue. [t_list_lock] [jbd_lock_bh_state()]
 	 */
+	 /*连在transaction 的 t_buffers t_forgett t_shadowlist t_reserved_list其中之一上 */
 	struct journal_head *b_tnext, *b_tprev;
 
 	/*

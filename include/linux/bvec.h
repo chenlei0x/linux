@@ -29,8 +29,8 @@
  */
 struct bio_vec {
 	struct page	*bv_page;
-	unsigned int	bv_len;
-	unsigned int	bv_offset;
+	unsigned int	bv_len; /*page 内多长 单位B*/
+	unsigned int	bv_offset; /*page 内的offset*/
 };
 
 /*

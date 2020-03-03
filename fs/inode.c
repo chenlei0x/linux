@@ -1352,6 +1352,7 @@ EXPORT_SYMBOL(ilookup);
  * the reference count because the resulting iput() might cause an
  * inode eviction.  The tradeoff is that the @match funtion must be
  * very carefully implemented.
+ * 从inode hash表里面找
  */
 struct inode *find_inode_nowait(struct super_block *sb,
 				unsigned long hashval,

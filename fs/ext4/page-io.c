@@ -401,6 +401,7 @@ submit_and_retry:
 			return ret;
 		io->io_bio->bi_write_hint = inode->i_write_hint;
 	}
+	//io->io_bio 在io_submit_init_bio中申请
 	ret = bio_add_page(io->io_bio, page, bh->b_size, bh_offset(bh));
 	if (ret != bh->b_size)
 		goto submit_and_retry;
@@ -499,7 +500,8 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 		}
 	}
 
-	/* Now submit buffers to write */
+	/* Now submit buffers to write*/
+	/*,这个循环主要用来构造一个或者多个bio,如果需要一个新的bio,则把上一个派发下去	*/
 	do {
 		if (!buffer_async_write(bh))
 			continue;

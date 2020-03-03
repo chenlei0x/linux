@@ -371,7 +371,7 @@ struct flex_groups {
 #define	EXT4_IND_BLOCK			EXT4_NDIR_BLOCKS
 #define	EXT4_DIND_BLOCK			(EXT4_IND_BLOCK + 1)
 #define	EXT4_TIND_BLOCK			(EXT4_DIND_BLOCK + 1)
-#define	EXT4_N_BLOCKS			(EXT4_TIND_BLOCK + 1)
+#define	EXT4_N_BLOCKS			(EXT4_TIND_BLOCK + 1) /*15*/
 
 /*
  * Inode flags
@@ -749,7 +749,7 @@ struct ext4_inode {
 			__u32  m_i_reserved1;
 		} masix1;
 	} osd1;				/* OS dependent 1 */
-	__le32	i_block[EXT4_N_BLOCKS];/* Pointers to blocks */
+	__le32	i_block[EXT4_N_BLOCKS];/* Pointers to blocks 60B 有可能存放的是一个 ext4_extent_header + n * ext4_extent */
 	__le32	i_generation;	/* File version (for NFS) */
 	__le32	i_file_acl_lo;	/* File ACL */
 	__le32	i_size_high;
@@ -1288,7 +1288,7 @@ struct ext4_super_block {
 	 * Journaling support valid if EXT4_FEATURE_COMPAT_HAS_JOURNAL set.
 	 */
 /*D0*/	__u8	s_journal_uuid[16];	/* uuid of journal superblock */
-/*E0*/	__le32	s_journal_inum;		/* inode number of journal file */
+/*E0*/	__le32	s_journal_inum;		/* inode number of journal file mkfs里面写了 这个值为8 EXT2_JOURNAL_INO */
 	__le32	s_journal_dev;		/* device number of journal file */
 	__le32	s_last_orphan;		/* start of list of inodes to delete 指向最新的orphan inode# */
 	__le32	s_hash_seed[4];		/* HTREE hash seed */
@@ -1458,8 +1458,8 @@ struct ext4_sb_info {
 #endif
 
 	/* for buddy allocator */
-	struct ext4_group_info ***s_group_info;
-	struct inode *s_buddy_cache;
+	struct ext4_group_info ***s_group_info; /*[block#][grp_offset_in_blk] = ext4_group_info *     */
+	struct inode *s_buddy_cache; /*所有的group bitmap 和buddyinfo 全部存放到一个个page中,这些page 由s_buddy_cache->i_mapping管理*/
 	spinlock_t s_md_lock;
 	unsigned short *s_mb_offsets;
 	unsigned int *s_mb_maxs;
@@ -1474,7 +1474,7 @@ struct ext4_sb_info {
 	unsigned int s_mb_max_to_scan;
 	unsigned int s_mb_min_to_scan;
 	unsigned int s_mb_stats;
-	unsigned int s_mb_order2_reqs;
+	unsigned int s_mb_order2_reqs; /*只有申请的长度 是2整数次幂,且大于 2^s_mb_order2_reqs才使用buddyscan*/
 	unsigned int s_mb_group_prealloc /*512 blocks*/;
 	unsigned int s_max_dir_size_kb;
 	/* where last allocation was done - for stream allocation */

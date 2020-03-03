@@ -231,7 +231,7 @@ loop:
 	if (journal->j_commit_sequence != journal->j_commit_request) {
 		jbd_debug(1, "OK, requests differ\n");
 		write_unlock(&journal->j_state_lock);
-		del_timer_sync(&journal->j_commit_timer);
+		del_timer_sync(&journal->j_commit_timer); /*commit_timeout(current)*/
 		jbd2_journal_commit_transaction(journal);
 		write_lock(&journal->j_state_lock);
 		goto loop;
@@ -298,12 +298,13 @@ end_loop:
 static int jbd2_journal_start_thread(journal_t *journal)
 {
 	struct task_struct *t;
-
+	/*对应的块设备,可以是分区*/
 	t = kthread_run(kjournald2, journal, "jbd2/%s",
 			journal->j_devname);
 	if (IS_ERR(t))
 		return PTR_ERR(t);
 
+	/*kjournald2 一开始就会对 j_wait_done_commit 进行wakeup操作*/
 	wait_event(journal->j_wait_done_commit, journal->j_task != NULL);
 	return 0;
 }
@@ -356,7 +357,7 @@ static void journal_kill_thread(journal_t *journal)
  * Bit 0 set == escape performed on the data
  * Bit 1 set == buffer copy-out performed (kfree the data after IO)
  */
-
+/*申请一个新的bh,并用旧的bh,或者frozendata 初始化*/
 int jbd2_journal_write_metadata_buffer(transaction_t *transaction,
 				  struct journal_head  *jh_in,
 				  struct buffer_head **bh_out,
@@ -469,6 +470,7 @@ repeat:
 		kunmap_atomic(mapped_data);
 	}
 
+	/*初始化new_bh*/
 	set_bh_page(new_bh, new_page, new_offset);
 	new_bh->b_size = bh_in->b_size;
 	new_bh->b_bdev = journal->j_dev;
@@ -805,6 +807,7 @@ int jbd2_journal_bmap(journal_t *journal, unsigned long blocknr,
 	unsigned long long ret;
 
 	if (journal->j_inode) {
+		/*ext4 属于这个模式*/
 		ret = bmap(journal->j_inode, blocknr);
 		if (ret)
 			*retp = ret;
@@ -816,6 +819,7 @@ int jbd2_journal_bmap(journal_t *journal, unsigned long blocknr,
 			__journal_abort_soft(journal, err);
 		}
 	} else {
+		/*这种模式属于划分出来一块用作journal的模式*/
 		*retp = blocknr; /* +journal->j_blk_offset */
 	}
 	return err;
@@ -1164,13 +1168,14 @@ static journal_t *journal_init_common(struct block_device *bdev,
 	journal->j_fs_dev = fs_dev;
 	journal->j_blk_offset = start;
 	journal->j_maxlen = len;
-	n = journal->j_blocksize / sizeof(journal_block_tag_t);
+	n = journal->j_blocksize / sizeof(journal_block_tag_t); /*一个block能装几个journal_block_tag_t*/
 	journal->j_wbufsize = n;
 	journal->j_wbuf = kmalloc_array(n, sizeof(struct buffer_head *),
 					GFP_KERNEL);
 	if (!journal->j_wbuf)
 		goto err_cleanup;
 
+	/*还是会从bdev的pagecache中拿*/
 	bh = getblk_unmovable(journal->j_dev, start, journal->j_blocksize);
 	if (!bh) {
 		pr_err("%s: Cannot get buffer for journal superblock\n",
@@ -1243,6 +1248,7 @@ journal_t *jbd2_journal_init_inode(struct inode *inode)
 	char *p;
 	unsigned long long blocknr;
 
+	/*inode 0 logic block === > physical block#*/
 	blocknr = bmap(inode, 0);
 	if (!blocknr) {
 		pr_err("%s: Cannot locate journal superblock\n",
@@ -1261,6 +1267,7 @@ journal_t *jbd2_journal_init_inode(struct inode *inode)
 		return NULL;
 
 	journal->j_inode = inode;
+	/*名字格式化到j_devname */
 	bdevname(journal->j_dev, journal->j_devname);
 	p = strreplace(journal->j_devname, '/', '!');
 	sprintf(p, "-%lu", journal->j_inode->i_ino);
@@ -2476,7 +2483,7 @@ static void journal_free_journal_head(struct journal_head *jh)
  * May sleep.
  */
  /*
-  * 给buffer_head private增加一个 journal_head, 并置标志位
+  * 给buffer_head private增加一个 journal_head, 并置标志位set_buffer_jbd
   */
 struct journal_head *jbd2_journal_add_journal_head(struct buffer_head *bh)
 {

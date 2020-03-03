@@ -1102,6 +1102,8 @@ int ext4_walk_page_buffers(handle_t *handle,
 	     block_start = block_end, bh = next) {
 		next = bh->b_this_page;
 		block_end = block_start + blocksize;
+
+		/*不在范围内掠过*/
 		if (block_end <= from || block_start >= to) {
 			if (partial && !buffer_uptodate(bh))
 				*partial = 1;
@@ -2151,6 +2153,9 @@ static int ext4_writepage(struct page *page,
 	 * easily detect this case using ext4_walk_page_buffers(), but
 	 * for the extremely common case, this is an optimization that
 	 * skips a useless round trip through ext4_bio_write_page().
+	 *
+	 * 对每个buffer 调用ext4_bh_delay_or_unwritten,有一个返回true,
+	 * ext4_walk_page_buffers 也会返回true
 	 */
 	if (ext4_walk_page_buffers(NULL, page_bufs, 0, len, NULL,
 				   ext4_bh_delay_or_unwritten)) {
@@ -2184,7 +2189,9 @@ static int ext4_writepage(struct page *page,
 		unlock_page(page);
 		return -ENOMEM;
 	}
+	/*构造bio并最终submit*/
 	ret = ext4_bio_write_page(&io_submit, page, len, wbc, keep_towrite);
+	/*io_submit 中包含了最近一次创建的bio,且没有派发*/
 	ext4_io_submit(&io_submit);
 	/* Drop io_end reference we got from init */
 	ext4_put_io_end_defer(io_submit.io_end);
@@ -5074,6 +5081,7 @@ static void ext4_update_other_inodes_time(struct super_block *sb,
  * buffer_head in the inode location struct.
  *
  * The caller must have write access to iloc->bh.
+ * 把 inode信息更新到对应的bh中,并调用ext4_handle_dirty_metadata
  */
 static int ext4_do_update_inode(handle_t *handle,
 				struct inode *inode,
@@ -5192,6 +5200,7 @@ static int ext4_do_update_inode(handle_t *handle,
 					      bh->b_data);
 
 	BUFFER_TRACE(bh, "call ext4_handle_dirty_metadata");
+	/*最终要把bh递交给journal 或者 磁盘 bdi*/
 	rc = ext4_handle_dirty_metadata(handle, NULL, bh);
 	if (!err)
 		err = rc;
@@ -5246,6 +5255,8 @@ out_brelse:
  * is in error because write_inode() could occur while `stuff()' is running,
  * and the new i_size will be lost.  Plus the inode will no longer be on the
  * superblock's dirty inode list.
+ *
+ * 要么写入了,要么通过journal写入
  */
 int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 {
@@ -5259,6 +5270,7 @@ int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 		return -EIO;
 
 	if (EXT4_SB(inode->i_sb)->s_journal) {
+		/*journal*/
 		if (ext4_journal_current_handle()) {
 			jbd_debug(1, "called recursively, non-PF_MEMALLOC!\n");
 			dump_stack();
@@ -5276,6 +5288,7 @@ int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 		err = jbd2_complete_transaction(EXT4_SB(inode->i_sb)->s_journal,
 						EXT4_I(inode)->i_sync_tid);
 	} else {
+		/*直接写*/
 		struct ext4_iloc iloc;
 
 		err = __ext4_get_inode_loc(inode, &iloc, 0);
@@ -5714,6 +5727,7 @@ int ext4_chunk_trans_blocks(struct inode *inode, int nrblocks)
 /*
  * The caller must have previously called ext4_reserve_inode_write().
  * Give this, we know that the caller already has write access to iloc->bh.
+ * 更新inode 对应的bh
  */
 int ext4_mark_iloc_dirty(handle_t *handle,
 			 struct inode *inode, struct ext4_iloc *iloc)

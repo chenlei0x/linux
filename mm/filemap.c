@@ -2236,10 +2236,12 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 
 		size = i_size_read(inode);
 		if (iocb->ki_flags & IOCB_NOWAIT) {
+			/*page cached 里面 有没有 iocb 里面涉及的页, 如果有,就返回EAGAIN*/
 			if (filemap_range_has_page(mapping, iocb->ki_pos,
 						   iocb->ki_pos + count - 1))
 				return -EAGAIN;
 		} else {
+			/*没有IOCB_NOWAIT 标志,所以我们把这些都刷下去*/
 			retval = filemap_write_and_wait_range(mapping,
 						iocb->ki_pos,
 					        iocb->ki_pos + count - 1);
@@ -2249,6 +2251,7 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 
 		file_accessed(file);
 
+		/*然后直接direct -IO*/
 		retval = mapping->a_ops->direct_IO(iocb, iter);
 		if (retval >= 0) {
 			iocb->ki_pos += retval;

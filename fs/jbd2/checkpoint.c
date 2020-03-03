@@ -29,6 +29,8 @@
  * Unlink a buffer from a transaction checkpoint list.
  *
  * Called with j_list_lock held.
+ *
+ * 把jh 从 t_checkpoint_list 删掉, 考虑jh是第一个或者唯一一个
  */
 static inline void __buffer_unlink_first(struct journal_head *jh)
 {
@@ -37,7 +39,9 @@ static inline void __buffer_unlink_first(struct journal_head *jh)
 	jh->b_cpnext->b_cpprev = jh->b_cpprev;
 	jh->b_cpprev->b_cpnext = jh->b_cpnext;
 	if (transaction->t_checkpoint_list == jh) {
+		/*jh 是 checkpoint_list 头部*/
 		transaction->t_checkpoint_list = jh->b_cpnext;
+		/*jh 是唯一的一个*/
 		if (transaction->t_checkpoint_list == jh)
 			transaction->t_checkpoint_list = NULL;
 	}
@@ -47,15 +51,18 @@ static inline void __buffer_unlink_first(struct journal_head *jh)
  * Unlink a buffer from a transaction checkpoint(io) list.
  *
  * Called with j_list_lock held.
+ *
+ * 把jh 从b_cp_transaction 的 t_checkpoint_list 删掉, 考虑jh是第一个或者唯一一个
+ * 如果 jh 是t_checkpoint_io_list 头部,也删掉
  */
 static inline void __buffer_unlink(struct journal_head *jh)
 {
 	transaction_t *transaction = jh->b_cp_transaction;
 
 	__buffer_unlink_first(jh);
-	if (transaction->t_checkpoint_io_list == jh) {
+	if (transaction->t_checkpoint_io_list == jh) {/*头部*/
 		transaction->t_checkpoint_io_list = jh->b_cpnext;
-		if (transaction->t_checkpoint_io_list == jh)
+		if (transaction->t_checkpoint_io_list == jh) /*jh是唯一一个*/
 			transaction->t_checkpoint_io_list = NULL;
 	}
 }
@@ -64,6 +71,9 @@ static inline void __buffer_unlink(struct journal_head *jh)
  * Move a buffer from the checkpoint list to the checkpoint io list
  *
  * Called with j_list_lock held
+ * 把jh 从  checkpoint list 移入  checkpoint io list
+ *
+ * checkpoint list ---> A <----> B <----> C <-----> [A] 指向该循环链表的七点
  */
 static inline void __buffer_relink_io(struct journal_head *jh)
 {
@@ -146,7 +156,7 @@ void __jbd2_log_wait_for_space(journal_t *journal)
 			spin_unlock(&journal->j_list_lock);
 			write_unlock(&journal->j_state_lock);
 			if (chkpt) {
-				jbd2_log_do_checkpoint(journal);
+				jbd2_log_do_checkpoint(journal); /*这里 checkoutpoint*/
 			} else if (jbd2_cleanup_journal_tail(journal) == 0) {
 				/* We were able to recover space; yay! */
 				;
@@ -421,6 +431,9 @@ int jbd2_cleanup_journal_tail(journal_t *journal)
  *
  * Called with j_list_lock held.
  * Returns 1 if we freed the transaction, 0 otherwise.
+ *
+ * @jh 是transaction->t_checkpoint_list
+ *针对一个transaction, 释放他的某个链上的所有jh
  */
 static int journal_clean_one_cp_list(struct journal_head *jh, bool destroy)
 {
@@ -463,6 +476,9 @@ static int journal_clean_one_cp_list(struct journal_head *jh, bool destroy)
  * If 'destroy' is set, release all buffers unconditionally.
  *
  * Called with j_list_lock held.
+ *
+ * journal->j_checkpoint_transactions 指向checkpoint transaction 链表表头
+ * 针对链表中的每个tran,释放其 
  */
 void __jbd2_journal_clean_checkpoint_list(journal_t *journal, bool destroy)
 {
@@ -478,7 +494,7 @@ void __jbd2_journal_clean_checkpoint_list(journal_t *journal, bool destroy)
 	do {
 		transaction = next_transaction;
 		next_transaction = transaction->t_cpnext;
-		ret = journal_clean_one_cp_list(transaction->t_checkpoint_list,
+		ret = journal_clean_one_cp_list(transaction->t_checkpoint_list, /*t_checkpoint_list*/
 						destroy);
 		/*
 		 * This function only frees up some memory if possible so we
@@ -495,7 +511,7 @@ void __jbd2_journal_clean_checkpoint_list(journal_t *journal, bool destroy)
 		 * we can possibly see not yet submitted buffers on io_list
 		 */
 		ret = journal_clean_one_cp_list(transaction->
-				t_checkpoint_io_list, destroy);
+				t_checkpoint_io_list, destroy); /*t_checkpoint_io_list*/
 		if (need_resched())
 			return;
 		/*
@@ -547,6 +563,9 @@ void jbd2_journal_destroy_checkpoint(journal_t *journal)
  * The function can free jh and bh.
  *
  * This function is called with j_list_lock held.
+ *
+ * 把 jh 从 jh->b_cp_transaction删除,有可能直接释放了该transaction
+ * jh 的锚点 在 b_cpnext b_cpprev
  */
 int __jbd2_journal_remove_checkpoint(struct journal_head *jh)
 {
@@ -564,8 +583,8 @@ int __jbd2_journal_remove_checkpoint(struct journal_head *jh)
 	journal = transaction->t_journal;
 
 	JBUFFER_TRACE(jh, "removing from transaction");
-	__buffer_unlink(jh);
-	jh->b_cp_transaction = NULL;
+	__buffer_unlink(jh); /* 从 jh->b_cp_transaction 的 t_checkpoint_list删掉*/
+	jh->b_cp_transaction = NULL; /*彻底脱离他的cp transaction*/
 	jbd2_journal_put_journal_head(jh);
 
 	if (transaction->t_checkpoint_list != NULL ||
@@ -593,6 +612,7 @@ int __jbd2_journal_remove_checkpoint(struct journal_head *jh)
 	trace_jbd2_checkpoint_stats(journal->j_fs_dev->bd_dev,
 				    transaction->t_tid, stats);
 
+	/*走到这说明 t_checkpoint_list t_checkpoint_io_list 都为空,所以可以释放transaction了*/
 	__jbd2_journal_drop_transaction(journal, transaction);
 	jbd2_journal_free_transaction(transaction);
 	ret = 1;
@@ -607,6 +627,8 @@ out:
  *
  * Called with the journal locked.
  * Called with j_list_lock held.
+ *
+ * 把jh 加入到 @transaction上, 其中@transaction为 checkpoint transaction
  */
 void __jbd2_journal_insert_checkpoint(struct journal_head *jh,
 			       transaction_t *transaction)
@@ -620,7 +642,7 @@ void __jbd2_journal_insert_checkpoint(struct journal_head *jh,
 	jh->b_cp_transaction = transaction;
 
 	if (!transaction->t_checkpoint_list) {
-		jh->b_cpnext = jh->b_cpprev = jh;
+		jh->b_cpnext = jh->b_cpprev = jh; /*jh 是第一个被添加进来的*/
 	} else {
 		jh->b_cpnext = transaction->t_checkpoint_list;
 		jh->b_cpprev = transaction->t_checkpoint_list->b_cpprev;
@@ -639,10 +661,11 @@ void __jbd2_journal_insert_checkpoint(struct journal_head *jh,
  * Called with the journal locked.
  * Called with j_list_lock held.
  */
-
+/*把transaction卸下来*/
 void __jbd2_journal_drop_transaction(journal_t *journal, transaction_t *transaction)
 {
 	assert_spin_locked(&journal->j_list_lock);
+	/*transaction可能处于一个checkpoint链表中*/
 	if (transaction->t_cpnext) {
 		transaction->t_cpnext->t_cpprev = transaction->t_cpprev;
 		transaction->t_cpprev->t_cpnext = transaction->t_cpnext;

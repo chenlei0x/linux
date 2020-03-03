@@ -87,7 +87,7 @@ jbd2_get_transaction(journal_t *journal, transaction_t *transaction)
 	transaction->t_state = T_RUNNING;
 	transaction->t_start_time = ktime_get();
 	transaction->t_tid = journal->j_transaction_sequence++;
-	transaction->t_expires = jiffies + journal->j_commit_interval;
+	transaction->t_expires = jiffies + journal->j_commit_interval; /*5s*/
 	spin_lock_init(&transaction->t_handle_lock);
 	atomic_set(&transaction->t_updates, 0);
 	atomic_set(&transaction->t_outstanding_credits,
@@ -98,7 +98,7 @@ jbd2_get_transaction(journal_t *journal, transaction_t *transaction)
 
 	/* Set up the commit timer for the new transaction. */
 	journal->j_commit_timer.expires = round_jiffies_up(transaction->t_expires);
-	add_timer(&journal->j_commit_timer);
+	add_timer(&journal->j_commit_timer); /*设置定时器*/
 
 	J_ASSERT(journal->j_running_transaction == NULL);
 	journal->j_running_transaction = transaction;
@@ -176,6 +176,8 @@ static void sub_reserved_credits(journal_t *journal, int blocks)
  * with j_state_lock held for reading. Returns 0 if handle joined the running
  * transaction. Returns 1 if we had to wait, j_state_lock is dropped, and
  * caller must retry.
+ *
+ * 给running transaction 增加credits, 如果需求量过大可能需要等待
  */
 static int add_transaction_credits(journal_t *journal, int blocks,
 				   int rsv_blocks)
@@ -198,7 +200,9 @@ static int add_transaction_credits(journal_t *journal, int blocks,
 	 * potential buffers requested by this operation, we need to
 	 * stall pending a log checkpoint to free some more log space.
 	 */
+	 /*needed = total + &t->t_outstanding_credits*/
 	needed = atomic_add_return(total, &t->t_outstanding_credits);
+	/*当前transaction 所需要的所有buffer 是否超额*/
 	if (needed > journal->j_max_transaction_buffers) {
 		/*
 		 * If the current transaction is already too large,
@@ -241,6 +245,7 @@ static int add_transaction_credits(journal_t *journal, int blocks,
 		read_unlock(&journal->j_state_lock);
 		jbd2_might_wait_for_commit(journal);
 		write_lock(&journal->j_state_lock);
+		/*等待空间,需要刷盘,可能会阻塞*/
 		if (jbd2_log_space_left(journal) < jbd2_space_needed(journal))
 			__jbd2_log_wait_for_space(journal);
 		write_unlock(&journal->j_state_lock);
@@ -300,6 +305,7 @@ static int start_this_handle(journal_t *journal, handle_t *handle,
 	}
 
 alloc_transaction:
+	/*没有running 就新建一个*/
 	if (!journal->j_running_transaction) {
 		/*
 		 * If __GFP_FS is not present, then we may be being called from
@@ -348,6 +354,7 @@ repeat:
 		write_lock(&journal->j_state_lock);
 		if (!journal->j_running_transaction &&
 		    (handle->h_reserved || !journal->j_barrier_count)) {
+		    /*journal->runnning_transaction 置为 transaction*/
 			jbd2_get_transaction(journal, new_transaction);
 			new_transaction = NULL;
 		}
@@ -424,7 +431,7 @@ handle_t *jbd2__journal_start(journal_t *journal, int nblocks, int rsv_blocks,
 		handle->h_ref++;
 		return handle;
 	}
-
+	/*新handle*/
 	handle = new_handle(nblocks);
 	if (!handle)
 		return ERR_PTR(-ENOMEM);
@@ -792,7 +799,9 @@ static void warn_dirty_buffer(struct buffer_head *bh)
 	       bh->b_bdev, (unsigned long long)bh->b_blocknr);
 }
 
-/* Call t_frozen trigger and copy buffer data into jh->b_frozen_data. */
+/* Call t_frozen trigger and copy buffer data into jh->b_frozen_data. 
+bh->b_data 拷贝到frozen_data
+*/
 static void jbd2_freeze_jh_data(struct journal_head *jh)
 {
 	struct page *page;
@@ -872,6 +881,8 @@ repeat:
 	 * ie. locked but not dirty) or tune2fs (which may actually have
 	 * the buffer dirtied, ugh.)  */
 
+	/*如何 buffer dirty, 那么jh必须属于该transaction或者 committing transaction, 
+	而且 next transaction也指向该transaction*/
 	if (buffer_dirty(bh)) {
 		/*
 		 * First question: is this buffer already part of the current
@@ -925,7 +936,7 @@ repeat:
 	 * doesn't get written to disk before the caller actually commits the
 	 * new data
 	 */
-	if (!jh->b_transaction) {
+	if (!jh->b_transaction) { /*没有绑定过transaction*/
 		JBUFFER_TRACE(jh, "no transaction");
 		J_ASSERT_JH(jh, !jh->b_next_transaction);
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
@@ -936,6 +947,7 @@ repeat:
 		 */
 		smp_wmb();
 		spin_lock(&journal->j_list_lock);
+		/*jh 放入 transaction 的reserved 列表, 且赋值 jh->b_transaction*/
 		__jbd2_journal_file_buffer(jh, transaction, BJ_Reserved);
 		spin_unlock(&journal->j_list_lock);
 		goto done;
@@ -993,6 +1005,7 @@ repeat:
 		}
 		jh->b_frozen_data = frozen_buffer;
 		frozen_buffer = NULL;
+		/*拷贝bh数据到 jh->b_frozen_data*/
 		jbd2_freeze_jh_data(jh);
 	}
 attach_next:
@@ -1097,6 +1110,7 @@ int jbd2_journal_get_write_access(handle_t *handle, struct buffer_head *bh)
 	/* We do not want to get caught playing with fields which the
 	 * log thread also manipulates.  Make sure that the buffer
 	 * completes any outstanding IO before proceeding. */
+	 /*jh 为 给bh加上的jh*/
 	rc = do_get_write_access(handle, jh, 0);
 	jbd2_journal_put_journal_head(jh);
 	return rc;
@@ -1168,6 +1182,7 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
 		spin_lock(&journal->j_list_lock);
+		/*jh->transaction 赋值为 transaction,并加入t_reserved_list队列*/
 		__jbd2_journal_file_buffer(jh, transaction, BJ_Reserved);
 		spin_unlock(&journal->j_list_lock);
 	} else if (jh->b_transaction == journal->j_committing_transaction) {
@@ -1399,7 +1414,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 			ret = -ENOSPC;
 			goto out_unlock_bh;
 		}
-		jh->b_modified = 1;
+		jh->b_modified = 1; /*0 ===> 1*/
 		handle->h_buffer_credits--;
 	}
 
@@ -1470,6 +1485,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 
 	JBUFFER_TRACE(jh, "file as BJ_Metadata");
 	spin_lock(&journal->j_list_lock);
+	/*jh 绑定transaction*/
 	__jbd2_journal_file_buffer(jh, transaction, BJ_Metadata);
 	spin_unlock(&journal->j_list_lock);
 out_unlock_bh:
@@ -1865,6 +1881,8 @@ __blist_del_buffer(struct journal_head **list, struct journal_head *jh)
  * pointer from the transaction_t.
  *
  * Called under j_list_lock.
+ *
+ * 把jh 从 他所在的list 里面删去,保持 jh->b_transaction不变
  */
 static void __jbd2_journal_temp_unlink_buffer(struct journal_head *jh)
 {
@@ -1900,6 +1918,7 @@ static void __jbd2_journal_temp_unlink_buffer(struct journal_head *jh)
 		break;
 	}
 
+	/*从list里面删去jh*/
 	__blist_del_buffer(list, jh);
 	jh->b_jlist = BJ_None;
 	if (transaction && is_journal_aborted(transaction->t_journal))
@@ -2386,11 +2405,12 @@ void __jbd2_journal_file_buffer(struct journal_head *jh,
 			was_dirty = 1;
 	}
 
+	
 	if (jh->b_transaction)
-		__jbd2_journal_temp_unlink_buffer(jh);
+		__jbd2_journal_temp_unlink_buffer(jh); /*如果jh属于某个transaction, 那就从这个transaction取下来*/
 	else
 		jbd2_journal_grab_journal_head(bh);
-	jh->b_transaction = transaction;
+	jh->b_transaction = transaction; /*!!!!!!重点!!!!!*/
 
 	switch (jlist) {
 	case BJ_None:
@@ -2479,7 +2499,7 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 	J_ASSERT_JH(jh, jh->b_transaction->t_state == T_RUNNING);
 
 	if (was_dirty)
-		set_buffer_jbddirty(bh);
+		set_buffer_jbddirty(bh); /*设置这里才会最终被checkpoint*/
 }
 
 /*
@@ -2487,6 +2507,8 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
  * bh reference so that we can safely unlock bh.
  *
  * The jh and bh may be freed by this call.
+ *
+ * 根据状态把jh放到合适的队列上
  */
 void jbd2_journal_refile_buffer(journal_t *journal, struct journal_head *jh)
 {

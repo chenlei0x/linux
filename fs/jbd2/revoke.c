@@ -264,6 +264,7 @@ int jbd2_journal_init_revoke(journal_t *journal, int hash_size)
 	J_ASSERT(journal->j_revoke_table[0] == NULL);
 	J_ASSERT(is_power_of_2(hash_size));
 
+	/*hashtable 就是 hash_size 个 listhead 数组*/
 	journal->j_revoke_table[0] = jbd2_journal_init_revoke_table(hash_size);
 	if (!journal->j_revoke_table[0])
 		goto fail0;

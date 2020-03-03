@@ -1521,7 +1521,7 @@ static void part_round_stats_single(struct request_queue *q, int cpu,
  * /proc/diskstats.  This accounts immediately for all queue usage up to
  * the current jiffies and restarts the counters again.
  *
- * 对整个磁盘进行round，包括part0和他真正的本part
+ * 对整个磁盘part0进行round，包括part0和他真正的本part
  */
 void part_round_stats(struct request_queue *q, int cpu, struct hd_struct *part)
 {

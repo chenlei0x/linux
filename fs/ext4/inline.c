@@ -1686,6 +1686,7 @@ int ext4_delete_inline_entry(handle_t *handle,
 	struct ext4_iloc iloc;
 	void *inline_start;
 
+	/*dir 的inode location*/
 	err = ext4_get_inode_loc(dir, &iloc);
 	if (err)
 		return err;
@@ -1713,6 +1714,7 @@ int ext4_delete_inline_entry(handle_t *handle,
 	if (err)
 		goto out;
 
+	/*从bh里面删除entry*/
 	err = ext4_generic_delete_entry(handle, dir, de_del, bh,
 					inline_start, inline_size, 0);
 	if (err)

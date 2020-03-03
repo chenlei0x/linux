@@ -1184,6 +1184,8 @@ void mark_buffer_dirty(struct buffer_head *bh)
 
 		lock_page_memcg(page);
 		if (!TestSetPageDirty(page)) {
+			/*这个mapping 可能是文件的address space,也有可能是block device的
+		,取决于这个page从哪里建立的*/
 			mapping = page_mapping(page);
 			if (mapping)
 				__set_page_dirty(page, mapping, 0);

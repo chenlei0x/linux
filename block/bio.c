@@ -850,8 +850,9 @@ bool __bio_try_merge_page(struct bio *bio, struct page *page,
 		return false;
 
 	if (bio->bi_vcnt > 0) {
-		struct bio_vec *bv = &bio->bi_io_vec[bio->bi_vcnt - 1];
+		struct bio_vec *bv = &bio->bi_io_vec[bio->bi_vcnt - 1]; //最后一个vec
 
+		/*这个vec 也是在这个page内,且刚好衔接上,那就把这段融入到最后已给vec上*/
 		if (page == bv->bv_page && off == bv->bv_offset + bv->bv_len) {
 			bv->bv_len += len;
 			bio->bi_iter.bi_size += len;
@@ -905,6 +906,7 @@ int bio_add_page(struct bio *bio, struct page *page,
 	if (!__bio_try_merge_page(bio, page, len, offset)) {
 		if (bio_full(bio))
 			return 0;
+		//merge 失败了,把page[offset, len) 作为一个新的vec加入到bio中
 		__bio_add_page(bio, page, len, offset);
 	}
 	return len;

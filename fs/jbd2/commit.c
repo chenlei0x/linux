@@ -115,6 +115,8 @@ static void jbd2_commit_block_csum_set(journal_t *j, struct buffer_head *bh)
  * entirely.
  *
  * Returns 1 if the journal needs to be aborted or 0 on success
+ *
+ * 提交一个commit header, commit header 扩充了 journal header
  */
 static int journal_submit_commit_record(journal_t *journal,
 					transaction_t *commit_transaction,
@@ -324,6 +326,7 @@ static void write_tag_block(journal_t *j, journal_block_tag_t *tag,
 		tag->t_blocknr_high = cpu_to_be32((block >> 31) >> 1);
 }
 
+/*生成校验信息*/
 static void jbd2_block_tag_csum_set(journal_t *j, journal_block_tag_t *tag,
 				    struct buffer_head *bh, __u32 sequence)
 {
@@ -415,6 +418,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	J_ASSERT(journal->j_running_transaction != NULL);
 	J_ASSERT(journal->j_committing_transaction == NULL);
 
+	/*!!!!!!!!*/
 	commit_transaction = journal->j_running_transaction;
 
 	trace_jbd2_start_commit(journal, commit_transaction);
@@ -438,6 +442,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 
 	spin_lock(&commit_transaction->t_handle_lock);
 	while (atomic_read(&commit_transaction->t_updates)) {
+		/*还有没完事的handle, 那就等吧*/
 		DEFINE_WAIT(wait);
 
 		prepare_to_wait(&journal->j_wait_updates, &wait,
@@ -523,6 +528,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	stats.run.rs_locked = jbd2_time_diff(stats.run.rs_locked,
 					     stats.run.rs_flushing);
 
+	/*改变状态T_FLUSH, j_committing_transaction, j_running_transaction*/
 	commit_transaction->t_state = T_FLUSH;
 	journal->j_committing_transaction = commit_transaction;
 	journal->j_running_transaction = NULL;
@@ -536,6 +542,8 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	/*
 	 * Now start flushing things to disk, in the order they appear
 	 * on the transaction lists.  Data blocks go first.
+	 *
+	 * 如果只journal meta data,以下函数不会有任何意义
 	 */
 	err = journal_submit_data_buffers(journal, commit_transaction);
 	if (err)
@@ -614,18 +622,18 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			jbd_debug(4, "JBD2: got buffer %llu (%p)\n",
 				(unsigned long long)descriptor->b_blocknr,
 				descriptor->b_data);
-			tagp = &descriptor->b_data[sizeof(journal_header_t)];
+			tagp = &descriptor->b_data[sizeof(journal_header_t)]; /*desc 打头的是一个journal_header_t*/
 			space_left = descriptor->b_size -
 						sizeof(journal_header_t);
 			first_tag = 1;
 			set_buffer_jwrite(descriptor);
 			set_buffer_dirty(descriptor);
-			wbuf[bufs++] = descriptor;
+			wbuf[bufs++] = descriptor; /*wbuf 用来记录需要写下去的block*/
 
 			/* Record it so that we can wait for IO
                            completion later */
 			BUFFER_TRACE(descriptor, "ph3: file as descriptor");
-			jbd2_file_log_bh(&log_bufs, descriptor);
+			jbd2_file_log_bh(&log_bufs, descriptor); /*desc 放入 log_bufs*/
 		}
 
 		/* Where is the buffer to be written? */
@@ -663,7 +671,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			jbd2_journal_abort(journal, flags);
 			continue;
 		}
-		jbd2_file_log_bh(&io_bufs, wbuf[bufs]);
+		jbd2_file_log_bh(&io_bufs, wbuf[bufs]); /*io_bufs*/
 
 		/* Record the new block's tag in the current descriptor
                    buffer */
@@ -679,12 +687,12 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		tag->t_flags = cpu_to_be16(tag_flag);
 		jbd2_block_tag_csum_set(journal, tag, wbuf[bufs],
 					commit_transaction->t_tid);
-		tagp += tag_bytes;
+		tagp += tag_bytes; /*头部应该是一个header + tag + uuid + (n-1) 个tag + jbd2_journal_block_tail*/
 		space_left -= tag_bytes;
 		bufs++;
 
 		if (first_tag) {
-			memcpy (tagp, journal->j_uuid, 16);
+			memcpy (tagp, journal->j_uuid, 16); /*第一个tag 后面跟16字节的uuid*/
 			tagp += 16;
 			space_left -= 16;
 			first_tag = 0;
@@ -703,12 +711,13 @@ void jbd2_journal_commit_transaction(journal_t *journal)
                            submitting the IOs.  "tag" still points to
                            the last tag we set up. */
 
-			tag->t_flags |= cpu_to_be16(JBD2_FLAG_LAST_TAG);
+			tag->t_flags |= cpu_to_be16(JBD2_FLAG_LAST_TAG); /*desc 中的最后一个tag*/
 start_journal_io:
 			if (descriptor)
 				jbd2_descriptor_block_csum_set(journal,
 							descriptor);
 
+			/*把所有的buf都推下去*/
 			for (i = 0; i < bufs; i++) {
 				struct buffer_head *bh = wbuf[i];
 				/*
@@ -735,6 +744,7 @@ start_journal_io:
 		}
 	}
 
+	/*data 没有纳入journal 范畴, 以下函数跳过*/
 	err = journal_finish_inode_data_buffers(journal, commit_transaction);
 	if (err) {
 		printk(KERN_WARNING
@@ -1001,7 +1011,7 @@ restart_loop:
 			}
 		}
 
-		if (buffer_jbddirty(bh)) {
+		if (buffer_jbddirty(bh)) {/*只有jbddirty才会被checkpoint*/
 			JBUFFER_TRACE(jh, "add to new checkpointing trans");
 			__jbd2_journal_insert_checkpoint(jh, commit_transaction);
 			if (is_journal_aborted(journal))

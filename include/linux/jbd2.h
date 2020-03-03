@@ -507,14 +507,14 @@ struct jbd2_journal_handle
 	};
 
 	handle_t		*h_rsv_handle;
-	int			h_buffer_credits;
+	int			h_buffer_credits; /*new_handle 里面设置为 start_journal 中传入的值, nblock*/
 	int			h_ref;
 	int			h_err;
 
 	/* Flags [no locking] */
 	unsigned int	h_sync:		1;
 	unsigned int	h_jdata:	1;
-	unsigned int	h_reserved:	1;
+	unsigned int	h_reserved:	1; /*表明 h_rsv_handle 有效*/
 	unsigned int	h_aborted:	1;
 	unsigned int	h_type:		8;
 	unsigned int	h_line_no:	16;
@@ -617,7 +617,7 @@ struct transaction_s
 	 * Doubly-linked circular list of all metadata buffers owned by this
 	 * transaction [j_list_lock]
 	 */
-	struct journal_head	*t_buffers;
+	struct journal_head	*t_buffers; /*BJ_Metadata*/
 
 	/*
 	 * Doubly-linked circular list of all forget buffers (superseded
@@ -630,13 +630,13 @@ struct transaction_s
 	 * Doubly-linked circular list of all buffers still to be flushed before
 	 * this transaction can be checkpointed. [j_list_lock]
 	 */
-	struct journal_head	*t_checkpoint_list;
+	struct journal_head	*t_checkpoint_list; /*指向一个双向链表的第一个的jh, 这些jh是将要被checkpoint*/
 
 	/*
 	 * Doubly-linked circular list of all buffers submitted for IO while
 	 * checkpointing. [j_list_lock]
 	 */
-	struct journal_head	*t_checkpoint_io_list;
+	struct journal_head	*t_checkpoint_io_list; /*指向一个双向链表的第一个的jh, 这些jh是已经被checkpoint*/
 
 	/*
 	 * Doubly-linked circular list of metadata buffers being shadowed by log
@@ -680,13 +680,17 @@ struct transaction_s
 	 * Number of outstanding updates running on this transaction
 	 * [t_handle_lock]
 	 */
-	atomic_t		t_updates;
+	 /*
+	  * 当前活动的handle
+	  * start_this_handle 和 jbd2_journal_stop 分别加减1
+	  */
+	atomic_t		t_updates; 
 
 	/*
 	 * Number of buffers reserved for use by all handles in this transaction
 	 * handle but not yet modified. [t_handle_lock]
 	 */
-	atomic_t		t_outstanding_credits;
+	atomic_t		t_outstanding_credits; /*每个handle 的 credits 之和(包含了reserved 和 非reserved)*/
 
 	/*
 	 * Forward and backward links for the circular list of all transactions
@@ -800,7 +804,7 @@ struct journal_s
 	 *
 	 * Number of processes waiting to create a barrier lock [j_state_lock]
 	 */
-	int			j_barrier_count;
+	int			j_barrier_count; /*jbd2_journal_lock_updates 和 unlock updates 中更新*/
 
 	/**
 	 * @j_barrier: The barrier lock itself.
@@ -847,12 +851,12 @@ struct journal_s
 	/**
 	 * @j_wait_commit: Wait queue to trigger commit.
 	 */
-	wait_queue_head_t	j_wait_commit;
+	wait_queue_head_t	j_wait_commit; /*kjournald2线程一直在这等着*/
 
 	/**
 	 * @j_wait_updates: Wait queue to wait for updates to complete.
 	 */
-	wait_queue_head_t	j_wait_updates;
+	wait_queue_head_t	j_wait_updates; /*kjournald2 遇到一个transaction如果还有没完的handle就会等在这里*/
 
 	/**
 	 * @j_wait_reserved:
@@ -883,6 +887,8 @@ struct journal_s
 	 *
 	 * Journal head: identifies the first unused block in the journal.
 	 * [j_state_lock]
+	 *
+	 * first unused block 第一个没有用的block
 	 */
 	unsigned long		j_head;
 
@@ -933,7 +939,7 @@ struct journal_s
 	 *
 	 * Starting block offset into the device where we store the journal.
 	 */
-	unsigned long long	j_blk_offset;
+	unsigned long long	j_blk_offset; /*journal_init_common 中初始化*/
 
 	/**
 	 * @j_devname: Journal device name.
@@ -1001,6 +1007,7 @@ struct journal_s
 	 * Sequence number of the most recent transaction wanting commit
 	 * [j_state_lock]
 	 */
+	 /*__jbd2_log_start_commit 会设置想要commit 的tid*/
 	tid_t			j_commit_request;
 
 	/**
@@ -1066,6 +1073,7 @@ struct journal_s
 	 *
 	 * Size of @j_wbuf array.
 	 */
+	  /*一个block能装几个journal_block_tag_t, jounrnal_init_common中初始化*/
 	int			j_wbufsize;
 
 	/**
@@ -1138,7 +1146,7 @@ struct journal_s
 	 * An opaque pointer to fs-private information.  ext3 puts its
 	 * superblock pointer here.
 	 */
-	void *j_private;
+	void *j_private; /*ext4 这里也放的是superblock*/
 
 	/**
 	 * @j_chksum_driver:

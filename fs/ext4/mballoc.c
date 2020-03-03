@@ -371,6 +371,7 @@ static void ext4_mb_generate_from_freelist(struct super_block *sb, void *bitmap,
 
 static inline void *mb_correct_addr_and_bit(int *bit, void *addr)
 {
+/*把bit 和 addr换算为64位对齐*/
 #if BITS_PER_LONG == 64
 	*bit += ((unsigned long) addr & 7UL) << 3;
 	addr = (void *) ((unsigned long) addr & ~7UL);
@@ -437,6 +438,7 @@ static inline int mb_find_next_bit(void *addr, int max, int start)
 	return ret;
 }
 
+/*给定order, 返回buddy的起始位置*/
 static void *mb_find_buddy(struct ext4_buddy *e4b, int order, int *max)
 {
 	char *bb;
@@ -659,6 +661,24 @@ static int __mb_check_buddy(struct ext4_buddy *e4b, char *file,
  * smaller chunks with power of 2 blocks.
  * Clear the bits in bitmap which the blocks of the chunk(s) covered,
  * then increase bb_counters[] for corresponded chunk size.
+ *
+ * 这里的算法很有意思,使得在O(n)的复杂度内能够完成buddy的生成
+ *
+ * 假设bitsize_bits 为B,也就是说一个blk里面由2^B个字节, 也就是 (2^B)*8 个bit
+ * 我们设M=(2^B)*8 = 2^(B+3) 设m = B+3 即M = 2^m
+ * bitmap需要一个完整的blk, buddy也占用一个blk
+ *
+ *
+ * 在buddy我们用M/2 bits表示 bitmap中每相邻的2个bit是否为0,相邻的bit 起始地址为 n*2 n=0,1,2,...
+ * 再用 M/4 blk 表示 bitmap中每相邻的4个bit是否为0,相邻的4 bit 起始地址为 n*(2^2)  n=0,1,2,...
+ * 再用 M/8 blk 表示 bitmap中每相邻的8个bit是否为0,相邻的8 bit 起始地址为 n*(2^3)  n=0,1,2,...
+ * 再用 M/(2^m) blk 表示 bitmap中每相邻的(2^m)个bit是否为0,相邻的(2^m) bit 起始地址为 n*(2^m)  n=0,1,2,...
+ * M/2 + M/4 + M/8 + ... M/(2^m) = 2^(m-1) + 2^(m-2) + 2^(m-3) + 2^(m-m) = 2^m - 1 也就是说一个blk中的最高位没有用
+ *
+ * 该函数用来计算 pos = first 和 长度为len个 bits 应该如何填入buddy, 需要注意的是buddy中每一个bit代表的是特定的起始位置的
+ * 比如 first = 5 len = 9 所以last = 13 [5,13] 可以分段为 [5] [6,7] [8 9] [10 11] [12 13]
+ * ===> 再按照起始地址 n*(2^2) 进行合并 [5] [6,7] [8 9 10 11] [12 13]
+ * 
  */
 static void ext4_mb_mark_free_simple(struct super_block *sb,
 				void *buddy, ext4_grpblk_t first, ext4_grpblk_t len,
@@ -674,15 +694,28 @@ static void ext4_mb_mark_free_simple(struct super_block *sb,
 
 	border = 2 << sb->s_blocksize_bits;
 
+	/*
+	 * 假设first = 5 len = 9 我们需要得到 5, 6, 8, 12四个数,他们分别是对应buddy的起始地址
+	 * 5 = 101 + 001 = 110 (6) ===> 110 + 010 = 1000 (8) (len 不够了)===> 12
+	 */
 	while (len > 0) {
 		/* find how many blocks can be covered since this position */
+		/*
+		 * max 表示first 所处的可能的最大order为多少
+		 * 比如first 为8 则 max = 3
+		 */
 		max = ffs(first | border) - 1;
 
 		/* find how many blocks of power 2 we need to mark */
+		/* len 表示能够尽可能给你提供多少个连续的块 用来让你的order 尽量大
+		 * 比如 8 的可能的order 为 1 2 3,但是len 为2^1,那么order只能为1了
+		 */
 		min = fls(len) - 1;
 
+		/*具体chunk长度有 min max的较小值确定*/
 		if (max < min)
 			min = max;
+		/*chunk 表示可以计入的长度*/
 		chunk = 1 << min;
 
 		/* mark multiblock chunks only */
@@ -813,7 +846,7 @@ static void mb_regenerate_buddy(struct ext4_buddy *e4b)
  * Locking note:  This routine takes the block group lock of all groups
  * for this page; do not hold this lock when calling this routine!
  */
-
+/* 初始化 grp 的bitmap  buddyinfo,先读上来bitmap,再生成buddyinfo*/
 static int ext4_mb_init_cache(struct page *page, char *incore, gfp_t gfp)
 {
 	ext4_group_t ngroups;
@@ -840,6 +873,9 @@ static int ext4_mb_init_cache(struct page *page, char *incore, gfp_t gfp)
 	blocksize = i_blocksize(inode);
 	blocks_per_page = PAGE_SIZE / blocksize;
 
+	/*一个group需要两个block 一个从硬盘读上来bitmap 一个生成buddy
+	* 所以一个page中能够容纳的grp数量 = blocks_per_page >> 1
+	*/
 	groups_per_page = blocks_per_page >> 1;
 	if (groups_per_page == 0)
 		groups_per_page = 1;
@@ -873,6 +909,7 @@ static int ext4_mb_init_cache(struct page *page, char *incore, gfp_t gfp)
 			bh[i] = NULL;
 			continue;
 		}
+		/*bh中存放的是每个group的bitmap*/
 		bh[i] = ext4_read_block_bitmap_nowait(sb, group);
 		if (IS_ERR(bh[i])) {
 			err = PTR_ERR(bh[i]);
@@ -998,9 +1035,9 @@ static int ext4_mb_get_buddy_page_lock(struct super_block *sb,
 	 * and buddy information in consecutive blocks.
 	 * So for each group we need two blocks.
 	 */
-	block = group * 2;
-	pnum = block / blocks_per_page;
-	poff = block % blocks_per_page;
+	block = group * 2; /*每个group 两个block*/
+	pnum = block / blocks_per_page;/*把所有grp 的这两个block存放到一个个页里面*/
+	poff = block % blocks_per_page;/*该grp 的两个block在该page中的offset*/
 	page = find_or_create_page(inode->i_mapping, pnum, gfp);
 	if (!page)
 		return -ENOMEM;
@@ -1071,6 +1108,7 @@ int ext4_mb_init_group(struct super_block *sb, ext4_group_t group, gfp_t gfp)
 	}
 
 	page = e4b.bd_bitmap_page;
+	/*bitmap buddyinfo初始化*/
 	ret = ext4_mb_init_cache(page, NULL, gfp);
 	if (ret)
 		goto err;
@@ -1090,6 +1128,7 @@ int ext4_mb_init_group(struct super_block *sb, ext4_group_t group, gfp_t gfp)
 	}
 	/* init buddy cache */
 	page = e4b.bd_buddy_page;
+	/*bd_buddy_page 初始化,如果buddy bitmap在一个页里面就不会走到这里*/
 	ret = ext4_mb_init_cache(page, e4b.bd_bitmap, gfp);
 	if (ret)
 		goto err;
@@ -1261,7 +1300,7 @@ static void ext4_mb_unload_buddy(struct ext4_buddy *e4b)
 		put_page(e4b->bd_buddy_page);
 }
 
-
+/*找到block对应的order */
 static int mb_find_order_for_block(struct ext4_buddy *e4b, int block)
 {
 	int order = 1;
@@ -1272,6 +1311,7 @@ static int mb_find_order_for_block(struct ext4_buddy *e4b, int block)
 	BUG_ON(block >= (1 << (e4b->bd_blkbits + 3)));
 
 	bb = e4b->bd_buddy;
+	/*order 从低往高尝试*/
 	while (order <= e4b->bd_blkbits + 1) {
 		block = block >> 1;
 		if (!mb_test_bit(block, bb)) {
@@ -1365,6 +1405,7 @@ static inline int mb_buddy_adjust_border(int* bit, void* bitmap, int side)
 	}
 }
 
+/*循环给buddy 归还*/
 static void mb_buddy_mark_free(struct ext4_buddy *e4b, int first, int last)
 {
 	int max;
@@ -1449,6 +1490,7 @@ static void mb_free_blocks(struct inode *inode, struct ext4_buddy *e4b,
 	/* access memory sequentially: check left neighbour,
 	 * clear range and then check right neighbour
 	 */
+	 /*左右是否free*/
 	if (first != 0)
 		left_is_free = !mb_test_bit(first - 1, e4b->bd_bitmap);
 	block = mb_test_and_clear_bits(e4b->bd_bitmap, first, count);
@@ -1478,6 +1520,10 @@ static void mb_free_blocks(struct inode *inode, struct ext4_buddy *e4b,
 	}
 
 	/* let's maintain fragments counter */
+	/*
+	 * 只有左右都free 才能减去一个fragment, 单边free 保持fragment 不变,
+	 * 左右都不free 增加一个fragment
+	 */
 	if (left_is_free && right_is_free)
 		e4b->bd_info->bb_fragments--;
 	else if (!left_is_free && !right_is_free)
@@ -1498,6 +1544,7 @@ static void mb_free_blocks(struct inode *inode, struct ext4_buddy *e4b,
 		e4b->bd_info->bb_counters[0] += right_is_free ? -1 : 1;
 	}
 
+	/*buddy 位图里面更新*/
 	if (first <= last)
 		mb_buddy_mark_free(e4b, first >> 1, last >> 1);
 
@@ -1506,6 +1553,9 @@ done:
 	mb_check_buddy(e4b);
 }
 
+/*block 是 phy block#
+从buddy中,找出起始为block,长度为needed的ex, 其中可能涉及到好几个同级别的buddy
+*/
 static int mb_find_extent(struct ext4_buddy *e4b, int block,
 				int needed, struct ext4_free_extent *ex)
 {
@@ -1516,9 +1566,11 @@ static int mb_find_extent(struct ext4_buddy *e4b, int block,
 	assert_spin_locked(ext4_group_lock_ptr(e4b->bd_sb, e4b->bd_group));
 	BUG_ON(ex == NULL);
 
+	/*order 返回的是bitmap,也就是order 为0 的buddy*/
 	buddy = mb_find_buddy(e4b, 0, &max);
 	BUG_ON(buddy == NULL);
 	BUG_ON(block >= max);
+	/*order= 1 表示该块已经被用了*/
 	if (mb_test_bit(block, buddy)) {
 		ex->fe_len = 0;
 		ex->fe_start = 0;
@@ -1539,16 +1591,20 @@ static int mb_find_extent(struct ext4_buddy *e4b, int block,
 	ex->fe_len -= next;
 	ex->fe_start += next;
 
+	/*需要的数量比该buddy多,max表示该order的buddy占用的最大的bit index*/
 	while (needed > ex->fe_len &&
 	       mb_find_buddy(e4b, order, &max)) {
 
 		if (block + 1 >= max)
 			break;
 
+		/*在同一order中找临近的下一个buddy*/
 		next = (block + 1) * (1 << order);
+		/*bitmap中next被占用说明包含他的所有的buddy都被占用了*/
 		if (mb_test_bit(next, e4b->bd_bitmap))
 			break;
 
+		/*如果没有占用,才去找next的buddy和order*/
 		order = mb_find_order_for_block(e4b, next);
 
 		block = next >> order;
@@ -1569,6 +1625,7 @@ static int mb_find_extent(struct ext4_buddy *e4b, int block,
 	return ex->fe_len;
 }
 
+/*buddy bitmap 置1 大拆小*/
 static int mb_mark_used(struct ext4_buddy *e4b, struct ext4_free_extent *ex)
 {
 	int ord;
@@ -1656,15 +1713,17 @@ static void ext4_mb_use_best_found(struct ext4_allocation_context *ac,
 	BUG_ON(ac->ac_b_ex.fe_group != e4b->bd_group);
 	BUG_ON(ac->ac_status == AC_STATUS_FOUND);
 
+	/*填充 ac_b_ex*/
 	ac->ac_b_ex.fe_len = min(ac->ac_b_ex.fe_len, ac->ac_g_ex.fe_len);
 	ac->ac_b_ex.fe_logical = ac->ac_g_ex.fe_logical;
+	/*处理对应的bitmap 和 buddy*/
 	ret = mb_mark_used(e4b, &ac->ac_b_ex);
 
 	/* preallocation can change ac_b_ex, thus we store actually
 	 * allocated blocks for history */
 	ac->ac_f_ex = ac->ac_b_ex;
 
-	ac->ac_status = AC_STATUS_FOUND;
+	ac->ac_status = AC_STATUS_FOUND; /*表明我找到了*/
 	ac->ac_tail = ret & 0xffff;
 	ac->ac_buddy = ret >> 16;
 
@@ -1845,6 +1904,7 @@ int ext4_mb_find_by_goal(struct ext4_allocation_context *ac,
 	if (grp->bb_free == 0)
 		return 0;
 
+	/*group 的buddy 载入到e4b中*/
 	err = ext4_mb_load_buddy(ac->ac_sb, group, e4b);
 	if (err)
 		return err;
@@ -1855,6 +1915,7 @@ int ext4_mb_find_by_goal(struct ext4_allocation_context *ac,
 	}
 
 	ext4_lock_group(ac->ac_sb, group);
+	/*在 e4b上的buddyinfo 里找ac->ac_g_ex.fe_start, ac->ac_g_ex.fe_len合适的extent*/
 	max = mb_find_extent(e4b, ac->ac_g_ex.fe_start,
 			     ac->ac_g_ex.fe_len, &ex);
 	ex.fe_logical = 0xDEADFA11; /* debug value */
@@ -1885,6 +1946,7 @@ int ext4_mb_find_by_goal(struct ext4_allocation_context *ac,
 		BUG_ON(ex.fe_start != ac->ac_g_ex.fe_start);
 		ac->ac_found++;
 		ac->ac_b_ex = ex;
+		/*填充ac_b_ex*/
 		ext4_mb_use_best_found(ac, e4b);
 	}
 	ext4_unlock_group(ac->ac_sb, group);
@@ -1913,6 +1975,7 @@ void ext4_mb_simple_scan_group(struct ext4_allocation_context *ac,
 		if (grp->bb_counters[i] == 0)
 			continue;
 
+		/*buddy的起始位置*/
 		buddy = mb_find_buddy(e4b, i, &max);
 		BUG_ON(buddy == NULL);
 
@@ -1920,7 +1983,7 @@ void ext4_mb_simple_scan_group(struct ext4_allocation_context *ac,
 		BUG_ON(k >= max);
 
 		ac->ac_found++;
-
+		/*k bit 为0,其代表的buddy为可用 长度为 1<<i*/
 		ac->ac_b_ex.fe_len = 1 << i;
 		ac->ac_b_ex.fe_start = k << i;
 		ac->ac_b_ex.fe_group = e4b->bd_group;
@@ -1940,6 +2003,9 @@ void ext4_mb_simple_scan_group(struct ext4_allocation_context *ac,
  * The routine scans the group and measures all found extents.
  * In order to optimize scanning, caller must pass number of
  * free blocks in the group, so the routine can know upper limit.
+ * 搜索所有的基于从e4b->bd_info->bb_first_free 开始的所有extent,
+ * extent长度不断累加
+ *
  */
 static noinline_for_stack
 void ext4_mb_complex_scan_group(struct ext4_allocation_context *ac,
@@ -1956,6 +2022,7 @@ void ext4_mb_complex_scan_group(struct ext4_allocation_context *ac,
 
 	i = e4b->bd_info->bb_first_free;
 
+	/*i 代表了当前group中,我们开始搜索的block*/
 	while (free && ac->ac_status == AC_STATUS_CONTINUE) {
 		i = mb_find_next_zero_bit(bitmap,
 						EXT4_CLUSTERS_PER_GROUP(sb), i);
@@ -1973,8 +2040,10 @@ void ext4_mb_complex_scan_group(struct ext4_allocation_context *ac,
 		}
 
 		mb_find_extent(e4b, i, ac->ac_g_ex.fe_len, &ex);
+		/*肯定能找到合适的,否则之前就已经返回了*/
 		BUG_ON(ex.fe_len <= 0);
 		if (free < ex.fe_len) {
+			/*如果找到的长度大于free,出错*/
 			ext4_grp_locked_error(sb, e4b->bd_group, 0, 0,
 					"%d free clusters as per "
 					"group info. But got %d blocks",
@@ -1987,6 +2056,7 @@ void ext4_mb_complex_scan_group(struct ext4_allocation_context *ac,
 			break;
 		}
 		ex.fe_logical = 0xDEADC0DE; /* debug value */
+		/*看这个ex合适不,如果合适的话,就设为 ac->ac_b_ex*/
 		ext4_mb_measure_extent(ac, &ex, e4b);
 
 		i += ex.fe_len;
@@ -2147,10 +2217,12 @@ ext4_mb_regular_allocator(struct ext4_allocation_context *ac)
 	 * You can tune it via /sys/fs/ext4/<partition>/mb_order2_req
 	 * We also support searching for power-of-two requests only for
 	 * requests upto maximum buddy size we have constructed.
+	 * 只有申请的长度 是2整数次幂,且大于 2^s_mb_order2_reqs才使用buddyscan
 	 */
 	if (i >= sbi->s_mb_order2_reqs && i <= sb->s_blocksize_bits + 2) {
 		/*
 		 * This should tell if fe_len is exactly power of 2
+		 * ac->ac_g_ex.fe_len 必须是2的整数次幂
 		 */
 		if ((ac->ac_g_ex.fe_len & (~(1 << (i - 1)))) == 0)
 			ac->ac_2order = array_index_nospec(i - 1,
@@ -2220,9 +2292,11 @@ repeat:
 
 			ac->ac_groups_scanned++;
 			if (cr == 0)
+				/*最基本的扫描,命中一次就返回*/
 				ext4_mb_simple_scan_group(ac, &e4b);
 			else if (cr == 1 && sbi->s_stripe &&
 					!(ac->ac_g_ex.fe_len % sbi->s_stripe))
+					/*扫描需要对其*/
 				ext4_mb_scan_aligned(ac, &e4b);
 			else
 				ext4_mb_complex_scan_group(ac, &e4b);
@@ -2442,11 +2516,12 @@ int ext4_mb_add_groupinfo(struct super_block *sb, ext4_group_t group,
 			meta_group_info;
 	}
 
+	/*meta_group_info 指向一个block,该block中含有EXT4_DESC_PER_BLOCK 个 desc*/
 	meta_group_info =
 		sbi->s_group_info[group >> EXT4_DESC_PER_BLOCK_BITS(sb)];
-	i = group & (EXT4_DESC_PER_BLOCK(sb) - 1);
+	i = group & (EXT4_DESC_PER_BLOCK(sb) - 1); /*块内第几个gd*/
 
-	meta_group_info[i] = kmem_cache_zalloc(cachep, GFP_NOFS);
+	meta_group_info[i] = kmem_cache_zalloc(cachep, GFP_NOFS); /*申请一个group info*/
 	if (meta_group_info[i] == NULL) {
 		ext4_msg(sb, KERN_ERR, "can't allocate buddy mem");
 		goto exit_group_info;
@@ -3595,6 +3670,7 @@ ext4_mb_use_preallocated(struct ext4_allocation_context *ac)
  * but not yet committed and marks them used in in-core bitmap.
  * buddy must be generated from this bitmap
  * Need to be called with the ext4 group lock held
+ * 从grp->bb_free_root中,把每个 entry置对应的bitmap1
  */
 static void ext4_mb_generate_from_freelist(struct super_block *sb, void *bitmap,
 						ext4_group_t group)
@@ -3618,6 +3694,7 @@ static void ext4_mb_generate_from_freelist(struct super_block *sb, void *bitmap,
  * the function goes through all preallocation in this group and marks them
  * used in in-core bitmap. buddy must be generated from this bitmap
  * Need to be called with ext4 group lock held
+ * 在bitmap中,把grp->bb_prealloc_list 中的每个pa置1
  */
 static noinline_for_stack
 void ext4_mb_generate_from_pa(struct super_block *sb, void *bitmap,
@@ -4734,6 +4811,10 @@ static void ext4_try_merge_freed_extent(struct ext4_sb_info *sbi,
 	kmem_cache_free(ext4_free_data_cachep, entry);
 }
 
+/*
+ * 把 new_entry->efd_node 挂入到 e4b->bd_info->bb_free_root.rb_node
+ * 把 new_entry->efd_list 挂入sbi->s_freed_data_list
+ */
 static noinline_for_stack int
 ext4_mb_free_metadata(handle_t *handle, struct ext4_buddy *e4b,
 		      struct ext4_free_data *new_entry)
@@ -4753,7 +4834,7 @@ ext4_mb_free_metadata(handle_t *handle, struct ext4_buddy *e4b,
 	BUG_ON(e4b->bd_buddy_page == NULL);
 
 	new_node = &new_entry->efd_node;
-	cluster = new_entry->efd_start_cluster;
+	cluster = new_entry->efd_start_cluster; /*group 内的cluster 偏移*/
 
 	if (!*n) {
 		/* first free block exent. We need to
@@ -4863,28 +4944,31 @@ void ext4_free_blocks(handle_t *handle, struct inode *inode,
 	 * blocks at the beginning or the end unless we are explicitly
 	 * requested to avoid doing so.
 	 */
+	 /* block在 cluster中间*/
 	overflow = EXT4_PBLK_COFF(sbi, block);
 	if (overflow) {
 		if (flags & EXT4_FREE_BLOCKS_NOFREE_FIRST_CLUSTER) {
 			overflow = sbi->s_cluster_ratio - overflow;
-			block += overflow;
+			block += overflow; /*block 前进到下一个cluster 的起始*/
 			if (count > overflow)
 				count -= overflow;
 			else
 				return;
 		} else {
-			block -= overflow;
+			block -= overflow; /*block 退到前一个cluster的结尾*/
 			count += overflow;
 		}
 	}
+	/* 处理结尾*/
 	overflow = EXT4_LBLK_COFF(sbi, count);
 	if (overflow) {
+		/*不要free 最后一个cluster*/
 		if (flags & EXT4_FREE_BLOCKS_NOFREE_LAST_CLUSTER) {
 			if (count > overflow)
-				count -= overflow;
+				count -= overflow; /*所以把count减少一些,把末梢削去*/
 			else
 				return;
-		} else
+		} else /*最后一个cluster也一起释放了*/
 			count += sbi->s_cluster_ratio - overflow;
 	}
 
@@ -4911,6 +4995,7 @@ do_more:
 	/*
 	 * Check to see if we are freeing blocks across a group
 	 * boundary.
+	 * 如果超出了group,减去超出的部分
 	 */
 	if (EXT4_C2B(sbi, bit) + count > EXT4_BLOCKS_PER_GROUP(sb)) {
 		overflow = EXT4_C2B(sbi, bit) + count -
@@ -4992,8 +5077,9 @@ do_more:
 		new_entry->efd_group = block_group;
 		new_entry->efd_count = count_clusters;
 		new_entry->efd_tid = handle->h_transaction->t_tid;
-
+		
 		ext4_lock_group(sb, block_group);
+		/*bitmap里面清空 buddy里面没清空?*/
 		mb_clear_bits(bitmap_bh->b_data, bit, count_clusters);
 		ext4_mb_free_metadata(handle, &e4b, new_entry);
 	} else {

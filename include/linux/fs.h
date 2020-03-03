@@ -415,7 +415,8 @@ struct address_space {
 	unsigned long		flags;		/* error bits */
 	spinlock_t		private_lock;	/* for use by the address_space */
 	gfp_t			gfp_mask;	/* implicit gfp mask for allocations */
-	struct list_head	private_list;	/* for use by the address_space */
+	/*mark_buffer_dirty_inode 函数中会把 bh->b_assoc_buffers 连接到这里*/
+	struct list_head	private_list;	/* for use by the address_space  */
 	void			*private_data;	/* ditto */
 	errseq_t		wb_err;
 } __attribute__((aligned(sizeof(long)))) __randomize_layout;
@@ -448,7 +449,7 @@ struct block_device {
 	int			bd_invalidated;
 	struct gendisk *	bd_disk;
 	struct request_queue *  bd_queue;
-	struct backing_dev_info *bd_bdi;
+	struct backing_dev_info *bd_bdi; /*指向gendisk 的queue->backing_dev_info */
 	struct list_head	bd_list;
 	/*
 	 * Private data.  You must have bd_claim'ed the block_device
@@ -608,7 +609,7 @@ struct inode {
 	 *    inode_(inc|dec)_link_count
 	 */
 	union {
-		const unsigned int i_nlink;
+		const unsigned int i_nlink; /*硬链接的数量*/
 		unsigned int __i_nlink;
 	};
 	dev_t			i_rdev;
@@ -656,7 +657,7 @@ struct inode {
 		struct rcu_head		i_rcu;
 	};
 	u64			i_version;
-	atomic_t		i_count;
+	atomic_t		i_count; /*open数量*/
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;
 #ifdef CONFIG_IMA

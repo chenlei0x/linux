@@ -269,6 +269,7 @@ int __ext4_handle_dirty_metadata(const char *where, unsigned int line,
 
 	set_buffer_meta(bh);
 	set_buffer_prio(bh);
+	/*如果是正常的handle,那么就走journal*/
 	if (ext4_handle_valid(handle)) {
 		err = jbd2_journal_dirty_metadata(handle, bh);
 		/* Errors can only happen due to aborted journal or a nasty bug */
@@ -296,6 +297,7 @@ int __ext4_handle_dirty_metadata(const char *where, unsigned int line,
 					 handle->h_buffer_credits, err);
 		}
 	} else {
+	/*否则去标记这个页是脏的,这最后会通过block_device的address space刷下去*/
 		if (inode)
 			mark_buffer_dirty_inode(bh, inode);
 		else

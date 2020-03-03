@@ -278,6 +278,7 @@ static inline int ext4_handle_valid(handle_t *handle)
 	return 1;
 }
 
+/*h_sync置1*/
 static inline void ext4_handle_sync(handle_t *handle)
 {
 	if (ext4_handle_valid(handle))
@@ -298,6 +299,7 @@ static inline int ext4_handle_has_enough_credits(handle_t *handle, int needed)
 	return 1;
 }
 
+/**/
 #define ext4_journal_start_sb(sb, type, nblocks)			\
 	__ext4_journal_start_sb((sb), __LINE__, (type), (nblocks), 0)
 
@@ -381,6 +383,7 @@ static inline int ext4_jbd2_inode_add_wait(handle_t *handle,
 	return 0;
 }
 
+/*只是更新了几个值?*/
 static inline void ext4_update_inode_fsync_trans(handle_t *handle,
 						 struct inode *inode,
 						 int datasync)
@@ -424,7 +427,7 @@ static inline int ext4_inode_journal_mode(struct inode *inode)
 		return EXT4_INODE_WRITEBACK_DATA_MODE;	/* writeback */
 	BUG();
 }
-
+/*用户的文件数据也应该经过journal处理?*/
 static inline int ext4_should_journal_data(struct inode *inode)
 {
 	return ext4_inode_journal_mode(inode) & EXT4_INODE_JOURNAL_DATA_MODE;
