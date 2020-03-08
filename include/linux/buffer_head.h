@@ -72,6 +72,15 @@ struct buffer_head {
 	struct block_device *b_bdev;
 	bh_end_io_t *b_end_io;		/* I/O completion */
  	void *b_private;		/* reserved for b_end_io */
+	/*
+	 * 一个inode 的page cache只包含了他的数据, 他还需要一些地方记录自己的元数据,
+	 * 比如extent block, index block, 或者inode本身. 这些bh 所在的page 都属于
+	 * block dev 的page cache. 
+	 *
+	 * 当一个bh 代表的是一个元数据的时候, 
+	 * b_assoc_map指向该inode 的page cache,
+	 * b_assoc_buffers 连接在 inode->i_mapping->private_list上
+	 */
 	struct list_head b_assoc_buffers; /* associated with another mapping */
 	struct address_space *b_assoc_map;	/* mapping this buffer is
 						   associated with */

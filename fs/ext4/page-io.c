@@ -384,6 +384,9 @@ static int io_submit_init_bio(struct ext4_io_submit *io,
 	return 0;
 }
 
+/*
+ * 尽可能的把io->io_bio 扩大
+ */
 static int io_submit_add_bh(struct ext4_io_submit *io,
 			    struct inode *inode,
 			    struct page *page,
@@ -410,6 +413,10 @@ submit_and_retry:
 	return 0;
 }
 
+/*
+@len bytes 通常为 page size
+写入page中的长度为[0~ len)的数据
+*/
 int ext4_bio_write_page(struct ext4_io_submit *io,
 			struct page *page,
 			int len,
@@ -453,7 +460,7 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 	 */
 	bh = head = page_buffers(page);
 	do {
-		block_start = bh_offset(bh);
+		block_start = bh_offset(bh); /*n * block_size, bh在page中的位置决定n*/
 		if (block_start >= len) {
 			clear_buffer_dirty(bh);
 			set_buffer_uptodate(bh);
@@ -461,9 +468,11 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 		}
 		if (!buffer_dirty(bh) || buffer_delay(bh) ||
 		    !buffer_mapped(bh) || buffer_unwritten(bh)) {
+		    /*这些bh 都是不需要写入的,直接continue掠过*/
 			/* A hole? We can safely clear the dirty bit */
 			if (!buffer_mapped(bh))
 				clear_buffer_dirty(bh);
+			/*这个页不需要写入, 这势必会造成产生一个新的bio,所以把之前的io_bio submit*/
 			if (io->io_bio)
 				ext4_io_submit(io);
 			continue;
@@ -472,7 +481,7 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 			clear_buffer_new(bh);
 			clean_bdev_bh_alias(bh);
 		}
-		set_buffer_async_write(bh);
+		set_buffer_async_write(bh);/*设置了该标志表示确实要下发了,看下面的do-while循环*/
 		nr_to_submit++;
 	} while ((bh = bh->b_this_page) != head);
 
@@ -501,9 +510,11 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 	}
 
 	/* Now submit buffers to write*/
-	/*,这个循环主要用来构造一个或者多个bio,如果需要一个新的bio,则把上一个派发下去	*/
+	/*,这个循环主要用来构造一个或者多个bio, 因为bio表示硬盘上一段连续的block
+	一个page 中可能有多个block, 有些block可能不需要写入,这时候就会产生多个
+	bio,如果需要一个新的bio,则把上一个派发下去	*/
 	do {
-		if (!buffer_async_write(bh))
+		if (!buffer_async_write(bh)) /*合适的bh会被打上async write标记*/
 			continue;
 		ret = io_submit_add_bh(io, inode,
 				       data_page ? data_page : page, bh);

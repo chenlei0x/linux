@@ -39,7 +39,7 @@ struct backing_dev_info;
  */
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
-	WB_SYNC_ALL,	/* Wait on every mapping */
+	WB_SYNC_ALL,	/* Wait on every mapping, write back完了需要等待 */
 };
 
 /*
@@ -86,6 +86,8 @@ struct writeback_control {
 
 	unsigned for_kupdate:1;		/* A kupdate writeback */
 	unsigned for_background:1;	/* A background writeback */
+	
+	/*给拥有PAGECACHE_TAG_DIRTY 的page打上PAGECACHE_TAG_TOWRITE 标记*/
 	unsigned tagged_writepages:1;	/* tag-and-write to avoid livelock */
 	unsigned for_reclaim:1;		/* Invoked from the page allocator */
 	unsigned range_cyclic:1;	/* range_start is cyclic */
@@ -207,14 +209,14 @@ static inline void wait_on_inode(struct inode *inode)
 
 void __inode_attach_wb(struct inode *inode, struct page *page);
 void wbc_attach_and_unlock_inode(struct writeback_control *wbc,
-				 struct inode *inode)
+				 struct inode *inode);
 	__releases(&inode->i_lock);
 void wbc_detach_inode(struct writeback_control *wbc);
 void wbc_account_io(struct writeback_control *wbc, struct page *page,
 		    size_t bytes);
 void cgroup_writeback_umount(void);
 
-/**
+/*
  * inode_attach_wb - associate an inode with its wb
  * @inode: inode of interest
  * @page: page being dirtied (may be NULL)
@@ -223,6 +225,7 @@ void cgroup_writeback_umount(void);
  * memcg of @page or, if @page is NULL, %current.  May be called w/ or w/o
  * @inode->i_lock.
  */
+ 
 static inline void inode_attach_wb(struct inode *inode, struct page *page)
 {
 	if (!inode->i_wb)

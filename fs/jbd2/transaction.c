@@ -994,6 +994,7 @@ repeat:
 	 * committed_data record after the transaction, so we HAVE to force the
 	 * frozen_data copy in that case.
 	 */
+	 /*属于BJ_Metadata 说明已经脏了,我们这时候需要拿写权限,那就把当前的脏数据拷贝一份到frozen data*/
 	if (jh->b_jlist == BJ_Metadata || force_copy) {
 		JBUFFER_TRACE(jh, "generate frozen data");
 		if (!frozen_buffer) {
@@ -1485,7 +1486,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 
 	JBUFFER_TRACE(jh, "file as BJ_Metadata");
 	spin_lock(&journal->j_list_lock);
-	/*jh 绑定transaction*/
+	/*jh 绑定transaction 且赋值 jh->b_transaction*/
 	__jbd2_journal_file_buffer(jh, transaction, BJ_Metadata);
 	spin_unlock(&journal->j_list_lock);
 out_unlock_bh:
@@ -1511,6 +1512,9 @@ out:
  *
  * Allow this call even if the handle has aborted --- it may be part of
  * the caller's cleanup after an abort.
+ *
+ * 不需要journal管理该bh了
+ *
  */
 int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 {
@@ -1582,8 +1586,8 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 
 		spin_lock(&journal->j_list_lock);
 		if (jh->b_cp_transaction) {
-			__jbd2_journal_temp_unlink_buffer(jh);
-			__jbd2_journal_file_buffer(jh, transaction, BJ_Forget);
+			__jbd2_journal_temp_unlink_buffer(jh);/*卸下链表*/
+			__jbd2_journal_file_buffer(jh, transaction, BJ_Forget); /*加入forget*/
 		} else {
 			__jbd2_journal_unfile_buffer(jh);
 			if (!buffer_jbd(bh)) {

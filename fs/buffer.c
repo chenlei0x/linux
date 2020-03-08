@@ -597,10 +597,11 @@ void write_boundary_block(struct block_device *bdev,
 	}
 }
 
+/*设置buffer dirty,同时把@bh绑定到@inode 的元数据链表上*/
 void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode *inode)
 {
 	struct address_space *mapping = inode->i_mapping;
-	struct address_space *buffer_mapping = bh->b_page->mapping;
+	struct address_space *buffer_mapping = bh->b_page->mapping;/*这个buffer_mapping可能是设备的*/
 
 	mark_buffer_dirty(bh);
 	if (!mapping->private_data) {
@@ -626,6 +627,8 @@ EXPORT_SYMBOL(mark_buffer_dirty_inode);
  * not been truncated.
  *
  * The caller must hold lock_page_memcg().
+ *
+ * page tree中对该page打上tag PAGECACHE_TAG_DIRTY
  */
 static void __set_page_dirty(struct page *page, struct address_space *mapping,
 			     int warn)
@@ -1159,6 +1162,8 @@ __getblk_slow(struct block_device *bdev, sector_t block,
  *
  * mark_buffer_dirty() is atomic.  It takes bh->b_page->mapping->private_lock,
  * mapping->tree_lock and mapping->host->i_lock.
+ *
+ * buffer 脏了 ===> page 也要脏 === > page tree中也要置脏
  */
 void mark_buffer_dirty(struct buffer_head *bh)
 {
@@ -1178,15 +1183,19 @@ void mark_buffer_dirty(struct buffer_head *bh)
 			return;
 	}
 
-	if (!test_set_buffer_dirty(bh)) {
+	if (!test_set_buffer_dirty(bh)) {/*成功的把dirty置位*/
 		struct page *page = bh->b_page;
 		struct address_space *mapping = NULL;
 
 		lock_page_memcg(page);
 		if (!TestSetPageDirty(page)) {
-			/*这个mapping 可能是文件的address space,也有可能是block device的
-		,取决于这个page从哪里建立的*/
+			/*
+			 * 这个mapping 可能是文件的address space,也有可能是
+			 * block device的,取决于这个page从哪里建立的
+			 */
 			mapping = page_mapping(page);
+			
+			/*page脏了,那么在mapping中的page_tree上也打上脏的PAGECACHE_TAG_DIRTY*/
 			if (mapping)
 				__set_page_dirty(page, mapping, 0);
 		}
@@ -1235,6 +1244,7 @@ void __bforget(struct buffer_head *bh)
 	if (bh->b_assoc_map) {
 		struct address_space *buffer_mapping = bh->b_page->mapping;
 
+		/*我和inode再没有关系了*/
 		spin_lock(&buffer_mapping->private_lock);
 		list_del_init(&bh->b_assoc_buffers);
 		bh->b_assoc_map = NULL;
@@ -2032,8 +2042,10 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 	blocksize = head->b_size;
 	bbits = block_size_bits(blocksize);
 
+	/*block 是该page的第一个块*/
 	block = (sector_t)page->index << (PAGE_SHIFT - bbits);
 
+	/*block_start 为 block 在page内的偏移*/
 	for(bh = head, block_start = 0; bh != head || !block_start;
 	    block++, block_start=block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
@@ -2049,6 +2061,7 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 		if (!buffer_mapped(bh)) {
 			WARN_ON(bh->b_size != blocksize);
 			if (get_block) {
+				/*如果delay alloc使能的话, 该函数为 ext4_da_get_block_prep*/
 				err = get_block(inode, block, bh, 1);
 				if (err)
 					break;
@@ -2096,6 +2109,7 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 	return err;
 }
 
+/*pos 为文件offset*/
 int __block_write_begin(struct page *page, loff_t pos, unsigned len,
 		get_block_t *get_block)
 {

@@ -117,7 +117,7 @@ int block_dump;
  * Flag that puts the machine in "laptop mode". Doubles as a timeout in jiffies:
  * a full sync is triggered after this time elapses without any disk activity.
  */
-int laptop_mode;
+int laptop_mode; /*默认0*/
 
 EXPORT_SYMBOL(laptop_mode);
 
@@ -2098,6 +2098,8 @@ void __init page_writeback_init(void)
  * used to avoid livelocking of writeback by a process steadily creating new
  * dirty pages in the file (thus it is important for this function to be quick
  * so that it can tag pages faster than a dirtying process can create them).
+ *
+ * 把PAGECACHE_TAG_DIRTY page打上PAGECACHE_TAG_TOWRITE标记
  */
 /*
  * We tag pages in batches of WRITEBACK_TAG_BATCH to reduce tree_lock latency.
@@ -2190,11 +2192,12 @@ int write_cache_pages(struct address_space *mapping,
 		tag = PAGECACHE_TAG_DIRTY;
 retry:
 	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
-		tag_pages_for_writeback(mapping, index, end);
+		tag_pages_for_writeback(mapping, index, end); /*把PAGECACHE_TAG_DIRTY 打上PAGECACHE_TAG_TOWRITE标记*/
 	done_index = index;
 	while (!done && (index <= end)) {
 		int i;
 
+		/*查找打上tag的所有page*/
 		nr_pages = pagevec_lookup_tag(&pvec, mapping, &index, tag,
 			      min(end - index, (pgoff_t)PAGEVEC_SIZE-1) + 1);
 		if (nr_pages == 0)
@@ -2353,6 +2356,7 @@ int generic_writepages(struct address_space *mapping,
 
 EXPORT_SYMBOL(generic_writepages);
 
+/*通过调用文件系统的address space:: writepage 接口来写入文件*/
 int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret;
@@ -2478,6 +2482,8 @@ void account_page_cleaned(struct page *page, struct address_space *mapping,
  * The caller must ensure this doesn't race with truncation.  Most will simply
  * hold the page lock, but e.g. zap_pte_range() calls with the page mapped and
  * the pte lock held, which also locks out truncation.
+ *
+ * 如果对@page成功设置上PG_dirty,那么对他在mapping里面置为PAGECACHE_TAG_DIRTY
  */
 int __set_page_dirty_nobuffers(struct page *page)
 {
@@ -2779,6 +2785,10 @@ int test_clear_page_writeback(struct page *page)
 	return ret;
 }
 
+/*给page 设置PG_Writeback
+同时如果是0===>PG_Writeback,则在mapping中设置上PAGECACHE_TAG_WRITEBACK
+同时把inode 挂载到 sb->s_inodes_wb上, 同时处理PAGECACHE_TAG_DIRTY标记
+*/
 int __test_set_page_writeback(struct page *page, bool keep_write)
 {
 	struct address_space *mapping = page_mapping(page);
@@ -2812,10 +2822,12 @@ int __test_set_page_writeback(struct page *page, bool keep_write)
 			if (mapping->host && !on_wblist)
 				sb_mark_inode_writeback(mapping->host);
 		}
+		/*根据dirty处理相关标记*/
 		if (!PageDirty(page))
 			radix_tree_tag_clear(&mapping->page_tree,
 						page_index(page),
 						PAGECACHE_TAG_DIRTY);
+		/*不用写入的话,把mapping中该page的TOWRITE页清了*/
 		if (!keep_write)
 			radix_tree_tag_clear(&mapping->page_tree,
 						page_index(page),

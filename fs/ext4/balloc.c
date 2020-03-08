@@ -618,6 +618,7 @@ static int ext4_has_free_clusters(struct ext4_sb_info *sbi,
 	return 0;
 }
 
+/*sbi->s_dirtyclusters_counter  代表当前占用*/
 int ext4_claim_free_clusters(struct ext4_sb_info *sbi,
 			     s64 nclusters, unsigned int flags)
 {

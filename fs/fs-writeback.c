@@ -47,7 +47,7 @@ struct wb_writeback_work {
 	struct super_block *sb;
 	unsigned long *older_than_this;
 	enum writeback_sync_modes sync_mode;
-	unsigned int tagged_writepages:1;
+	unsigned int tagged_writepages:1; /*把PAGECACHE_TAG_DIRTY 打上PAGECACHE_TAG_TOWRITE标记*/
 	unsigned int for_kupdate:1;
 	unsigned int range_cyclic:1;
 	unsigned int for_background:1;
@@ -197,9 +197,9 @@ static void wb_queue_work(struct bdi_writeback *wb,
 		atomic_inc(&work->done->cnt);
 
 	spin_lock_bh(&wb->work_lock);
-	/*把work挂到 wb->work_lisit*/
+	
 	if (test_bit(WB_registered, &wb->state)) {
-		list_add_tail(&work->list, &wb->work_list);
+		list_add_tail(&work->list, &wb->work_list);/*把work挂到 wb->work_lisit*/
 		/*wb_workfn*/
 		mod_delayed_work(bdi_wq, &wb->dwork, 0);
 	} else
@@ -842,6 +842,8 @@ static long wb_split_bdi_pages(struct bdi_writeback *wb, long nr_pages)
  * have dirty inodes.  If @base_work->nr_page isn't %LONG_MAX, it's
  * distributed to the busy wbs according to each wb's proportion in the
  * total active write bandwidth of @bdi.
+ *
+ * 把@base_work 分配到不同的wb上.
  */
 static void bdi_split_work_to_wbs(struct backing_dev_info *bdi,
 				  struct wb_writeback_work *base_work,
@@ -873,7 +875,7 @@ restart:
 		if (skip_if_busy && writeback_in_progress(wb))
 			continue;
 
-		nr_pages = wb_split_bdi_pages(wb, base_work->nr_pages);
+		nr_pages = wb_split_bdi_pages(wb, base_work->nr_pages); /*按照wb的带宽限制*/
 
 		work = kmalloc(sizeof(*work), GFP_ATOMIC);
 		if (work) {
@@ -1051,6 +1053,8 @@ void inode_io_list_del(struct inode *inode)
 
 /*
  * mark an inode as under writeback on the sb
+ *
+ * 挂载链表 list_add_tail(&inode->i_wb_list, &sb->s_inodes_wb);
  */
 void sb_mark_inode_writeback(struct inode *inode)
 {
@@ -1552,6 +1556,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 				struct bdi_writeback *wb,
 				struct wb_writeback_work *work)
 {
+	/*wb ===> wbc*/
 	struct writeback_control wbc = {
 		.sync_mode		= work->sync_mode,
 		.tagged_writepages	= work->tagged_writepages,
@@ -2140,6 +2145,8 @@ static noinline void block_dump___mark_inode_dirty(struct inode *inode)
  * blockdev's pages.  This is why for I_DIRTY_PAGES we always use
  * page->mapping->host, so the page-dirtying time is recorded in the internal
  * blockdev inode.
+ *
+ * 挂到wb上
  */
 void __mark_inode_dirty(struct inode *inode, int flags)
 {
@@ -2339,7 +2346,7 @@ static void wait_sb_inodes(struct super_block *sb)
 		 * applications can catch the writeback error using fsync(2).
 		 * See filemap_fdatawait_keep_errors() for details.
 		 */
-		filemap_fdatawait_keep_errors(mapping);
+		filemap_fdatawait_keep_errors(mapping); /*这里会等待mapping的所有的页*/
 
 		cond_resched();
 
@@ -2436,6 +2443,8 @@ EXPORT_SYMBOL(try_to_writeback_inodes_sb_nr);
  *
  * Implement by try_to_writeback_inodes_sb_nr()
  * Returns 1 if writeback was started, 0 if not.
+ *
+ * 通过write back 写入所有的脏页
  */
 bool try_to_writeback_inodes_sb(struct super_block *sb, enum wb_reason reason)
 {

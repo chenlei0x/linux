@@ -60,7 +60,9 @@ struct extent_status {
 	struct rb_node rb_node;
 	ext4_lblk_t es_lblk;	/* first logical block extent covers */
 	ext4_lblk_t es_len;	/* length of extent in block */
-	ext4_fsblk_t es_pblk;	/* first physical block */
+	
+	/*这里面起始时pblk + status的结合 详见ext4_es_store_pblock_status*/
+	ext4_fsblk_t es_pblk;	/* first physical block  */
 };
 
 struct ext4_es_tree {

@@ -1454,7 +1454,7 @@ static const match_table_t tokens = {
 	{Opt_i_version, "i_version"},
 	{Opt_dax, "dax"},
 	{Opt_stripe, "stripe=%u"},
-	{Opt_delalloc, "delalloc"},
+	{Opt_delalloc, "delalloc"}, /*默认使能*/
 	{Opt_lazytime, "lazytime"},
 	{Opt_nolazytime, "nolazytime"},
 	{Opt_debug_want_extra_isize, "debug_want_extra_isize=%u"},

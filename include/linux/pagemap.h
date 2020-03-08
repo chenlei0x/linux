@@ -538,6 +538,7 @@ static inline int wait_on_page_locked_killable(struct page *page)
 
 /* 
  * Wait for a page to complete writeback
+ * 等待 PG_writeback 消失
  */
 static inline void wait_on_page_writeback(struct page *page)
 {

@@ -4648,6 +4648,8 @@ static int ext4_mb_discard_preallocations(struct super_block *sb, int needed)
  * Main entry point into mballoc to allocate blocks
  * it tries to use preallocation first, then falls back
  * to usual allocation
+ *
+ * 申请空间的总入口,里面各种调用pre allocated
  */
 ext4_fsblk_t ext4_mb_new_blocks(handle_t *handle,
 				struct ext4_allocation_request *ar, int *errp)

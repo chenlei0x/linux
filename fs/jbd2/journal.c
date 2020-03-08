@@ -357,7 +357,7 @@ static void journal_kill_thread(journal_t *journal)
  * Bit 0 set == escape performed on the data
  * Bit 1 set == buffer copy-out performed (kfree the data after IO)
  */
-/*申请一个新的bh,并用旧的bh,或者frozendata 初始化*/
+/*申请一个新的bh,并用jh对应的bh->data 或者jh_in->frozendata 初始化新的bh,并把jh_in挂到shadow上*/
 int jbd2_journal_write_metadata_buffer(transaction_t *transaction,
 				  struct journal_head  *jh_in,
 				  struct buffer_head **bh_out,
@@ -444,7 +444,7 @@ repeat:
 		}
 
 		jh_in->b_frozen_data = tmp;
-		mapped_data = kmap_atomic(new_page);
+		mapped_data = kmap_atomic(new_page); /*new_page 要么指向frozen data 或者 bh_in->b_data*/
 		memcpy(tmp, mapped_data + new_offset, bh_in->b_size);
 		kunmap_atomic(mapped_data);
 

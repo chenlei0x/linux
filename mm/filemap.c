@@ -996,6 +996,7 @@ static void wake_up_page(struct page *page, int bit)
 	wake_up_page_bit(page, bit);
 }
 
+/*等待page->flags 中bit_nr 消失*/
 static inline int wait_on_page_bit_common(wait_queue_head_t *q,
 		struct page *page, int bit_nr, int state, bool lock)
 {
@@ -2987,6 +2988,8 @@ EXPORT_SYMBOL(generic_file_direct_write);
 /*
  * Find or create a page at the given pagecache position. Return the locked
  * page. This function is specifically for buffered writes.
+ *
+ * 在mapping中申请或者查找一个新页
  */
 struct page *grab_cache_page_write_begin(struct address_space *mapping,
 					pgoff_t index, unsigned flags)

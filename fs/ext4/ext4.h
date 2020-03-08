@@ -147,7 +147,7 @@ struct ext4_allocation_request {
 	/* target inode for block we're allocating */
 	struct inode *inode;
 	/* how many blocks we want to allocate */
-	unsigned int len;
+	unsigned int len; /*要申请多少个cluster*/
 	/* logical block in target inode */
 	ext4_lblk_t logical;
 	/* the closest logical allocated block to the left */
@@ -183,7 +183,7 @@ struct ext4_allocation_request {
 
 struct ext4_map_blocks {
 	ext4_fsblk_t m_pblk;
-	ext4_lblk_t m_lblk;
+	ext4_lblk_t m_lblk; /*文件的logic block*/
 	unsigned int m_len;
 	unsigned int m_flags;
 };
@@ -468,7 +468,10 @@ enum {
 	EXT4_INODE_DIRSYNC	= 16,	/* dirsync behaviour (directories only) */
 	EXT4_INODE_TOPDIR	= 17,	/* Top of directory hierarchies*/
 	EXT4_INODE_HUGE_FILE	= 18,	/* Set to each huge file */
+
+	/*__ext4_new_inode 函数中会默认设置该flag*/
 	EXT4_INODE_EXTENTS	= 19,	/* Inode uses extents */
+	
 	EXT4_INODE_EA_INODE	= 21,	/* Inode used for large EA */
 	EXT4_INODE_EOFBLOCKS	= 22,	/* Blocks allocated beyond EOF */
 	EXT4_INODE_INLINE_DATA	= 28,	/* Data in inode. */
@@ -964,7 +967,7 @@ enum {
  * 通常用ei 代表一个变量
  */
 struct ext4_inode_info {
-	__le32	i_data[15];	/* unconverted */
+	__le32	i_data[15];	/* unconverted */ /*ext4_iget 中 从 i_block拷贝而来*/
 	__u32	i_dtime;
 	ext4_fsblk_t	i_file_acl;
 

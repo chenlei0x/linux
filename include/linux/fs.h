@@ -416,8 +416,8 @@ struct address_space {
 	spinlock_t		private_lock;	/* for use by the address_space */
 	gfp_t			gfp_mask;	/* implicit gfp mask for allocations */
 	/*mark_buffer_dirty_inode 函数中会把 bh->b_assoc_buffers 连接到这里*/
-	struct list_head	private_list;	/* for use by the address_space  */
-	void			*private_data;	/* ditto */
+	struct list_head	private_list;	/* for use by the address_space  我的元数据 */
+	void			*private_data;	/* ditto  我的元数据属于哪个address space*/
 	errseq_t		wb_err;
 } __attribute__((aligned(sizeof(long)))) __randomize_layout;
 	/*
@@ -651,6 +651,7 @@ struct inode {
 #endif
 	struct list_head	i_lru;		/* inode LRU list */
 	struct list_head	i_sb_list;
+	/*sb_mark_inode_writeback 函数 把inode 挂在sb->s_inodes_wb*/
 	struct list_head	i_wb_list;	/* backing dev writeback list */
 	union {
 		struct hlist_head	i_dentry;
@@ -2004,9 +2005,9 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  *
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
-#define I_DIRTY_SYNC		(1 << 0)
+#define I_DIRTY_SYNC		(1 << 0) /*inode的属性(如:修改时间)改变*/
 #define I_DIRTY_DATASYNC	(1 << 1)
-#define I_DIRTY_PAGES		(1 << 2)
+#define I_DIRTY_PAGES		(1 << 2) /*inode 有脏数据,inode本身可能是clean*/
 #define __I_NEW			3
 #define I_NEW			(1 << __I_NEW)
 #define I_WILL_FREE		(1 << 4)

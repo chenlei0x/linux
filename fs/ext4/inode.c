@@ -501,6 +501,8 @@ static void ext4_map_blocks_es_recheck(handle_t *handle,
  * indicate the length of a hole starting at map->m_lblk.
  *
  * It returns the error in case of allocation failure.
+ *
+ * 用来映射phy block
  */
 int ext4_map_blocks(handle_t *handle, struct inode *inode,
 		    struct ext4_map_blocks *map, int flags)
@@ -530,7 +532,9 @@ int ext4_map_blocks(handle_t *handle, struct inode *inode,
 		return -EFSCORRUPTED;
 
 	/* Lookup extent status tree firstly */
+	/*从extent status 这是个查找的cache*/
 	if (ext4_es_lookup_extent(inode, map->m_lblk, &es)) {
+		/*从cache里面找到了*/
 		if (ext4_es_is_written(&es) || ext4_es_is_unwritten(&es)) {
 			map->m_pblk = ext4_es_pblock(&es) +
 					map->m_lblk - es.es_lblk;
@@ -781,6 +785,10 @@ static void ext4_update_bh_state(struct buffer_head *bh, unsigned long flags)
 		 cmpxchg(&bh->b_state, old_state, new_state) != old_state));
 }
 
+/*
+ * @iblock 文件的block偏移
+ * @bh 该block在内存中对应的bh
+ */
 static int _ext4_get_block(struct inode *inode, sector_t iblock,
 			   struct buffer_head *bh, int flags)
 {
@@ -791,8 +799,9 @@ static int _ext4_get_block(struct inode *inode, sector_t iblock,
 		return -ERANGE;
 
 	map.m_lblk = iblock;
-	map.m_len = bh->b_size >> inode->i_blkbits;
+	map.m_len = bh->b_size >> inode->i_blkbits; /*1*/
 
+	/*只映射一个块*/
 	ret = ext4_map_blocks(ext4_journal_current_handle(), inode, &map,
 			      flags);
 	if (ret > 0) {
@@ -1253,6 +1262,10 @@ static int ext4_block_write_begin(struct page *page, loff_t pos, unsigned len,
 }
 #endif
 
+/*针对一页写入*/
+/*
+ * pos 文件偏移
+ */
 static int ext4_write_begin(struct file *file, struct address_space *mapping,
 			    loff_t pos, unsigned len, unsigned flags,
 			    struct page **pagep, void **fsdata)
@@ -1294,6 +1307,7 @@ static int ext4_write_begin(struct file *file, struct address_space *mapping,
 	 * the transaction handle.  This also allows us to allocate
 	 * the page (if needed) without using GFP_NOFS.
 	 */
+	 /*从mapping中拿到或者新申请一个新页*/
 retry_grab:
 	page = grab_cache_page_write_begin(mapping, index, flags);
 	if (!page)
@@ -1318,15 +1332,17 @@ retry_journal:
 	/* In case writeback began while the page was unlocked */
 	wait_for_stable_page(page);
 
+	/*现在有page有journal,但是硬盘里面没有对应的块*/
 #ifdef CONFIG_EXT4_FS_ENCRYPTION
-	if (ext4_should_dioread_nolock(inode))
+	if (ext4_should_dioread_nolock(inode)) /*通常为false*/
 		ret = ext4_block_write_begin(page, pos, len,
 					     ext4_get_block_unwritten);
 	else
 		ret = ext4_block_write_begin(page, pos, len,
 					     ext4_get_block);
 #else
-	if (ext4_should_dioread_nolock(inode))
+	/*ext4_get_block 会调用 ext4_map_blocks*/
+	if (ext4_should_dioread_nolock(inode)) /*通常为false*/
 		ret = __block_write_begin(page, pos, len,
 					  ext4_get_block_unwritten);
 	else
@@ -1598,6 +1614,7 @@ static int ext4_da_reserve_space(struct inode *inode)
 		return ret;
 
 	spin_lock(&ei->i_block_reservation_lock);
+	/*这里只是操作percpu counter*/
 	if (ext4_claim_free_clusters(sbi, 1, 0)) {
 		spin_unlock(&ei->i_block_reservation_lock);
 		dquot_release_reservation_block(inode, EXT4_C2B(sbi, 1));
@@ -1867,6 +1884,7 @@ static int ext4_da_map_blocks(struct inode *inode, sector_t iblock,
 	if (ext4_has_inline_data(inode))
 		retval = 0;
 	else if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
+		/*这里最后一个参数为0 说明不创建*/
 		retval = ext4_ext_map_blocks(NULL, inode, map, 0);
 	else
 		retval = ext4_ind_map_blocks(NULL, inode, map, 0);
@@ -1892,7 +1910,7 @@ add_delayed:
 				goto out_unlock;
 			}
 		}
-
+		/*走到这里说明reserve space 成功了*/
 		ret = ext4_es_insert_extent(inode, map->m_lblk, map->m_len,
 					    ~0, EXTENT_STATUS_DELAYED);
 		if (ret) {
@@ -1900,9 +1918,9 @@ add_delayed:
 			goto out_unlock;
 		}
 
-		map_bh(bh, inode->i_sb, invalid_block);
+		map_bh(bh, inode->i_sb, invalid_block);/*mapped*/
 		set_buffer_new(bh);
-		set_buffer_delay(bh);
+		set_buffer_delay(bh);/*重点呀 delay alloc 的bh 被设置成了new 和delay 和mapped*/
 	} else if (retval > 0) {
 		int ret;
 		unsigned int status;
@@ -2254,6 +2272,16 @@ static int mpage_submit_page(struct mpage_da_data *mpd, struct page *page)
  * caller can write the buffer right away. Otherwise the function returns true
  * if the block has been added to the extent, false if the block couldn't be
  * added.
+ *
+ * 尝试着把bh加入到 mpd中的extent中. mpd中用map 来表示extent
+ * 如果bh 不需要映射到物理块, 且没有开始映射工作,直接返回true
+ * 否则 如果bh加入到了extent中,返回true
+ * 如果不能加入,返回false
+ *
+ * !!!! 当 do_map = 0时,该函数只探测每个page的第一个bh,就会立即返回
+ * return true 表明第一个bh不需要映射到物理块
+ * return false 表明第一个bh 需要被映射到物理块
+ *
  */
 static bool mpage_add_bh_to_extent(struct mpage_da_data *mpd, ext4_lblk_t lblk,
 				   struct buffer_head *bh)
@@ -2263,17 +2291,23 @@ static bool mpage_add_bh_to_extent(struct mpage_da_data *mpd, ext4_lblk_t lblk,
 	/* Buffer that doesn't need mapping for writeback? */
 	if (!buffer_dirty(bh) || !buffer_mapped(bh) ||
 	    (!buffer_delay(bh) && !buffer_unwritten(bh))) {
+	    /*不需要映射物理块*/
 		/* So far no extent to map => we write the buffer right away */
-		if (map->m_len == 0)
-			return true;
-		return false;
+		if (map->m_len == 0)/**/
+			return true; /*m_len = 0 说明第一个bh 就不需要映射, 我们可以继续往里面加extent, 所以return true*/
+		return false; /*此时m_len !=0了, 说明该bh造成了extent中断 所以return false*/
 	}
 
+	/* 
+	 * buffer_dirty(bh) && buffer_mapped(bh) &&   { buffer_delay(bh) || buffer_unwritten(bh) }
+	 * 
+	 */
 	/* First block in the extent? */
 	if (map->m_len == 0) {
 		/* We cannot map unless handle is started... */
+		/*需要映射物理块,但是do_map为0,所以return false, 也就是说遇到第一个需要映射物理块的bh就返回false*/
 		if (!mpd->do_map)
-			return false;
+			return false; 
 		map->m_lblk = lblk;
 		map->m_len = 1;
 		map->m_flags = bh->b_state & BH_FLAGS;
@@ -2308,6 +2342,15 @@ static bool mpage_add_bh_to_extent(struct mpage_da_data *mpd, ext4_lblk_t lblk,
  * by processing the next page, 0 if it should stop adding buffers to the
  * extent to map because we cannot extend it anymore. It can also return value
  * < 0 in case of error during IO submission.
+ *
+ * 如果 所有的page 都已经mapped, 那就直接submit,同时也不会积累下来一个extent
+ * 或者把page中的buffer加入到mpd->map中,用来最后构成一个extent
+ *
+ * return 1 --- caller可以继续处理下一个页(可以继续给extent里面添加bh)
+ * return 0 --- 无法扩展extent了,停止处理下一页
+ * < 0 error
+ *
+ * mpd->do_map = 0时, 遇到第一个需要被映射 物理块的bh就返回0
  */
 static int mpage_process_page_bufs(struct mpage_da_data *mpd,
 				   struct buffer_head *head,
@@ -2316,6 +2359,7 @@ static int mpage_process_page_bufs(struct mpage_da_data *mpd,
 {
 	struct inode *inode = mpd->inode;
 	int err;
+	/*文件一共占用的block总数*/
 	ext4_lblk_t blocks = (i_size_read(inode) + i_blocksize(inode) - 1)
 							>> inode->i_blkbits;
 
@@ -2326,15 +2370,20 @@ static int mpage_process_page_bufs(struct mpage_da_data *mpd,
 			/* Found extent to map? */
 			if (mpd->map.m_len)
 				return 0;
+			
 			/* Buffer needs mapping and handle is not started? */
+			/*如果有一个bh适合构造成为一个ext就会走到这里*/
 			if (!mpd->do_map)
 				return 0;
 			/* Everything mapped so far and we hit EOF */
 			break;
 		}
 	} while (lblk++, (bh = bh->b_this_page) != head);
+
+
 	/* So far everything mapped? Submit the page for IO. */
 	if (mpd->map.m_len == 0) {
+		/*反正也没法形成一个extent, 不需要后面map成一个extent, 那就submit吧*/
 		err = mpage_submit_page(mpd, head->b_page);
 		if (err < 0)
 			return err;
@@ -2355,6 +2404,8 @@ static int mpage_process_page_bufs(struct mpage_da_data *mpd,
  * and do extent conversion after IO is finished. If the last page is not fully
  * mapped, we update @map to the next extent in the last page that needs
  * mapping. Otherwise we submit the page for IO.
+ *
+ * 修改相关的bh中的信息,比如物理块号等,flag等
  */
 static int mpage_map_and_submit_buffers(struct mpage_da_data *mpd)
 {
@@ -2373,6 +2424,9 @@ static int mpage_map_and_submit_buffers(struct mpage_da_data *mpd)
 	lblk = start << bpp_bits;
 	pblock = mpd->map.m_pblk;
 
+	/*
+	 * 找出extent: m_lblk, m_lblk + m_len - 1之间的所有page,这些page肯定没有映射到物理块上
+	 */
 	pagevec_init(&pvec, 0);
 	while (start <= end) {
 		nr_pages = pagevec_lookup_range(&pvec, inode->i_mapping,
@@ -2387,6 +2441,7 @@ static int mpage_map_and_submit_buffers(struct mpage_da_data *mpd)
 				if (lblk < mpd->map.m_lblk)
 					continue;
 				if (lblk >= mpd->map.m_lblk + mpd->map.m_len) {
+					/*一个页可能前两个bh属于extent,后两个不属于了*/
 					/*
 					 * Buffer after end of mapped extent.
 					 * Find next buffer in the page to map.
@@ -2409,7 +2464,7 @@ static int mpage_map_and_submit_buffers(struct mpage_da_data *mpd)
 				}
 				if (buffer_delay(bh)) {
 					clear_buffer_delay(bh);
-					bh->b_blocknr = pblock++;
+					bh->b_blocknr = pblock++;/*给bh映射到具体的phy block上*/
 				}
 				clear_buffer_unwritten(bh);
 			} while (lblk++, (bh = bh->b_this_page) != head);
@@ -2421,6 +2476,7 @@ static int mpage_map_and_submit_buffers(struct mpage_da_data *mpd)
 			 */
 			mpd->io_submit.io_end->size += PAGE_SIZE;
 			/* Page fully mapped - let IO run! */
+			/*page可以写入了,因为每个bh都有对应的物理块了*/
 			err = mpage_submit_page(mpd, page);
 			if (err < 0) {
 				pagevec_release(&pvec);
@@ -2467,6 +2523,7 @@ static int mpage_map_one_extent(handle_t *handle, struct mpage_da_data *mpd)
 	if (map->m_flags & (1 << BH_Delay))
 		get_blocks_flags |= EXT4_GET_BLOCKS_DELALLOC_RESERVE;
 
+	/*又调用 ext_map_blocks, 这次需要create了,所以会分配真正的物理块*/
 	err = ext4_map_blocks(handle, inode, map, get_blocks_flags);
 	if (err < 0)
 		return err;
@@ -2519,6 +2576,7 @@ static int mpage_map_and_submit_extent(handle_t *handle,
 
 	mpd->io_submit.io_end->offset =
 				((loff_t)map->m_lblk) << inode->i_blkbits;
+	/*下面这个循环就是不断的分配extent 修改bh映射到extent 上,然后再提交页*/
 	do {
 		err = mpage_map_one_extent(handle, mpd);
 		if (err < 0) {
@@ -2558,6 +2616,7 @@ static int mpage_map_and_submit_extent(handle_t *handle,
 		/*
 		 * Update buffer state, submit mapped pages, and get us new
 		 * extent to map
+		 * 已经分配好了, 分配信息都在mpd->map.m_pblk中,我们要逐个修改bh信息
 		 */
 		err = mpage_map_and_submit_buffers(mpd);
 		if (err < 0)
@@ -2707,12 +2766,15 @@ static int mpage_prepare_extent_to_map(struct mpage_da_data *mpd)
 			lblk = ((ext4_lblk_t)page->index) <<
 				(PAGE_SHIFT - blkbits);
 			head = page_buffers(page);
+			/*有一个适合构造ext的bh就返回0,函数退出*/
 			err = mpage_process_page_bufs(mpd, head, head, lblk);
 			if (err <= 0)
 				goto out;
 			err = 0;
 			left--;
 		}
+
+		
 		pagevec_release(&pvec);
 		cond_resched();
 	}
@@ -2800,7 +2862,7 @@ static int ext4_writepages(struct address_space *mapping,
 		rsv_blocks = 1 + ext4_chunk_trans_blocks(inode,
 						PAGE_SIZE >> inode->i_blkbits);
 	}
-
+	/*这里才是正文*/
 	/*
 	 * If we have inline data and arrive here, it means that
 	 * we will soon create the block for the 1st page, so
@@ -2822,6 +2884,7 @@ static int ext4_writepages(struct address_space *mapping,
 	if (wbc->range_start == 0 && wbc->range_end == LLONG_MAX)
 		range_whole = 1;
 
+	/*first_page 和 last_page代表了要磁盘范围*/
 	if (wbc->range_cyclic) {
 		writeback_index = mapping->writeback_index;
 		if (writeback_index)
@@ -2835,8 +2898,9 @@ static int ext4_writepages(struct address_space *mapping,
 
 	mpd.inode = inode;
 	mpd.wbc = wbc;
-	ext4_io_submit_init(&mpd.io_submit, wbc);
+	ext4_io_submit_init(&mpd.io_submit, wbc); /*第一次初始化io_submit*/
 retry:
+	/*需要打上TOWRITE标记*/
 	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
 		tag_pages_for_writeback(mapping, mpd.first_page, mpd.last_page);
 	done = false;
@@ -2848,12 +2912,15 @@ retry:
 	 * in the block layer on device congestion while having transaction
 	 * started.
 	 */
-	mpd.do_map = 0;
-	mpd.io_submit.io_end = ext4_init_io_end(inode, GFP_KERNEL);
+	mpd.do_map = 0; /*这里会影响mpage_prepare_extent_to_map中的行为*/
+	mpd.io_submit.io_end = ext4_init_io_end(inode, GFP_KERNEL); /*初始化io_end*/
 	if (!mpd.io_submit.io_end) {
 		ret = -ENOMEM;
 		goto unplug;
 	}
+	/* mpd.do_map = 0!!! 以这种方式调用mpage_prepare_extent_to_map 是为了找到第一个需要
+	 * 映射物理块的bh, 只要找到就返回
+	 */
 	ret = mpage_prepare_extent_to_map(&mpd);
 	/* Submit prepared bio */
 	ext4_io_submit(&mpd.io_submit);
@@ -2864,6 +2931,8 @@ retry:
 	if (ret < 0)
 		goto unplug;
 
+	/*从这里开始构造真正的extent*/
+	/*上面ret值 =0 说明找到了一个需要映射物理块的bh*/
 	while (!done && mpd.first_page <= mpd.last_page) {
 		/* For each extent of pages we use new io_end */
 		mpd.io_submit.io_end = ext4_init_io_end(inode, GFP_KERNEL);
@@ -2895,11 +2964,12 @@ retry:
 			mpd.io_submit.io_end = NULL;
 			break;
 		}
-		mpd.do_map = 1;
+		mpd.do_map = 1; /*需要映射了*/
 
 		trace_ext4_da_write_pages(inode, mpd.first_page, mpd.wbc);
 		ret = mpage_prepare_extent_to_map(&mpd);
 		if (!ret) {
+			/*m_len 不为零,说明找到了一个extent*/
 			if (mpd.map.m_len)
 				ret = mpage_map_and_submit_extent(handle, &mpd,
 					&give_up_on_write);
@@ -3914,11 +3984,11 @@ static const struct address_space_operations ext4_da_aops = {
 	.readpages		= ext4_readpages,
 	.writepage		= ext4_writepage,
 	.writepages		= ext4_writepages,
-	.write_begin		= ext4_da_write_begin,
-	.write_end		= ext4_da_write_end,
+	.write_begin		= ext4_da_write_begin,/**/
+	.write_end		= ext4_da_write_end, /**/
 	.set_page_dirty		= ext4_set_page_dirty,
 	.bmap			= ext4_bmap,
-	.invalidatepage		= ext4_da_invalidatepage,
+	.invalidatepage		= ext4_da_invalidatepage, /**/
 	.releasepage		= ext4_releasepage,
 	.direct_IO		= ext4_direct_IO,
 	.migratepage		= buffer_migrate_page,
@@ -3932,13 +4002,16 @@ void ext4_set_aops(struct inode *inode)
 	case EXT4_INODE_ORDERED_DATA_MODE:
 	case EXT4_INODE_WRITEBACK_DATA_MODE:
 		break;
-	case EXT4_INODE_JOURNAL_DATA_MODE:
+	case EXT4_INODE_JOURNAL_DATA_MODE: 
+		/*如果数据也被journal,那么走这个分支*/
 		inode->i_mapping->a_ops = &ext4_journalled_aops;
 		return;
 	default:
 		BUG();
 	}
+	
 	if (test_opt(inode->i_sb, DELALLOC))
+		/*delay alloc 默认使能*/
 		inode->i_mapping->a_ops = &ext4_da_aops;
 	else
 		inode->i_mapping->a_ops = &ext4_aops;
@@ -4323,6 +4396,7 @@ out_mutex:
 	return ret;
 }
 
+/*给inode 绑定一个jinode*/
 int ext4_inode_attach_jinode(struct inode *inode)
 {
 	struct ext4_inode_info *ei = EXT4_I(inode);

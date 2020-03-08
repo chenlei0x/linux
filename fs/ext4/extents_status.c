@@ -241,6 +241,8 @@ static struct extent_status *__es_tree_search(struct rb_root *root,
  * @lblk: the offset where we start to search
  * @end: the offset where we stop to search
  * @es: delayed extent that we found
+ *
+ * 寻找第一个能包含 @lblk的delayedextent ,如果找不到就找@lblk之后, end之前的第一个delay ext
  */
 void ext4_es_find_delayed_extent_range(struct inode *inode,
 				 ext4_lblk_t lblk, ext4_lblk_t end,
@@ -630,6 +632,7 @@ static inline void ext4_es_insert_extent_check(struct inode *inode,
 }
 #endif
 
+/*再把es 插入&EXT4_I(inode)->i_es_tree回去*/
 static int __es_insert_extent(struct inode *inode, struct extent_status *newes)
 {
 	struct ext4_es_tree *tree = &EXT4_I(inode)->i_es_tree;
@@ -687,6 +690,8 @@ out:
  * status tree.
  *
  * Return 0 on success, error code on failure.
+ *
+ * 操作 inode extent status tree
  */
 int ext4_es_insert_extent(struct inode *inode, ext4_lblk_t lblk,
 			  ext4_lblk_t len, ext4_fsblk_t pblk,
@@ -720,10 +725,12 @@ int ext4_es_insert_extent(struct inode *inode, ext4_lblk_t lblk,
 	ext4_es_insert_extent_check(inode, &newes);
 
 	write_lock(&EXT4_I(inode)->i_es_lock);
+	/*删除从 lblk, end中的所有的extent status*/
 	err = __es_remove_extent(inode, lblk, end);
 	if (err != 0)
 		goto error;
 retry:
+/*上面删除了,这里插入进去 newes 代表 [lblk,end]这段extent*/
 	err = __es_insert_extent(inode, &newes);
 	if (err == -ENOMEM && __es_shrink(EXT4_SB(inode->i_sb),
 					  128, EXT4_I(inode)))
@@ -863,14 +870,17 @@ retry:
 	orig_es.es_len = es->es_len;
 	orig_es.es_pblk = es->es_pblk;
 
+	/*设es_target = [lblk, end]*/
+	/*len1 表示 es 头部多出es_target的部分 */
 	len1 = lblk > es->es_lblk ? lblk - es->es_lblk : 0;
+	/*len2 表示es 尾部多出 es_target 的部分*/
 	len2 = ext4_es_end(es) > end ? ext4_es_end(es) - end : 0;
 	if (len1 > 0)
-		es->es_len = len1;
+		es->es_len = len1; /*修改找到的es*/
 	if (len2 > 0) {
 		if (len1 > 0) {
 			struct extent_status newes;
-
+			/*newes 为 尾部多出的部分*/
 			newes.es_lblk = end + 1;
 			newes.es_len = len2;
 			block = 0x7FDEADBEEFULL;
@@ -880,6 +890,7 @@ retry:
 					orig_es.es_len - len2;
 			ext4_es_store_pblock_status(&newes, block,
 						    ext4_es_status(&orig_es));
+			/*把尾部多余的部分插入到 es tree中*/
 			err = __es_insert_extent(inode, &newes);
 			if (err) {
 				es->es_lblk = orig_es.es_lblk;
@@ -891,6 +902,7 @@ retry:
 				goto out;
 			}
 		} else {
+		/*len1 = 0 说明前头没有凸出来的部分,直接修改tree中的es就好*/
 			es->es_lblk = end + 1;
 			es->es_len = len2;
 			if (ext4_es_is_written(es) ||
@@ -902,14 +914,17 @@ retry:
 		goto out;
 	}
 
+	/*如果len1 > 0 说明当下es就代表前凸部分 是需要保留的, 那我们从
+	他的下一个extent开始 释放到end结束*/
 	if (len1 > 0) {
-		node = rb_next(&es->rb_node);
+		node = rb_next(&es->rb_node); /*下一个extent*/
 		if (node)
 			es = rb_entry(node, struct extent_status, rb_node);
 		else
 			es = NULL;
 	}
 
+	/*从es的紧邻的右边开始到end结束,全部释放*/
 	while (es && ext4_es_end(es) <= end) {
 		node = rb_next(&es->rb_node);
 		rb_erase(&es->rb_node, &tree->root);
@@ -921,6 +936,7 @@ retry:
 		es = rb_entry(node, struct extent_status, rb_node);
 	}
 
+	/*最后一个extent 可能存在和 [lblk, end]有 !!!部分!!!重叠*/
 	if (es && es->es_lblk < end + 1) {
 		ext4_lblk_t orig_len = es->es_len;
 

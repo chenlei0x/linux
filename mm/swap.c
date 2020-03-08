@@ -986,6 +986,7 @@ unsigned pagevec_lookup_range(struct pagevec *pvec,
 }
 EXPORT_SYMBOL(pagevec_lookup_range);
 
+/*从mapping中,从index开始,找出有@tag的page, 最多找到nr_pages个,存放到pvec里面*/
 unsigned pagevec_lookup_tag(struct pagevec *pvec, struct address_space *mapping,
 		pgoff_t *index, int tag, unsigned nr_pages)
 {

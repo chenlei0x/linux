@@ -89,6 +89,7 @@ static int ext4_extent_block_csum_verify(struct inode *inode,
 	return 1;
 }
 
+/*计算ext4_extent_tail 的 chechsum*/
 static void ext4_extent_block_csum_set(struct inode *inode,
 				       struct ext4_extent_header *eh)
 {
@@ -192,7 +193,8 @@ int __ext4_ext_dirty(const char *where, unsigned int line, handle_t *handle,
 }
 
 /*
- * 需要继续看
+ * @block 是一个 logic block#
+ * 通过参数确定需要申请的extent 的起始 phy block#
  */
 static ext4_fsblk_t ext4_ext_find_goal(struct inode *inode,
 			      struct ext4_ext_path *path,
@@ -226,8 +228,9 @@ static ext4_fsblk_t ext4_ext_find_goal(struct inode *inode,
 			ext4_lblk_t ext_block = le32_to_cpu(ex->ee_block); /*extent beginning logic block*/
 
 			/*物理起始块 + (block - ext_block)*/
+			/*ext的phy block 加上或者减去偏移,尽量让两个ext物理上连着*/
 			if (block > ext_block)
-				return ext_pblk + (block - ext_block);
+				return ext_pblk + (block - ext_block); 
 			else
 				return ext_pblk - (ext_block - block);
 		}
@@ -329,6 +332,7 @@ static inline int ext4_ext_space_root_idx(struct inode *inode, int check)
 	return size;
 }
 
+/*@lblk 新的extent 的起始*/
 static inline int
 ext4_force_split_extent_at(handle_t *handle, struct inode *inode,
 			   struct ext4_ext_path **ppath, ext4_lblk_t lblk,
@@ -1511,10 +1515,11 @@ static int ext4_ext_search_left(struct inode *inode,
 	/* usually extent in the path covers blocks smaller
 	 * then *logical, but it can be that extent is the
 	 * first one in the file */
-
+	/*通常path[depth].p_ext 包含的block都是比目标小的*/
 	ex = path[depth].p_ext;
 	ee_len = ext4_ext_get_actual_len(ex);
 	if (*logical < le32_to_cpu(ex->ee_block)) {
+		/*如果需要找的logical block < extent 的逻辑block*/
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			EXT4_ERROR_INODE(inode,
 					 "EXT_FIRST_EXTENT != ex *logical %d ee_block %d!",
@@ -1536,6 +1541,7 @@ static int ext4_ext_search_left(struct inode *inode,
 		return 0;
 	}
 
+	/*@logical一定不属于某个extent*/
 	if (unlikely(*logical < (le32_to_cpu(ex->ee_block) + ee_len))) {
 		EXT4_ERROR_INODE(inode,
 				 "logical %d < ee_block %d + ee_len %d!",
@@ -1581,11 +1587,13 @@ static int ext4_ext_search_right(struct inode *inode,
 	/* usually extent in the path covers blocks smaller
 	 * then *logical, but it can be that extent is the
 	 * first one in the file */
-
+	 
+	/*通常path[depth].p_ext 包含的block都是比目标小的*/
 	ex = path[depth].p_ext;
 	ee_len = ext4_ext_get_actual_len(ex);
 	if (*logical < le32_to_cpu(ex->ee_block)) {
-		/*如果extent 的起始 logical block# 大于所需要寻找的lblk,那这个extent一定是该文件的第一个*/
+		/*这种情况是不正常的,只能说logical一定是比第一个ext 还小*/
+		/*如果extent 的起始 logical block# 大于所需要寻找的lblk,那这个extent一定是该文件的第一个extent*/
 		/* 首先他肯定是这个 ext block中的第一个extent*/
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			EXT4_ERROR_INODE(inode,
@@ -1606,14 +1614,23 @@ static int ext4_ext_search_right(struct inode *inode,
 		goto found_extent;
 	}
 
+	
 	if (unlikely(*logical < (le32_to_cpu(ex->ee_block) + ee_len))) {
+		/*
+		* 走到这里说明 ex->ee_block <= logical < ex->ee_block + ee_len
+		* 意味着这个logical 一定不处于一个extent中
+		*/
 		EXT4_ERROR_INODE(inode,
 				 "logical %d < ee_block %d + ee_len %d!",
 				 *logical, le32_to_cpu(ex->ee_block), ee_len);
 		return -EFSCORRUPTED;
 	}
+	
+	/* *logical >= (le32_to_cpu(ex->ee_block) + ee_len*/
 
 	if (ex != EXT_LAST_EXTENT(path[depth].p_hdr)) {
+		/*很好,当前ex 又不是extent block中的最后一个extent, 那他右边的ext就是我们需要的, 这个右边的ext
+	的起始logical   block 肯定不是ex*/
 		/* next allocated block in this leaf */
 		ex++;
 		goto found_extent;
@@ -1627,6 +1644,7 @@ static int ext4_ext_search_right(struct inode *inode,
 	}
 
 	/* we've gone up to the root and found no index to the right */
+	/*depth一直递减,且一直都是最后一个idx,那只能说明右边没有extent了*/
 	return 0;
 
 got_index:
@@ -1667,6 +1685,8 @@ found_extent:
  * NOTE: it considers block number from index entry as
  * allocated block. Thus, index entries have to be consistent
  * with leaves.
+ * 
+ * 给定一个path, 找到path中的ext 的右边紧邻的ext的起始logic block#
  */
 ext4_lblk_t
 ext4_ext_next_allocated_block(struct ext4_ext_path *path)
@@ -1701,6 +1721,7 @@ ext4_ext_next_allocated_block(struct ext4_ext_path *path)
 /*
  * ext4_ext_next_leaf_block:
  * returns first allocated block from next leaf or EXT_MAX_BLOCKS
+ * 获取右边叶子节点所覆盖的第一个logical block#
  */
 static ext4_lblk_t ext4_ext_next_leaf_block(struct ext4_ext_path *path)
 {
@@ -1716,11 +1737,13 @@ static ext4_lblk_t ext4_ext_next_leaf_block(struct ext4_ext_path *path)
 	/* go to index block */
 	depth--;
 
+	/*
+	 * 如果我是last index, 那我就一直往上找, 一直找到我的parent index  所在的block不是last
+	 * 然后我返回下一个index的起始logical block就好
+	 */
 	while (depth >= 0) {
-		if (path[depth].p_idx !=
-				EXT_LAST_INDEX(path[depth].p_hdr))
-			return (ext4_lblk_t)
-				le32_to_cpu(path[depth].p_idx[1].ei_block);
+		if (path[depth].p_idx != EXT_LAST_INDEX(path[depth].p_hdr))
+			return (ext4_lblk_t)le32_to_cpu(path[depth].p_idx[1].ei_block); /*注意这个1*/
 		depth--;
 	}
 
@@ -1732,6 +1755,9 @@ static ext4_lblk_t ext4_ext_next_leaf_block(struct ext4_ext_path *path)
  * if leaf gets modified and modified extent is first in the leaf,
  * then we have to correct all indexes above.
  * TODO: do we need to correct tree in all cases?
+ *
+ * 如果leaf 改变了, 也就是说,index 包含的第一个logical block# 变了,需要更新
+ * 所有parent index
  */
 static int ext4_ext_correct_indexes(handle_t *handle, struct inode *inode,
 				struct ext4_ext_path *path)
@@ -1802,7 +1828,8 @@ ext4_can_extents_be_merged(struct inode *inode, struct ext4_extent *ex1,
 	ext1_ee_len = ext4_ext_get_actual_len(ex1);
 	ext2_ee_len = ext4_ext_get_actual_len(ex2);
 
-	if (le32_to_cpu(ex1->ee_block) + ext1_ee_len !=
+	/*逻辑连续*/
+	if (le32_to_cpu(ex1->ee_block) + ext1_ee_len != 
 			le32_to_cpu(ex2->ee_block))
 		return 0;
 
@@ -1828,7 +1855,7 @@ ext4_can_extents_be_merged(struct inode *inode, struct ext4_extent *ex1,
 	if (ext1_ee_len >= 4)
 		return 0;
 #endif
-
+	/*物理连续*/
 	if (ext4_ext_pblock(ex1) + ext1_ee_len == ext4_ext_pblock(ex2))
 		return 1;
 	return 0;
@@ -1971,7 +1998,7 @@ static unsigned int ext4_ext_check_overlap(struct ext4_sb_info *sbi,
 	if (!path[depth].p_ext)
 		goto out;
 	b2 = EXT4_LBLK_CMASK(sbi, le32_to_cpu(path[depth].p_ext->ee_block));
-
+	/*b1 b2 中的bit 可以看作 cluster_bits + block_offset*/
 	/*
 	 * get the next allocated block if the extent in the path
 	 * is before the requested block(s)
@@ -2045,13 +2072,13 @@ int ext4_ext_insert_extent(handle_t *handle, struct inode *inode,
 		if (ex < EXT_LAST_EXTENT(eh) &&
 		    (le32_to_cpu(ex->ee_block) +
 		    ext4_ext_get_actual_len(ex) <
-		    le32_to_cpu(newext->ee_block))) {
+		    le32_to_cpu(newext->ee_block))) { /*newext 起始logic block# 在 ex的右边*/
 			ex += 1;
 			goto prepend;
 		} else if ((ex > EXT_FIRST_EXTENT(eh)) &&
 			   (le32_to_cpu(newext->ee_block) +
 			   ext4_ext_get_actual_len(newext) <
-			   le32_to_cpu(ex->ee_block)))
+			   le32_to_cpu(ex->ee_block))) /*newext 起始logic block# 在 ex的 左 边*/
 			ex -= 1;
 
 		/* Try to append newex to the ex */
@@ -2113,19 +2140,25 @@ prepend:
 	if (le16_to_cpu(eh->eh_entries) < le16_to_cpu(eh->eh_max))
 		goto has_space;
 
+	/*现在本extent block里面已经没有空余位置了,找找右边的 extent block*/
+	/*extent block 也就是leaf block*/
 	/* probably next leaf has space for us? */
 	fex = EXT_LAST_EXTENT(eh);
 	next = EXT_MAX_BLOCKS;
+
+	/*找到右边的extent block的起始 logical block#*/
 	if (le32_to_cpu(newext->ee_block) > le32_to_cpu(fex->ee_block))
 		next = ext4_ext_next_leaf_block(path);
 	if (next != EXT_MAX_BLOCKS) {
 		ext_debug("next leaf block - %u\n", next);
 		BUG_ON(npath != NULL);
+		/*再通过右边的extent block的起始 logical block#, 找到他的path, path里面的最后一个就是他的leaf*/
 		npath = ext4_find_extent(inode, next, NULL, 0);
 		if (IS_ERR(npath))
 			return PTR_ERR(npath);
 		BUG_ON(npath->p_depth != path->p_depth);
 		eh = npath[depth].p_hdr;
+		/*我右边的节点有空位*/
 		if (le16_to_cpu(eh->eh_entries) < le16_to_cpu(eh->eh_max)) {
 			ext_debug("next leaf isn't full(%d)\n",
 				  le16_to_cpu(eh->eh_entries));
@@ -2165,6 +2198,7 @@ has_space:
 				ext4_ext_get_actual_len(newext));
 		nearex = EXT_FIRST_EXTENT(eh);
 	} else {
+		/*find_extent 找打的ext 可能在目标的左边,也可能右边,所以需要确定一下*/
 		if (le32_to_cpu(newext->ee_block)
 			   > le32_to_cpu(nearex->ee_block)) {
 			/* Insert after */
@@ -2406,12 +2440,13 @@ static ext4_lblk_t ext4_ext_determine_hole(struct inode *inode,
 	} else if (*lblk >= le32_to_cpu(ex->ee_block)
 			+ ext4_ext_get_actual_len(ex)) {
 		ext4_lblk_t next;
-
+		/*调整blk为整个ext之后*/
 		*lblk = le32_to_cpu(ex->ee_block) + ext4_ext_get_actual_len(ex);
-		next = ext4_ext_next_allocated_block(path);
+		next = ext4_ext_next_allocated_block(path);/**/
 		BUG_ON(next == *lblk);
 		len = next - *lblk;
 	} else {
+		/*@lblk 处于一个extent中,那还hole个毛, 肯定是bug*/
 		BUG();
 	}
 	return len;
@@ -2428,12 +2463,14 @@ ext4_ext_put_gap_in_cache(struct inode *inode, ext4_lblk_t hole_start,
 {
 	struct extent_status es;
 
+	/*先去找*/
 	ext4_es_find_delayed_extent_range(inode, hole_start,
 					  hole_start + hole_len - 1, &es);
 	if (es.es_len) {
 		/* There's delayed extent containing lblock? */
-		if (es.es_lblk <= hole_start)
+		if (es.es_lblk <= hole_start) /*这个es 已经包含了我们需要的hole,直接返回*/
 			return;
+		/*hole_start  <  es.lblk 这种情况我们需要创建 hole start ~ es->lblk 之间的hole*/
 		hole_len = min(es.es_lblk - hole_start, hole_len);
 	}
 	ext_debug(" -> %u:%u\n", hole_start, hole_len);
@@ -2455,7 +2492,7 @@ static int ext4_ext_rm_idx(handle_t *handle, struct inode *inode,
 
 	/* free index block */
 	depth--;
-	path = path + depth; /*path 现在指向最后一个 index node*/
+	path = path + depth; /*path 现在指向最后一个 index block*/
 	leaf = ext4_idx_pblock(path->p_idx);
 	if (unlikely(path->p_hdr->eh_entries == 0)) {
 		EXT4_ERROR_INODE(inode, "path->p_hdr->eh_entries == 0");
@@ -2580,7 +2617,7 @@ static int ext4_remove_blocks(handle_t *handle, struct inode *inode,
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 	unsigned short ee_len = ext4_ext_get_actual_len(ex);
 	ext4_fsblk_t pblk;
-	int flags = get_default_free_blocks_flags(inode);
+	int flags = get_default_free_blocks_flags(inode); /*对于普通文件且 ordered, flag 为0*/
 
 	/*
 	 * For bigalloc file systems, we never free a partial cluster
@@ -2956,6 +2993,8 @@ again:
 		 * the extent at 'end' block so we can easily remove the
 		 * tail of the first part of the split extent in
 		 * ext4_ext_rm_leaf().
+		 *
+		 * end 在 extent之间
 		 */
 		if (end >= ee_block && end < ex_end) {
 
@@ -3275,7 +3314,11 @@ static int ext4_split_extent_at(handle_t *handle,
 	ex = path[depth].p_ext;
 	ee_block = le32_to_cpu(ex->ee_block); /* ex 对应的起始 logic block*/
 	ee_len = ext4_ext_get_actual_len(ex);
-	/*split 为logic 分割点，转换为phy 分割点*/
+	
+	/*
+	 * split 为logic 分割点，也就是新的ext的开始phy block#
+	 * 转换为phy 分割点
+	 */
 	newblock = split - ee_block + ext4_ext_pblock(ex); 
 
 	BUG_ON(split < ee_block || split >= (ee_block + ee_len));
@@ -3932,6 +3975,7 @@ int ext4_find_delalloc_cluster(struct inode *inode, ext4_lblk_t lblk)
 {
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 	ext4_lblk_t lblk_start, lblk_end;
+	/*lblk_start, lblk_end 表示 lblk所处的cluster的开头和结尾block#*/
 	lblk_start = EXT4_LBLK_CMASK(sbi, lblk);
 	lblk_end = lblk_start + sbi->s_cluster_ratio - 1;
 
@@ -4261,6 +4305,9 @@ out2:
  *                  |------ requested region ------|
  *                  |================|
  *
+ *以上几种场景下,我们需要设置map->m_pblk and
+ * map->m_len 为 |=============| 所代表的extent
+ *
  * In each of the above cases, we need to set the map->m_pblk and
  * map->m_len so it corresponds to the return the extent labelled as
  * "|====|" from cluster #N, since it is already in use for data in
@@ -4269,6 +4316,8 @@ out2:
  * as a new "allocated" block region.  Otherwise, we will return 0 and
  * ext4_ext_map_blocks() will then allocate one or more new clusters
  * by calling ext4_mb_new_blocks().
+ *
+ * 主要处理@ex 和 @map处于同一个cluster时的问题, 如果有冲突需要修正m_pblk 以及 m_len
  */
 static int get_implied_cluster_alloc(struct super_block *sb,
 				     struct ext4_map_blocks *map,
@@ -4279,7 +4328,7 @@ static int get_implied_cluster_alloc(struct super_block *sb,
 	ext4_lblk_t c_offset = EXT4_LBLK_COFF(sbi, map->m_lblk);
 	ext4_lblk_t ex_cluster_start, ex_cluster_end;
 	ext4_lblk_t rr_cluster_start;
-	ext4_lblk_t ee_block = le32_to_cpu(ex->ee_block);
+	ext4_lblk_t ee_block = le32_to_cpu(ex->ee_block); /*logical*/
 	ext4_fsblk_t ee_start = ext4_ext_pblock(ex);
 	unsigned short ee_len = ext4_ext_get_actual_len(ex);
 
@@ -4349,6 +4398,8 @@ static int get_implied_cluster_alloc(struct super_block *sb,
  *          buffer head is unmapped
  *
  * return < 0, error case.
+ *
+ * 如果ext4_da_map_blocks, flag = 0
  */
 int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 			struct ext4_map_blocks *map, int flags)
@@ -4442,6 +4493,7 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 	/*
 	 * requested block isn't allocated yet;
 	 * we couldn't try to create block if create flag is zero
+	 * 走到这里extent 没有分配, 只有带上EXT4_GET_BLOCKS_CREATE 才说明需要分配
 	 */
 	if ((flags & EXT4_GET_BLOCKS_CREATE) == 0) {
 		ext4_lblk_t hole_start, hole_len;
@@ -4467,7 +4519,7 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 	 * Okay, we need to do block allocation.
 	 */
 	newex.ee_block = cpu_to_le32(map->m_lblk);
-	cluster_offset = EXT4_LBLK_COFF(sbi, map->m_lblk);
+	cluster_offset = EXT4_LBLK_COFF(sbi, map->m_lblk); /*在cluster中的offset*/
 
 	/*
 	 * If we are doing bigalloc, check to see if the extent returned
@@ -4535,9 +4587,9 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 	 * needed so that future calls to get_implied_cluster_alloc()
 	 * work correctly.
 	 */
-	offset = EXT4_LBLK_COFF(sbi, map->m_lblk);
-	ar.len = EXT4_NUM_B2C(sbi, offset+allocated);
-	ar.goal -= offset;
+	offset = EXT4_LBLK_COFF(sbi, map->m_lblk); /*m_lblk在一个cluster中的 offset*/
+	ar.len = EXT4_NUM_B2C(sbi, offset+allocated); /*offset + allocated 再向上取整换算成cluster,就是我们要申请的*/
+	ar.goal -= offset; /*调整一下goal, 和cluster 对齐*/
 	ar.logical -= offset;
 	if (S_ISREG(inode->i_mode))
 		ar.flags = EXT4_MB_HINT_DATA;
@@ -4546,10 +4598,11 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 		ar.flags = 0;
 	if (flags & EXT4_GET_BLOCKS_NO_NORMALIZE)
 		ar.flags |= EXT4_MB_HINT_NOPREALLOC;
-	if (flags & EXT4_GET_BLOCKS_DELALLOC_RESERVE)
+	if (flags & EXT4_GET_BLOCKS_DELALLOC_RESERVE) /*delay alloc*/
 		ar.flags |= EXT4_MB_DELALLOC_RESERVED;
 	if (flags & EXT4_GET_BLOCKS_METADATA_NOFAIL)
 		ar.flags |= EXT4_MB_USE_RESERVED;
+	/*ar准备好了 申请新的块*/
 	newblock = ext4_mb_new_blocks(handle, &ar, &err);
 	if (!newblock)
 		goto out2;
@@ -4563,6 +4616,8 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 
 got_allocated_blocks:
 	/* try to insert new extent into found leaf and return */
+/*newblock + offset 作为 newex的起始地址,那么newblock --- newblock + offset-1 这段物理
+block应该页归为该ext???*/
 	ext4_ext_store_pblock(&newex, newblock + offset);
 	newex.ee_len = cpu_to_le16(ar.len);
 	/* Mark unwritten */
@@ -4575,6 +4630,7 @@ got_allocated_blocks:
 	if ((flags & EXT4_GET_BLOCKS_KEEP_SIZE) == 0)
 		err = check_eofblocks_fl(handle, inode, map->m_lblk,
 					 path, ar.len);
+	/*插入新的newex*/
 	if (!err)
 		err = ext4_ext_insert_extent(handle, inode, &path,
 					     &newex, flags);
@@ -4592,6 +4648,7 @@ got_allocated_blocks:
 	}
 
 	/* previous routine could use block we allocated */
+	/*ext4_ext_insert_extent中可能会改变ext->pblock*/
 	newblock = ext4_ext_pblock(&newex);
 	allocated = ext4_ext_get_actual_len(&newex);
 	if (allocated > map->m_len)
