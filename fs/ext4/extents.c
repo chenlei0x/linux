@@ -549,6 +549,7 @@ int ext4_ext_check_inode(struct inode *inode)
 }
 
 /*
+ *  核心就是读pblk的数据, 放到bh里面返回
  * 把extent tree中的节点(index或者leaf)读上来并做校验
  * 校验完了如果是leaf节点把所有的extent在ext4_inode_info->i_es_tree上做cache
  */
@@ -2515,6 +2516,10 @@ static int ext4_ext_rm_idx(handle_t *handle, struct inode *inode,
 	ext_debug("index is empty, remove it, free block %llu\n", leaf);
 	trace_ext4_ext_rm_idx(inode, leaf);
 
+	/*
+	 * forget leaf.  leaf肯定是meta data,他属于block dev 的mapping,
+	 * forget之后,盘中的数据和内存中的数据就不一致了
+	 */
 	ext4_free_blocks(handle, inode, NULL, leaf, 1,
 			 EXT4_FREE_BLOCKS_METADATA | EXT4_FREE_BLOCKS_FORGET);
 	/**/
@@ -2723,6 +2728,9 @@ static int ext4_remove_blocks(handle_t *handle, struct inode *inode,
  *                   punched region and it must not be freed.
  * @start:  The first block to remove
  * @end:   The last block to remove
+ *
+ * 从leaf节点path[depth].p_hdr 上删除对应的extent, 如果leaf节点为空了
+ * 调用rm_idx, 从父亲idx中删除该leaf
  */
 static int
 ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
@@ -2746,7 +2754,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 	ext_debug("truncate since %u in leaf to %u\n", start, end);
 	if (!path[depth].p_hdr)
 		path[depth].p_hdr = ext_block_hdr(path[depth].p_bh);
-	eh = path[depth].p_hdr;
+	eh = path[depth].p_hdr; /*eh 就是leaf节点*/
 	if (unlikely(path[depth].p_hdr == NULL)) {
 		EXT4_ERROR_INODE(inode, "path[%d].p_hdr == NULL", depth);
 		return -EFSCORRUPTED;
@@ -2855,6 +2863,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 		 * we need to remove it from the leaf
 		 */
 		if (num == 0) {
+			/*一个完整的ext被删除了, entries 减一*/
 			if (end != EXT_MAX_BLOCKS - 1) {
 				/*
 				 * For hole punching, we need to scoot all the
@@ -2921,6 +2930,7 @@ ext4_ext_more_to_rm(struct ext4_ext_path *path)
 {
 	BUG_ON(path->p_idx == NULL);
 
+	/*如果entries 为0, idx 等于LAST_INDEX时, 这个会成立*/
 	if (path->p_idx < EXT_FIRST_INDEX(path->p_hdr))
 		return 0;
 
@@ -2933,6 +2943,10 @@ ext4_ext_more_to_rm(struct ext4_ext_path *path)
 	return 1;
 }
 
+/*
+ * @start 为起始logical block#块号
+ * ext4_ext_truncate调用该函数时, @end = EXT_MAX_BLOCKS - 1
+ */
 int ext4_ext_remove_space(struct inode *inode, ext4_lblk_t start,
 			  ext4_lblk_t end)
 {
@@ -2960,6 +2974,7 @@ again:
 	 * the last block to remove so we can easily remove the part of it
 	 * in ext4_ext_rm_leaf().
 	 */
+	 /*ext4_ext_truncate调用该函数时, @end = EXT_MAX_BLOCKS - 1*/
 	if (end < EXT_MAX_BLOCKS - 1) {
 		struct ext4_extent *ex;
 		ext4_lblk_t ee_block, ex_end, lblk;
@@ -3046,10 +3061,12 @@ again:
 	depth = ext_depth(inode);
 	if (path) {
 		int k = i = depth;
+		/*从extent block 向上,每个idx block path的p_block置为该path->p_hdr->eh_entries + 1*/
 		while (--k > 0)
 			path[k].p_block =
 				le16_to_cpu(path[k].p_hdr->eh_entries)+1;
 	} else {
+		/*truncate 时走这个路径*/
 		path = kzalloc(sizeof(struct ext4_ext_path) * (depth + 1),
 			       GFP_NOFS);
 		if (path == NULL) {
@@ -3070,6 +3087,10 @@ again:
 	while (i >= 0 && err == 0) {
 		if (i == depth) {
 			/* this is leaf block */
+			/* 
+			 * 当leaf中的entries为0时, 
+			 * ext4_ext_rm_leaf 中会调用 ext4_ext_rm_idx
+			 */
 			err = ext4_ext_rm_leaf(handle, inode, path,
 					       &partial_cluster, start,
 					       end);
@@ -3088,8 +3109,8 @@ again:
 
 		if (!path[i].p_idx) {
 			/* this level hasn't been touched yet */
-			path[i].p_idx = EXT_LAST_INDEX(path[i].p_hdr);
-			path[i].p_block = le16_to_cpu(path[i].p_hdr->eh_entries)+1;
+			path[i].p_idx = EXT_LAST_INDEX(path[i].p_hdr); /*path[i].p_idx < path[i].p_hdr*/
+			path[i].p_block = le16_to_cpu(path[i].p_hdr->eh_entries)+1; /*valid entries + 1*/
 			ext_debug("init index ptr: hdr 0x%p, num %d\n",
 				  path[i].p_hdr,
 				  le16_to_cpu(path[i].p_hdr->eh_entries));
@@ -3101,15 +3122,18 @@ again:
 		ext_debug("level %d - index, first 0x%p, cur 0x%p\n",
 				i, EXT_FIRST_INDEX(path[i].p_hdr),
 				path[i].p_idx);
-		if (ext4_ext_more_to_rm(path + i)) {
+		if (ext4_ext_more_to_rm(path + i)) { /*还有需要释放的index吗?*/
 			struct buffer_head *bh;
 			/* go to the next level */
 			ext_debug("move to level %d (block %llu)\n",
 				  i + 1, ext4_idx_pblock(path[i].p_idx));
 			memset(path + i + 1, 0, sizeof(*path));
+			
+			/*bh 就是path[i].p_idx 指向的block的数据, 此时指向最后一个idx*/
 			bh = read_extent_tree_block(inode,
 				ext4_idx_pblock(path[i].p_idx), depth - i - 1,
 				EXT4_EX_NOCACHE);
+			
 			if (IS_ERR(bh)) {
 				/* should we reset i_size? */
 				err = PTR_ERR(bh);
@@ -3122,10 +3146,16 @@ again:
 				err = -EFSCORRUPTED;
 				break;
 			}
+
 			path[i + 1].p_bh = bh;
 
 			/* save actual number of indexes since this
 			 * number is changed at the next iteration */
+			/*
+			 * ext4_ext_more_to_rm 中比较这两个值,如果相等,表示啥都没删除,回退父亲节点
+			 * 如果i+1 是一个leaf, 那么会走入ext4_ext_rm_leaf中, 如果leaf为空了,又会通过
+			 * ext4_ext_rm_idx删除自己, 那么path[i]中的eh_entries 就会减一
+			 */
 			path[i].p_block = le16_to_cpu(path[i].p_hdr->eh_entries);
 			i++;
 		} else {
@@ -3134,6 +3164,10 @@ again:
 				/* index is empty, remove it;
 				 * handle must be already prepared by the
 				 * truncatei_leaf() */
+				 
+				 /* i 表示当前节点的depth, ext4_ext_rm_idx中会对depth--, 
+				  * 然后从父节点中删除该index, 这里表示
+				  */
 				err = ext4_ext_rm_idx(handle, inode, path, i);
 			}
 			/* root level has p_bh == NULL, brelse() eats this */

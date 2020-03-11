@@ -4501,6 +4501,7 @@ int ext4_truncate(struct inode *inode)
 	if (IS_ERR(handle))
 		return PTR_ERR(handle);
 
+	/*这里应该是清理page cache*/
 	if (inode->i_size & (inode->i_sb->s_blocksize - 1))
 		ext4_block_truncate_page(handle, mapping, inode->i_size);
 
@@ -5537,6 +5538,7 @@ int ext4_setattr(struct dentry *dentry, struct iattr *attr)
 		if (IS_I_VERSION(inode) && attr->ia_size != inode->i_size)
 			inode_inc_iversion(inode);
 
+		/*data 也需要journal, 才会走这里*/
 		if (ext4_should_order_data(inode) &&
 		    (attr->ia_size < inode->i_size)) {
 			error = ext4_begin_ordered_truncate(inode,
