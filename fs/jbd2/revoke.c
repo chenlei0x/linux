@@ -136,6 +136,10 @@ static inline int hash(journal_t *journal, unsigned long long block)
 	return hash_64(block, journal->j_revoke->hash_shift);
 }
 
+/*
+ * journal->j_revoke->hash_table 该hash_table全journal 唯一
+ * blocknr
+ */
 static int insert_revoke_hash(journal_t *journal, unsigned long long blocknr,
 			      tid_t seq)
 {
@@ -381,6 +385,8 @@ int jbd2_journal_revoke(handle_t *handle, unsigned long long blocknr,
 				brelse(bh);
 			return -EIO;
 		}
+
+		/*两个flag*/
 		set_buffer_revoked(bh);
 		set_buffer_revokevalid(bh);
 		if (bh_in) {
@@ -431,11 +437,13 @@ int jbd2_journal_cancel_revoke(handle_t *handle, struct journal_head *jh)
 	if (test_set_buffer_revokevalid(bh)) {
 		need_cancel = test_clear_buffer_revoked(bh);
 	} else {
+		/*revokevalid 本来就是1*/
 		need_cancel = 1;
 		clear_buffer_revoked(bh);
 	}
 
 	if (need_cancel) {
+		/*从revoke table中删除*/
 		record = find_revoke_record(journal, bh->b_blocknr);
 		if (record) {
 			jbd_debug(4, "cancelled existing revoke on "
@@ -534,11 +542,18 @@ void jbd2_journal_write_revoke_records(transaction_t *transaction,
 	descriptor = NULL;
 	offset = 0;
 	count = 0;
-
+	/*
+	 * 前面已经jbd2_journal_switch_revoke_table, 所以j_revoke
+	 * 指向新的revoke
+	 */
 	/* select revoke table for committing transaction */
 	revoke = journal->j_revoke == journal->j_revoke_table[0] ?
 		journal->j_revoke_table[1] : journal->j_revoke_table[0];
 
+	/*
+	 * 把所有的revoke record 构造成一个个的descriptor,每个descriptor中包含
+	 * 若干个revoke block#
+	 */
 	for (i = 0; i < revoke->hash_size; i++) {
 		hash_list = &revoke->hash_table[i];
 
@@ -593,6 +608,7 @@ static void write_one_revoke_record(transaction_t *transaction,
 		sz = 4;
 
 	/* Make sure we have a descriptor with space left for the record */
+	/* descriptor中的空间不够了 */
 	if (descriptor) {
 		if (offset + sz > journal->j_blocksize - csum_size) {
 			flush_descriptor(journal, descriptor, offset);

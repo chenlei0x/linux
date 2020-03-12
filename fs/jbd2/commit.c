@@ -429,6 +429,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	J_ASSERT(commit_transaction->t_state == T_RUNNING);
 	commit_transaction->t_state = T_LOCKED;
 
+	/*stat 统计更新*/
 	trace_jbd2_commit_locking(journal, commit_transaction);
 	stats.run.rs_wait = commit_transaction->t_max_wait;
 	stats.run.rs_request_delay = 0;
@@ -483,6 +484,12 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		/*
 		 * A jbd2_journal_get_undo_access()+jbd2_journal_release_buffer() may
 		 * leave undo-committed data.
+		 *
+		 * jbd2_journal_get_undo_access 只是对dirty之前的数据拷贝到了
+		 * commited_data中,因为jh还在reserved_list上,说明没有脏,bh和
+		 * commited_data是一致的,所以释放就好
+		 *
+		 * jbd2_journal_release_buffer 这个函数没有找到
 		 */
 		if (jh->b_committed_data) {
 			struct buffer_head *bh = jh2bh(jh);
@@ -509,6 +516,11 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	/*
 	 * Clear revoked flag to reflect there is no revoked buffers
 	 * in the next transaction which is going to be started.
+	 */
+	/*
+	 * 调用jbd2_journal_revoke 的时候,会对对应的bh 打上revoked标记,并把
+	 * bh->blknr 计入table中,这里主要对所有的blocknr 找出其bh,并清除
+	 * revoked标记, 保留revoke record!!!
 	 */
 	jbd2_clear_buffer_revoked_flags(journal);
 
@@ -550,6 +562,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		jbd2_journal_abort(journal, err);
 
 	blk_start_plug(&plug);
+	/*log_bufs里面记录了revoke record产生的desc*/
 	jbd2_journal_write_revoke_records(commit_transaction, &log_bufs);
 
 	jbd_debug(3, "JBD2: commit phase 2b\n");
@@ -651,6 +664,8 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		 * start_this_handle() uses t_outstanding_credits to determine
 		 * the free space in the log, but this counter is changed
 		 * by jbd2_journal_next_log_block() also.
+		 *
+		 * 处理了一个bh,减一
 		 */
 		atomic_dec(&commit_transaction->t_outstanding_credits);
 
@@ -665,6 +680,11 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		 */
 		set_bit(BH_JWrite, &jh2bh(jh)->b_state);
 		JBUFFER_TRACE(jh, "ph3: write metadata");
+		
+		/*
+		 * 其实并没有写入,只是构造了一个新的bh,其中内容是jh对应的bh的,
+		 * 但是映射到journal 物理块上,新生成的bh 放到wbuf[bufs]中
+		 */
 		flags = jbd2_journal_write_metadata_buffer(commit_transaction,
 						jh, &wbuf[bufs], blocknr);
 		if (flags < 0) {
@@ -682,12 +702,12 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 		if (!first_tag)
 			tag_flag |= JBD2_FLAG_SAME_UUID;
 
-		tag = (journal_block_tag_t *) tagp;
+		tag = (journal_block_tag_t *) tagp; /*descriptor中填入journal_header_t后跟着journal_block_tag_t*/
 		write_tag_block(journal, tag, jh2bh(jh)->b_blocknr);
 		tag->t_flags = cpu_to_be16(tag_flag);
 		jbd2_block_tag_csum_set(journal, tag, wbuf[bufs],
 					commit_transaction->t_tid);
-		tagp += tag_bytes; /*头部应该是一个header + tag + uuid + (n-1) 个tag + jbd2_journal_block_tail*/
+		tagp += tag_bytes; /*头部应该是一个header + tag + uuid(16B) + (n-1) 个tag + jbd2_journal_block_tail*/
 		space_left -= tag_bytes;
 		bufs++;
 
@@ -783,6 +803,8 @@ start_journal_io:
 	 * If the journal is not located on the file system device,
 	 * then we must flush the file system device before we issue
 	 * the commit record
+	 *
+	 * 有专门的journal device
 	 */
 	if (commit_transaction->t_need_data_flush &&
 	    (journal->j_fs_dev != journal->j_dev) &&
@@ -790,6 +812,7 @@ start_journal_io:
 		blkdev_issue_flush(journal->j_fs_dev, GFP_NOFS, NULL);
 
 	/* Done it all: now write the commit record asynchronously. */
+	/*提交commit_header*/
 	if (jbd2_has_feature_async_commit(journal)) {
 		err = journal_submit_commit_record(journal, commit_transaction,
 						 &cbh, crc32_sum);
@@ -812,6 +835,7 @@ start_journal_io:
 
 	jbd_debug(3, "JBD2: commit phase 3\n");
 
+	/*io_bufs 包含了之前的descriptor 和 shadow bh*/
 	while (!list_empty(&io_bufs)) {
 		struct buffer_head *bh = list_entry(io_bufs.prev,
 						    struct buffer_head,
@@ -834,6 +858,7 @@ start_journal_io:
 		free_buffer_head(bh);
 
 		/* We also have to refile the corresponding shadowed buffer */
+		/*之前原始的bh被拷贝了一份,原始的bh就挂在 shadow list上*/
 		jh = commit_transaction->t_shadow_list->b_tprev;
 		bh = jh2bh(jh);
 		clear_buffer_jwrite(bh);
@@ -845,6 +870,7 @@ start_journal_io:
                    we finally commit, we can do any checkpointing
                    required. */
 		JBUFFER_TRACE(jh, "file as BJ_Forget");
+		/*可以忘记他们了*/
 		jbd2_journal_file_buffer(jh, commit_transaction, BJ_Forget);
 		JBUFFER_TRACE(jh, "brelse shadowed buffer");
 		__brelse(bh);
@@ -855,6 +881,7 @@ start_journal_io:
 	jbd_debug(3, "JBD2: commit phase 4\n");
 
 	/* Here we wait for the revoke record and descriptor record buffers */
+	/*log_bufs 包含了revoke table里面产生的block*/
 	while (!list_empty(&log_bufs)) {
 		struct buffer_head *bh;
 
@@ -901,6 +928,9 @@ start_journal_io:
 	 * Now disk caches for filesystem device are flushed so we are safe to
 	 * erase checkpointed transactions from the log by updating journal
 	 * superblock.
+	 */
+	/*
+	 * 升级tail
 	 */
 	if (update_tail)
 		jbd2_update_log_tail(journal, first_tid, first_block);
@@ -956,7 +986,11 @@ restart_loop:
 			jbd2_free(jh->b_committed_data, bh->b_size);
 			jh->b_committed_data = NULL;
 			if (jh->b_frozen_data) {
-				jh->b_committed_data = jh->b_frozen_data;
+				/*
+				 * frozen 是调用get_undo_access时备份的数据，
+				 * 也就是jbd2_dirty修改之前的数据
+				 */
+				jh->b_committed_data = jh->b_frozen_data; 
 				jh->b_frozen_data = NULL;
 				jh->b_frozen_triggers = NULL;
 			}
@@ -1011,8 +1045,9 @@ restart_loop:
 			}
 		}
 
-		if (buffer_jbddirty(bh)) {/*只有jbddirty才会被checkpoint*/
+		if (buffer_jbddirty(bh)) {
 			JBUFFER_TRACE(jh, "add to new checkpointing trans");
+			/*只有jbddirty才会被checkpoint*/
 			__jbd2_journal_insert_checkpoint(jh, commit_transaction);
 			if (is_journal_aborted(journal))
 				clear_buffer_jbddirty(bh);
@@ -1031,6 +1066,10 @@ restart_loop:
 				try_to_free = 1;
 		}
 		JBUFFER_TRACE(jh, "refile or unfile buffer");
+		/*
+		 * jh已经不属于这个transaction了, 可能需要绑定到next transaction
+		 * 如果没有next transaction,就unfile
+		 */
 		__jbd2_journal_refile_buffer(jh);
 		jbd_unlock_bh_state(bh);
 		if (try_to_free)
@@ -1126,6 +1165,10 @@ restart_loop:
 	spin_lock(&journal->j_list_lock);
 	commit_transaction->t_state = T_FINISHED;
 	/* Check if the transaction can be dropped now that we are finished */
+	/*
+	 * t_checkpoint_list ==== do_check_point ===> t_checkpoint_io_list,
+	 * 当两个list都为空时,说明该transaction可以被释放掉了
+	 */
 	if (commit_transaction->t_checkpoint_list == NULL &&
 	    commit_transaction->t_checkpoint_io_list == NULL) {
 		__jbd2_journal_drop_transaction(journal, commit_transaction);

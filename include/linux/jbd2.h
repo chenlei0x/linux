@@ -610,6 +610,8 @@ struct transaction_s
 	/*
 	 * Doubly-linked circular list of all buffers reserved but not yet
 	 * modified by this transaction [j_list_lock]
+	 *
+	 * 加入了journal,但是没有dirty的bh 都挂在这里
 	 */
 	struct journal_head	*t_reserved_list;
 
@@ -635,6 +637,8 @@ struct transaction_s
 	/*
 	 * Doubly-linked circular list of all buffers submitted for IO while
 	 * checkpointing. [j_list_lock]
+	 *
+	 * jbd2_log_do_checkpoint 函数会把jh 从t_checkpoint_list 移入t_checkpoint_io_list
 	 */
 	struct journal_head	*t_checkpoint_io_list; /*指向一个双向链表的第一个的jh, 这些jh是已经被checkpoint*/
 

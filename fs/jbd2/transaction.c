@@ -834,6 +834,8 @@ static void jbd2_freeze_jh_data(struct journal_head *jh)
  * the handle's metadata buffer credits (unless the buffer is already
  * part of the transaction, that is).
  *
+ *
+ * @force_copy=1时，会拷贝bh->data 到 jh->b_frozen_data
  */
 static int
 do_get_write_access(handle_t *handle, struct journal_head *jh,
@@ -955,6 +957,8 @@ repeat:
 	/*
 	 * If there is already a copy-out version of this buffer, then we don't
 	 * need to make another one
+	 *
+	 * 冷冻了一份数据了,肯定新鲜,不用再次拷贝了
 	 */
 	if (jh->b_frozen_data) {
 		JBUFFER_TRACE(jh, "has frozen data");
@@ -1002,7 +1006,7 @@ repeat:
 			jbd_unlock_bh_state(bh);
 			frozen_buffer = jbd2_alloc(jh2bh(jh)->b_size,
 						   GFP_NOFS | __GFP_NOFAIL);
-			goto repeat;
+			goto repeat; /*unlock_bh_stat 所以需要重新加锁*/
 		}
 		jh->b_frozen_data = frozen_buffer;
 		frozen_buffer = NULL;
@@ -1015,6 +1019,11 @@ attach_next:
 	 * before attaching it to the running transaction. Paired with barrier
 	 * in jbd2_write_access_granted()
 	 */
+	 
+	/*
+	 * 能走到这里说明 jh->b_transaction 不是空,也就是说该bh被之前的某
+	 * 个transaction绑定着
+	 */
 	smp_wmb();
 	jh->b_next_transaction = transaction;
 
@@ -1024,6 +1033,8 @@ done:
 	/*
 	 * If we are about to journal a buffer, then any revoke pending on it is
 	 * no longer valid
+	 *
+	 * 从 revoke table中删除相同block#的record
 	 */
 	jbd2_journal_cancel_revoke(handle, jh);
 
@@ -1223,6 +1234,9 @@ out:
  * do not reuse freed space until the deallocation has been committed,
  * since if we overwrote that space we would make the delete
  * un-rewindable in case of a crash.
+ * 这里应该是说记录分配的bitmap信息所在的块一定得commit到磁盘，否则崩溃后
+ * 无法回放
+ *
  *
  * To deal with that, jbd2_journal_get_undo_access requests write access to a
  * buffer for parts of non-rewindable operations such as delete
@@ -1263,6 +1277,7 @@ repeat:
 		committed_data = jbd2_alloc(jh2bh(jh)->b_size,
 					    GFP_NOFS|__GFP_NOFAIL);
 
+	/*bh中的数据又拷贝到jh->b_committed_data， 拷贝了两份，frozen中一份，commit一份*/
 	jbd_lock_bh_state(bh);
 	if (!jh->b_committed_data) {
 		/* Copy out the current buffer contents into the
@@ -2375,6 +2390,8 @@ int jbd2_journal_invalidatepage(journal_t *journal,
 
 /*
  * File a buffer on the given transaction list.
+ *
+ * 会改动 jh->b_transaction = transaction!!!!!!!!!!
  */
 void __jbd2_journal_file_buffer(struct journal_head *jh,
 			transaction_t *transaction, int jlist)
@@ -2414,7 +2431,7 @@ void __jbd2_journal_file_buffer(struct journal_head *jh,
 		__jbd2_journal_temp_unlink_buffer(jh); /*如果jh属于某个transaction, 那就从这个transaction取下来*/
 	else
 		jbd2_journal_grab_journal_head(bh);
-	jh->b_transaction = transaction; /*!!!!!!重点!!!!!*/
+	jh->b_transaction = transaction; /*!!!!!!!!!!!!!!!!!!!!!重点!!!!!*/
 
 	switch (jlist) {
 	case BJ_None:
@@ -2491,6 +2508,7 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 	 * our jh reference and thus __jbd2_journal_file_buffer() must not
 	 * take a new one.
 	 */
+	 /*jh被新的transaction动了,那就把他挂到该transaction的队列上*/
 	jh->b_transaction = jh->b_next_transaction;
 	jh->b_next_transaction = NULL;
 	if (buffer_freed(bh))

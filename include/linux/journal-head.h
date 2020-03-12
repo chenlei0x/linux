@@ -51,6 +51,7 @@ struct journal_head {
 	 * Copy of the buffer data frozen for writing to the log.
 	 * [jbd_lock_bh_state()]
 	 */
+	 /*frozen 是调用get_undo_access时备份的数据，也就是修改之前的数据*/
 	char *b_frozen_data;
 
 	/*
@@ -76,6 +77,8 @@ struct journal_head {
 	 * modifying the buffer's metadata, if there was already a transaction
 	 * committing it when the new transaction touched it.
 	 * [t_list_lock] [jbd_lock_bh_state()]
+	 *
+	 * 新的transaction 动了这个bh,需要用这个指针指向他
 	 */
 	transaction_t *b_next_transaction;
 

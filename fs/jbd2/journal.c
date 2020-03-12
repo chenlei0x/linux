@@ -394,6 +394,8 @@ repeat:
 	/*
 	 * If a new transaction has already done a buffer copy-out, then
 	 * we use that version of the data for the commit.
+	 *
+	 * 优先用frozen data
 	 */
 	if (jh_in->b_frozen_data) {
 		done_copy_out = 1;
@@ -427,6 +429,8 @@ repeat:
 
 	/*
 	 * Do we need to do a data copy?
+	 *
+	 * 如果需要拷贝,还是放到frozen data中
 	 */
 	if (need_copy_out && !done_copy_out) {
 		char *tmp;
@@ -470,7 +474,10 @@ repeat:
 		kunmap_atomic(mapped_data);
 	}
 
-	/*初始化new_bh*/
+	/*
+	 * 初始化new_bh, 现在new_bh中的内容是bh_in的,
+	 * 但是blocknr指向的是journal区域的
+	 */
 	set_bh_page(new_bh, new_page, new_offset);
 	new_bh->b_size = bh_in->b_size;
 	new_bh->b_bdev = journal->j_dev;
@@ -488,7 +495,9 @@ repeat:
 	 */
 	JBUFFER_TRACE(jh_in, "file as BJ_Shadow");
 	spin_lock(&journal->j_list_lock);
-	__jbd2_journal_file_buffer(jh_in, transaction, BJ_Shadow);
+	
+	/*jh_in 已经被拷贝,所以放到shadow队列*/
+	__jbd2_journal_file_buffer(jh_in, transaction, BJ_Shadow); 
 	spin_unlock(&journal->j_list_lock);
 	set_buffer_shadow(bh_in);
 	jbd_unlock_bh_state(bh_in);
