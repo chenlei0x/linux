@@ -892,7 +892,8 @@ struct journal_s
 	 * Journal head: identifies the first unused block in the journal.
 	 * [j_state_lock]
 	 *
-	 * first unused block 第一个没有用的block
+	 * first unused block 第一个free block, 分配完之后自加1,
+	 * 当=j_last 时j_head=j_first
 	 */
 	unsigned long		j_head;
 
@@ -917,6 +918,8 @@ struct journal_s
 	 *
 	 * The block number of the first usable block in the journal
 	 * [j_state_lock].
+	 *
+	 * journal log区域的起始块号j_first, 最后一个块号 = j_last -1
 	 */
 	unsigned long		j_first;
 
@@ -925,6 +928,9 @@ struct journal_s
 	 *
 	 * The block number one beyond the last usable block in the journal
 	 * [j_state_lock].
+	 *
+	 *
+	 * journal log区域的起始块号j_first, 最后一个块号 = j_last -1
 	 */
 	unsigned long		j_last;
 
@@ -994,6 +1000,8 @@ struct journal_s
 	 * @j_transaction_sequence:
 	 *
 	 * Sequence number of the next transaction to grant [j_state_lock]
+	 *
+	 * 用来给新申请的transaction 分配tid, 该值表示下一个应该分配的tid, 分配完后 自加1
 	 */
 	tid_t			j_transaction_sequence;
 

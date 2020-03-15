@@ -513,7 +513,8 @@ static int do_one_pass(journal_t *journal,
 		/* OK, we have a valid descriptor block which matches
 		 * all of the sequence number checks.  What are we going
 		 * to do with it?  That depends on the pass... */
-
+		 
+		/*打头的是一个n个 revoke block,下来是n个 descriptor block, 最后是commit block*/
 		switch(blocktype) {
 		case JBD2_DESCRIPTOR_BLOCK:
 			/* Verify checksum first */

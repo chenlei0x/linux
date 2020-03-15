@@ -791,11 +791,13 @@ int jbd2_journal_next_log_block(journal_t *journal, unsigned long long *retp)
 	unsigned long blocknr;
 
 	write_lock(&journal->j_state_lock);
+	/*j_free 肯定大于1 否则start handle时,无法申请那么多块*/
 	J_ASSERT(journal->j_free > 1);
 
 	blocknr = journal->j_head;
 	journal->j_head++;
 	journal->j_free--;
+	/*j_last j_first用来反转*/
 	if (journal->j_head == journal->j_last)
 		journal->j_head = journal->j_first;
 	write_unlock(&journal->j_state_lock);
@@ -897,6 +899,8 @@ void jbd2_descriptor_block_csum_set(journal_t *j, struct buffer_head *bh)
  *
  * The return value is 0 if journal tail cannot be pushed any further, 1 if
  * it can.
+ *
+ * 获得最老的transaction的 tid 和 起始 block#
  */
 int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 			      unsigned long *block)
@@ -906,6 +910,12 @@ int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 
 	read_lock(&journal->j_state_lock);
 	spin_lock(&journal->j_list_lock);
+	/*
+	 * 等待 checkpoint 的transaction肯定最老
+	 * 再下来肯定是commiting
+	 * 再下来是running的
+	 * 再下来没有transaction了,那就...
+	 */
 	transaction = journal->j_checkpoint_transactions;
 	if (transaction) {
 		*tid = transaction->t_tid;
@@ -920,6 +930,10 @@ int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 		*tid = journal->j_transaction_sequence;
 		*block = journal->j_head;
 	}
+	/*
+	 * 按照上面的排序,拿到最老的tid如果大于j_tail_sequence,
+	 * 说明我们确实该更新j_tail_sequence了
+	 */
 	ret = tid_gt(*tid, journal->j_tail_sequence);
 	spin_unlock(&journal->j_list_lock);
 	read_unlock(&journal->j_state_lock);

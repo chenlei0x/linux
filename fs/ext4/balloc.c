@@ -452,6 +452,7 @@ ext4_read_block_bitmap_nowait(struct super_block *sb, ext4_group_t block_group)
 			   "block_group %u", bitmap_blk, block_group);
 		return ERR_PTR(-EFSCORRUPTED);
 	}
+	/*还是从block dev的page cache中拿到该bh*/
 	bh = sb_getblk(sb, bitmap_blk);
 	if (unlikely(!bh)) {
 		ext4_error(sb, "Cannot get buffer for block bitmap - "

@@ -3044,6 +3044,10 @@ ext4_mb_mark_diskspace_used(struct ext4_allocation_context *ac,
 	sb = ac->ac_sb;
 	sbi = EXT4_SB(sb);
 
+	/*
+	 * 从block dev中拿到bh, 我们可以看出,该函数没有针对bh调用 mark_buffer_dirty
+	 * 因为这样会让write back机制接管该bh最终刷下去脏页, 我们希望这一起由jbd掌管
+	 */
 	bitmap_bh = ext4_read_block_bitmap(sb, ac->ac_b_ex.fe_group);
 	if (IS_ERR(bitmap_bh)) {
 		err = PTR_ERR(bitmap_bh);
@@ -3099,6 +3103,7 @@ ext4_mb_mark_diskspace_used(struct ext4_allocation_context *ac,
 		}
 	}
 #endif
+	/*对bitmap bh进行操作, extent相应block bit位置置1*/
 	ext4_set_bits(bitmap_bh->b_data, ac->ac_b_ex.fe_start,
 		      ac->ac_b_ex.fe_len);
 	if (ext4_has_group_desc_csum(sb) &&

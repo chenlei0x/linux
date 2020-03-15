@@ -1430,7 +1430,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 			ret = -ENOSPC;
 			goto out_unlock_bh;
 		}
-		jh->b_modified = 1; /*0 ===> 1*/
+		jh->b_modified = 1; /*modified 0 ===> 1*/
 		handle->h_buffer_credits--;
 	}
 

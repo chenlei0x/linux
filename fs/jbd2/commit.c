@@ -545,6 +545,8 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	journal->j_committing_transaction = commit_transaction;
 	journal->j_running_transaction = NULL;
 	start_time = ktime_get();
+	
+	/*该transaction指向第一个当前journal 第一个free block*/
 	commit_transaction->t_log_start = journal->j_head;
 	wake_up(&journal->j_wait_transaction_locked);
 	write_unlock(&journal->j_state_lock);
@@ -930,7 +932,8 @@ start_journal_io:
 	 * superblock.
 	 */
 	/*
-	 * 升级tail
+	 * 升级tail, 这个first_block指向transaction->t_log_start, 也就是当时的
+	 * 第一个free block#
 	 */
 	if (update_tail)
 		jbd2_update_log_tail(journal, first_tid, first_block);
