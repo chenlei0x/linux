@@ -1234,6 +1234,8 @@ EXPORT_SYMBOL_GPL(io_cgrp_subsys);
  *
  * The caller is responsible for synchronizing [de]activations and policy
  * [un]registerations.  Returns 0 on success, -errno on failure.
+ *
+ * 给@q 对应的每个blkcg_gq 分配policy data
  */
 int blkcg_activate_policy(struct request_queue *q,
 			  const struct blkcg_policy *pol)

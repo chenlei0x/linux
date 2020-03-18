@@ -496,7 +496,7 @@ struct ioc_gq {
 	u32				usages[NR_USAGE_SLOTS];
 
 	/* this iocg's depth in the hierarchy and ancestors including self */
-	int				level;
+	int				level; /*level = 0 表示root*/
 	struct ioc_gq			*ancestors[];
 };
 
@@ -1908,6 +1908,7 @@ static struct rq_qos_ops ioc_rqos_ops = {
 	.exit = ioc_rqos_exit,
 };
 
+/*针对@q 初始化 iocost*/
 static int blk_iocost_init(struct request_queue *q)
 {
 	struct ioc *ioc;
@@ -1946,6 +1947,7 @@ static int blk_iocost_init(struct request_queue *q)
 	spin_unlock_irq(&ioc->lock);
 
 	rq_qos_add(q, rqos);
+	/*给每个和q有关联的blk cgroup申请policy data*/
 	ret = blkcg_activate_policy(q, &blkcg_policy_iocost);
 	if (ret) {
 		rq_qos_del(q, rqos);
