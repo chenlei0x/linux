@@ -109,6 +109,7 @@ typedef struct xfs_mount {
 	xfs_buftarg_t		*m_logdev_targp;/* ptr to log device */
 	xfs_buftarg_t		*m_rtdev_targp;	/* ptr to rt device */
 	uint8_t			m_blkbit_log;	/* blocklog + NBBY */
+	/*BBSHIFT = 9,其实就是sector， 该字段表示一个block含有多少个bb 取2的对数*/
 	uint8_t			m_blkbb_log;	/* blocklog - BBSHIFT */
 	uint8_t			m_agno_log;	/* log #ag's */
 	uint8_t			m_agino_log;	/* #bits for agino in inum */
@@ -134,7 +135,8 @@ typedef struct xfs_mount {
 	xfs_extlen_t		m_ag_prealloc_blocks; /* reserved ag blocks */
 	uint			m_alloc_set_aside; /* space we can't use */
 	uint			m_ag_max_usable; /* max space per AG */
-	struct radix_tree_root	m_perag_tree;	/* per-ag accounting info */
+	/*每个ag 的信息都放在这里了 key=agno v=xfs_perag  xfs_perag_get*/
+	struct radix_tree_root	m_perag_tree;	/* per-ag accounting info  */
 	spinlock_t		m_perag_lock;	/* lock for m_perag_tree */
 	struct mutex		m_growlock;	/* growfs mutex */
 	int			m_fixedfsid[2];	/* unchanged for life of FS */
@@ -319,7 +321,9 @@ xfs_daddr_to_agno(struct xfs_mount *mp, xfs_daddr_t d)
 static inline xfs_agblock_t
 xfs_daddr_to_agbno(struct xfs_mount *mp, xfs_daddr_t d)
 {
+	/*bb = sector sector 转为block*/
 	xfs_rfsblock_t ld = XFS_BB_TO_FSBT(mp, d);
+	/*除以 每个ag有多少个block*/
 	return (xfs_agblock_t) do_div(ld, mp->m_sb.sb_agblocks);
 }
 

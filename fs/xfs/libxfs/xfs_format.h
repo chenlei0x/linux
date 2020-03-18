@@ -114,6 +114,7 @@ typedef struct xfs_sb {
 	xfs_ino_t	sb_rbmino;	/* bitmap inode for realtime extents */
 	xfs_ino_t	sb_rsumino;	/* summary inode for rt bitmap */
 	xfs_agblock_t	sb_rextsize;	/* realtime extent size, blocks */
+	/*每个ag含有多少个block*/
 	xfs_agblock_t	sb_agblocks;	/* size of an allocation group */
 	xfs_agnumber_t	sb_agcount;	/* number of allocation groups */
 	xfs_extlen_t	sb_rbmblocks;	/* number of rt bitmap blocks */
@@ -214,10 +215,13 @@ typedef struct xfs_dsb {
 	__be16		sb_inodesize;	/* inode size, bytes */
 	__be16		sb_inopblock;	/* inodes per block */
 	char		sb_fname[12];	/* file system name */
+
 	__u8		sb_blocklog;	/* log2 of sb_blocksize */
 	__u8		sb_sectlog;	/* log2 of sb_sectsize */
 	__u8		sb_inodelog;	/* log2 of sb_inodesize */
-	__u8		sb_inopblog;	/* log2 of sb_inopblock */
+	
+	/* block内有几个inode，取2的对数*/
+	__u8		sb_inopblog;	/* log2 of sb_inopblock*/
 	__u8		sb_agblklog;	/* log2 of sb_agblocks (rounded up) */
 	__u8		sb_rextslog;	/* log2 of sb_rextents */
 	__u8		sb_inprogress;	/* mkfs is in progress, don't mount */
@@ -593,8 +597,10 @@ xfs_is_quota_inode(struct xfs_sb *sbp, xfs_ino_t ino)
  * File system block to byte conversions.
  */
 #define XFS_FSB_TO_B(mp,fsbno)	((xfs_fsize_t)(fsbno) << (mp)->m_sb.sb_blocklog)
+/*B 转为FSB 向上取整*/
 #define XFS_B_TO_FSB(mp,b)	\
 	((((uint64_t)(b)) + (mp)->m_blockmask) >> (mp)->m_sb.sb_blocklog)
+/*B 转为FSB 向下取整*/
 #define XFS_B_TO_FSBT(mp,b)	(((uint64_t)(b)) >> (mp)->m_sb.sb_blocklog)
 #define XFS_B_FSB_OFFSET(mp,b)	((b) & (mp)->m_blockmask)
 
@@ -635,6 +641,13 @@ typedef struct xfs_agf {
 	__be32		agf_length;	/* size in blocks of a.g. */
 	/*
 	 * Freespace and rmap information
+	 */
+	/*
+	 * XFS_BTNUM_RMAPi
+	 * 第一棵B+树是基于block的偏移(offset XFS_BTNUM_BNOi)构建的，
+	 * 而第二颗树则是基于block的size(XFS_BTNUM_CNTi)构建的，
+	 * 第三颗树可能并没有启用，待探查
+	 * 这样XFS可以快速的通过offset或者size进行空閒空间的分配。
 	 */
 	__be32		agf_roots[XFS_BTNUM_AGF];	/* root blocks */
 	__be32		agf_levels[XFS_BTNUM_AGF];	/* btree levels */
@@ -781,7 +794,10 @@ typedef struct xfs_agi {
 #define	XFS_AGI_NUM_BITS_R2	13
 
 /* disk block (xfs_daddr_t) in the AG */
+/*agi的 sector */
 #define XFS_AGI_DADDR(mp)	((xfs_daddr_t)(2 << (mp)->m_sectbb_log))
+
+/*第2个block 对应的sector对应的block*/
 #define	XFS_AGI_BLOCK(mp)	XFS_HDR_BLOCK(mp, XFS_AGI_DADDR(mp))
 #define	XFS_BUF_TO_AGI(bp)	((xfs_agi_t *)((bp)->b_addr))
 
@@ -789,7 +805,10 @@ typedef struct xfs_agi {
  * The third a.g. block contains the a.g. freelist, an array
  * of block pointers to blocks owned by the allocation btree code.
  */
+
 #define XFS_AGFL_DADDR(mp)	((xfs_daddr_t)(3 << (mp)->m_sectbb_log))
+
+/*free list 所在的block*/
 #define	XFS_AGFL_BLOCK(mp)	XFS_HDR_BLOCK(mp, XFS_AGFL_DADDR(mp))
 #define	XFS_BUF_TO_AGFL(bp)	((xfs_agfl_t *)((bp)->b_addr))
 
@@ -1056,11 +1075,12 @@ static inline void xfs_dinode_put_rdev(struct xfs_dinode *dip, xfs_dev_t rdev)
 
 /*
  * Inode number format:
- * low inopblog bits - offset in block
- * next agblklog bits - block number in ag
- * next agno_log bits - ag number
+ * low inopblog bits - offset in block 块内偏移
+ * next agblklog bits - block number in ag AG内块号
+ * next agno_log bits - ag number AG号
  * high agno_log-agblklog-inopblog bits - 0
  */
+ 
 #define	XFS_INO_MASK(k)			(uint32_t)((1ULL << (k)) - 1)
 #define	XFS_INO_OFFSET_BITS(mp)		(mp)->m_sb.sb_inopblog
 #define	XFS_INO_AGBNO_BITS(mp)		(mp)->m_sb.sb_agblklog
@@ -1069,7 +1089,7 @@ static inline void xfs_dinode_put_rdev(struct xfs_dinode *dip, xfs_dev_t rdev)
 #define	XFS_INO_BITS(mp)		\
 	XFS_INO_AGNO_BITS(mp) + XFS_INO_AGINO_BITS(mp)
 #define	XFS_INO_TO_AGNO(mp,i)		\
-	((xfs_agnumber_t)((i) >> XFS_INO_AGINO_BITS(mp)))
+	((xfs_agnumber_t)((i) >> XFS_INO_AGINO_BITS(mp))) 
 #define	XFS_INO_TO_AGINO(mp,i)		\
 	((xfs_agino_t)(i) & XFS_INO_MASK(XFS_INO_AGINO_BITS(mp)))
 #define	XFS_INO_TO_AGBNO(mp,i)		\

@@ -170,7 +170,9 @@ typedef struct xfs_buf {
 	struct list_head	b_list;
 	struct xfs_perag	*b_pag;		/* contains rbtree root */
 	xfs_buftarg_t		*b_target;	/* buffer target (device) */
-	void			*b_addr;	/* virtual address of buffer */
+
+	/*数据在这里*/
+	void			*b_addr;	/* virtual address of buffer !!!!!!!!!!!*/
 	struct work_struct	b_ioend_work;
 	struct workqueue_struct	*b_ioend_wq;	/* I/O completion wq */
 	xfs_buf_iodone_t	b_iodone;	/* I/O completion function */

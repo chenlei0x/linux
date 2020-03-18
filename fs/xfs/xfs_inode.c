@@ -1142,6 +1142,10 @@ xfs_bumplink(
 	return 0;
 }
 
+/*
+ * @dp directory inode
+ * @name 需要创建的文件的名字
+ */
 int
 xfs_create(
 	xfs_inode_t		*dp,
