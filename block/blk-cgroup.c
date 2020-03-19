@@ -1303,7 +1303,7 @@ EXPORT_SYMBOL_GPL(io_cgrp_subsys);
  * The caller is responsible for synchronizing [de]activations and policy
  * [un]registerations.  Returns 0 on success, -errno on failure.
  *
- * 给queue 的每一个 blkg 申请policy data(s)
+ * 给queue 的每一个 blkg 申请policy data(s),并初始化
  */
 int blkcg_activate_policy(struct request_queue *q,
 			  const struct blkcg_policy *pol)

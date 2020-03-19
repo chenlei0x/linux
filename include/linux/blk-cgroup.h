@@ -159,13 +159,13 @@ struct blkcg_policy {
 
 	/* operations */
 	/*以下方法针对各个blkcg*/
-	blkcg_pol_alloc_cpd_fn		*cpd_alloc_fn;
+	blkcg_pol_alloc_cpd_fn		*cpd_alloc_fn; /*给blkcg申请一个 该policy对应的blkcg_policy_data*/
 	blkcg_pol_init_cpd_fn		*cpd_init_fn;
 	blkcg_pol_free_cpd_fn		*cpd_free_fn;
 	blkcg_pol_bind_cpd_fn		*cpd_bind_fn;
 
 	/*以下用来初始化一个blkcg_gq内的各个policy*/
-	blkcg_pol_alloc_pd_fn		*pd_alloc_fn; /*给一个blkg[blkcg_gq]分配一个专属的blkg_policy_data*/
+	blkcg_pol_alloc_pd_fn		*pd_alloc_fn; /*给一个blkcg_gq分配一个该policy对应的blkg_policy_data*/
 	blkcg_pol_init_pd_fn		*pd_init_fn;
 	blkcg_pol_online_pd_fn		*pd_online_fn;
 	blkcg_pol_offline_pd_fn		*pd_offline_fn;
