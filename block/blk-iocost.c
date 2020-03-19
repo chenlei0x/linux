@@ -77,6 +77,7 @@
  * For example, with 12.5% weight, A0's time runs 8 times slower (100/12.5)
  * against the device vtime - an IO which takes 10ms on the underlying
  * device is considered to take 80ms on A0.
+ * hweight 越高,vtime 跑的越慢
  *
  * This constitutes the basis of IO capacity distribution.  Each cgroup's
  * vtime is running at a rate determined by its hweight.  A cgroup tracks
@@ -102,6 +103,8 @@
  * at the vrate of 75%, all cgroups added up would only be able to issue
  * 750ms worth of IOs per second, and vice-versa for speeding up.
  *
+ * vrate用来调节速率, 所有的cgruop加起来消耗的vtime 不能超过 vrate * wall_time
+ *
  * Device business is determined using two criteria - rq wait and
  * completion latencies.
  *
@@ -112,18 +115,21 @@
  * saturation signal is fairly conservative as it only triggers when both
  * hardware and software queues are filled up, and is used as the default
  * busy signal.
+ * 繁忙的检验标准之一就是队列满
  *
  * As devices can have deep queues and be unfair in how the queued commands
  * are executed, soley depending on rq wait may not result in satisfactory
  * control quality.  For a better control quality, completion latency QoS
  * parameters can be configured so that the device is considered saturated
  * if N'th percentile completion latency rises above the set point.
+ * 繁忙的另一个检测标准是可配的, %n 的completion latency  超过 X ,x n可配
  *
  * The completion latency requirements are a function of both the
  * underlying device characteristics and the desired IO latency quality of
  * service.  There is an inherent trade-off - the tighter the latency QoS,
  * the higher the bandwidth lossage.  Latency QoS is disabled by default
  * and can be set through /sys/fs/cgroup/io.cost.qos.
+ * 默认qos失效,因为latency qos配置的越严格,贷款损失越严重
  *
  * 2-3. Work Conservation
  *
@@ -145,6 +151,7 @@
  * As we don't want to penalize a cgroup for donating its weight, the
  * surplus weight adjustment factors in a margin and has an immediate
  * snapback mechanism in case the cgroup needs more IO vtime for itself.
+ * 
  *
  * Note that adjusting down surplus weights has the same effects as
  * accelerating vtime for other cgroups and work conservation can also be
@@ -152,6 +159,9 @@
  * donate and should take back how much requires hweight propagations
  * anyway making it easier to implement and understand as a separate
  * mechanism.
+ * 把富裕的weight调低和让他的vtime加速效果一样
+ * work conservation 可以通过动态刁姐vrate 来实现, vrate 变大,使得其他的cgroup
+ * 也可以提交
  *
  * 3. Monitoring
  *
@@ -319,12 +329,12 @@ enum {
 
 /* io.cost.qos params */
 enum {
-	QOS_RPPM,
-	QOS_RLAT,
+	QOS_RPPM, /* read percent */
+	QOS_RLAT, /* read latency 单位 us*/
 	QOS_WPPM,
 	QOS_WLAT,
-	QOS_MIN,
-	QOS_MAX,
+	QOS_MIN, /*最小速率调整比例*/
+	QOS_MAX, /*最大速率调整比例*/
 	NR_QOS_PARAMS,
 };
 
@@ -336,6 +346,7 @@ enum {
 };
 
 /* builtin linear cost model coefficients */
+/*线性模型的系数*/
 enum {
 	I_LCOEF_RBPS,
 	I_LCOEF_RSEQIOPS,
@@ -369,6 +380,11 @@ struct ioc_gq;
 struct ioc_params {
 	u32				qos[NR_QOS_PARAMS];
 	u64				i_lcoefs[NR_I_LCOEFS];
+	/*
+	 * ioc_refresh_lcoefs 会从根据 i_lcoefs计算生成 lcoefs, 
+	 * i_locefs 表示墙上时间, 
+	 * lcoefs 表示VTIME
+	 */
 	u64				lcoefs[NR_LCOEFS];
 	u32				too_fast_vrate_pct;
 	u32				too_slow_vrate_pct;
@@ -384,7 +400,7 @@ struct ioc_missed {
 struct ioc_pcpu_stat {
 	struct ioc_missed		missed[2];
 
-	u64				rq_wait_ns;
+	u64				rq_wait_ns; /*用来申请tag(req)的时间*/
 	u64				last_rq_wait_ns;
 };
 
@@ -395,13 +411,15 @@ struct ioc {
 	bool				enabled;
 
 	struct ioc_params		params;
-	u32				period_us;
+	/*ioc_refresh_period_us 计算得来*/
+	u32				period_us; 
 	u32				margin_us;
+	
 	u64				vrate_min;
 	u64				vrate_max;
 
 	spinlock_t			lock;
-	struct timer_list		timer;
+	struct timer_list		timer; /*ioc_timer_fn   ioc_start_period */
 	struct list_head		active_iocgs;	/* active cgroups */
 	struct ioc_pcpu_stat __percpu	*pcpu_stat;
 
@@ -447,9 +465,9 @@ struct ioc_gq {
 	 * surplus adjustments.
 	 */
 	u32				cfg_weight;
-	u32				weight;
-	u32				active;
-	u32				inuse;
+	u32				weight; /*iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight*/
+	u32				active; /*active 随着io量增长才增长 从0逐渐增大到weight*/
+	u32				inuse; /*active 调整之后得到的inuse*/
 	u32				last_inuse;
 
 	sector_t			cursor;		/* to detect randio */
@@ -467,8 +485,8 @@ struct ioc_gq {
 	 * `last_vtime` is used to remember `vtime` at the end of the last
 	 * period to calculate utilization.
 	 */
-	atomic64_t			vtime;
-	atomic64_t			done_vtime;
+	atomic64_t			vtime;/*issue 时计入的vtime*/
+	atomic64_t			done_vtime; /*done之后计入的vtime*/
 	atomic64_t			abs_vdebt;
 	u64				last_vtime;
 
@@ -480,16 +498,16 @@ struct ioc_gq {
 	struct list_head		active_list;
 
 	/* see __propagate_active_weight() and current_hweight() for details */
-	u64				child_active_sum;
-	u64				child_inuse_sum;
+	u64				child_active_sum; /*所有孩子的active 之和*/
+	u64				child_inuse_sum; /*所有孩子的inuse 之和*/
 	int				hweight_gen;
 	u32				hweight_active;
 	u32				hweight_inuse;
 	bool				has_surplus;
 
 	struct wait_queue_head		waitq;
-	struct hrtimer			waitq_timer;
-	struct hrtimer			delay_timer;
+	struct hrtimer			waitq_timer; /*iocg_waitq_timer_fn*/
+	struct hrtimer			delay_timer; /*iocg_delay_timer_fn*/
 
 	/* usage is recorded as fractions of HWEIGHT_WHOLE */
 	int				usage_idx;
@@ -497,6 +515,8 @@ struct ioc_gq {
 
 	/* this iocg's depth in the hierarchy and ancestors including self */
 	int				level; /*level = 0 表示root*/
+	
+	/*每个ioc_gq都有自己转有的ancestors数组, 按根--->叶子的顺序排列*/
 	struct ioc_gq			*ancestors[];
 };
 
@@ -655,6 +675,8 @@ static struct ioc_cgrp *blkcg_to_iocc(struct blkcg *blkcg)
 /*
  * Scale @abs_cost to the inverse of @hw_inuse.  The lower the hierarchical
  * weight, the more expensive each IO.  Must round up.
+ *
+ * abs_cost * HWEIGHT_WHOLE / hw_inuse 向上取整
  */
 static u64 abs_cost_to_cost(u64 abs_cost, u32 hw_inuse)
 {
@@ -679,6 +701,7 @@ static void iocg_commit_bio(struct ioc_gq *iocg, struct bio *bio, u64 cost)
 #include <trace/events/iocost.h>
 
 /* latency Qos params changed, update period_us and all the dependent params */
+/*ioc 每个queue一个*/
 static void ioc_refresh_period_us(struct ioc *ioc)
 {
 	u32 ppm, lat, multi, period_us;
@@ -774,7 +797,7 @@ static int ioc_autop_idx(struct ioc *ioc)
  *
  * and calculate the linear model cost coefficients.
  *
- *  *@page	per-page cost		1s / (@bps / 4096)
+ *  *@page	per-page cost		1s / (@bps / 4096) 
  *  *@seqio	base cost of a seq IO	max((1s / @seqiops) - *@page, 0)
  *  @randiops	base cost of a rand IO	max((1s / @randiops) - *@page, 0)
  */
@@ -785,6 +808,7 @@ static void calc_lcoefs(u64 bps, u64 seqiops, u64 randiops,
 
 	*page = *seqio = *randio = 0;
 
+	/*每页需要消耗多少 VTIME, 详见VTIME_PER_SEC*/
 	if (bps)
 		*page = DIV64_U64_ROUND_UP(VTIME_PER_SEC,
 					   DIV_ROUND_UP_ULL(bps, IOC_PAGE_SIZE));
@@ -820,6 +844,7 @@ static bool ioc_refresh_params(struct ioc *ioc, bool force)
 
 	lockdep_assert_held(&ioc->lock);
 
+	/*拿到ioc 对应的磁盘类型对应的idx*/
 	idx = ioc_autop_idx(ioc);
 	p = &autop[idx];
 
@@ -833,6 +858,7 @@ static bool ioc_refresh_params(struct ioc *ioc, bool force)
 	ioc->autop_too_fast_at = 0;
 	ioc->autop_too_slow_at = 0;
 
+	/*默认配置*/
 	if (!ioc->user_qos_params)
 		memcpy(ioc->params.qos, p->qos, sizeof(p->qos));
 	if (!ioc->user_cost_model)
@@ -868,6 +894,7 @@ static void ioc_now(struct ioc *ioc, struct ioc_now *now)
 	 */
 	do {
 		seq = read_seqcount_begin(&ioc->period_seqcount);
+		/*上一次的vtime + 过去的墙上时间 * vrate*/
 		now->vnow = ioc->period_at_vtime +
 			(now->now - ioc->period_at) * now->vrate;
 	} while (read_seqcount_retry(&ioc->period_seqcount, seq));
@@ -900,6 +927,7 @@ static void __propagate_active_weight(struct ioc_gq *iocg, u32 active, u32 inuse
 
 	inuse = min(active, inuse);
 
+	/*leaf ====> root*/
 	for (lvl = iocg->level - 1; lvl >= 0; lvl--) {
 		struct ioc_gq *parent = iocg->ancestors[lvl];
 		struct ioc_gq *child = iocg->ancestors[lvl + 1];
@@ -919,6 +947,7 @@ static void __propagate_active_weight(struct ioc_gq *iocg, u32 active, u32 inuse
 		 */
 		if (parent->child_active_sum) {
 			parent_active = parent->weight;
+			/*parent_inuse 按比例放大或缩小 parent_active而来*/
 			parent_inuse = DIV64_U64_ROUND_UP(
 				parent_active * parent->child_inuse_sum,
 				parent->child_active_sum);
@@ -979,6 +1008,7 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 	smp_rmb();
 
 	hwa = hwi = HWEIGHT_WHOLE;
+	/*root ====> leaf*/
 	for (lvl = 0; lvl <= iocg->level - 1; lvl++) {
 		struct ioc_gq *parent = iocg->ancestors[lvl];
 		struct ioc_gq *child = iocg->ancestors[lvl + 1];
@@ -1017,6 +1047,7 @@ static void weight_updated(struct ioc_gq *iocg)
 
 	lockdep_assert_held(&ioc->lock);
 
+	/*DIV64_U64_ROUND_UP(iocg->inuse * weight, iocg->weight) 把inuse 按比例缩放*/
 	weight = iocg->cfg_weight ?: iocc->dfl_weight;
 	if (weight != iocg->weight && iocg->active)
 		propagate_active_weight(iocg, weight,
@@ -1059,6 +1090,8 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	/* already activated or breaking leaf-only constraint? */
 	if (!list_empty(&iocg->active_list))
 		goto succeed_unlock;
+	
+	/*每个 ancestor 的active_list 必须为空*/
 	for (i = iocg->level - 1; i > 0; i--)
 		if (!list_empty(&iocg->ancestors[i]->active_list))
 			goto fail_unlock;
@@ -1152,11 +1185,14 @@ static void iocg_kick_waitq(struct ioc_gq *iocg, struct ioc_now *now)
 	lockdep_assert_held(&iocg->waitq.lock);
 
 	current_hweight(iocg, NULL, &hw_inuse);
+	/*每次调用该函数因为时间前进了,所以会有新的budget*/
 	vbudget = now->vnow - atomic64_read(&iocg->vtime);
 
 	/* pay off debt */
 	abs_vdebt = atomic64_read(&iocg->abs_vdebt);
-	vdebt = abs_cost_to_cost(abs_vdebt, hw_inuse);
+	/*换算成VTIME*/
+	vdebt = abs_cost_to_cost(abs_vdebt, hw_inuse);.
+	/*先偿还债务*/
 	if (vdebt && vbudget > 0) {
 		u64 delta = min_t(u64, vbudget, vdebt);
 		u64 abs_delta = min(cost_to_abs_cost(delta, hw_inuse),
@@ -1164,6 +1200,11 @@ static void iocg_kick_waitq(struct ioc_gq *iocg, struct ioc_now *now)
 
 		atomic64_add(delta, &iocg->vtime);
 		atomic64_add(delta, &iocg->done_vtime);
+		/*
+		 * abs_delta 表示需要偿还的VTIME, =min(vbudget, vdebt)
+		 * 如果vdebt 较大,则偿还值为vbudget
+		 * 如果 vbudget 较大,则偿还值为 vdebt
+		 */
 		atomic64_sub(abs_delta, &iocg->abs_vdebt);
 		if (WARN_ON_ONCE(atomic64_read(&iocg->abs_vdebt) < 0))
 			atomic64_set(&iocg->abs_vdebt, 0);
@@ -1175,12 +1216,19 @@ static void iocg_kick_waitq(struct ioc_gq *iocg, struct ioc_now *now)
 	 */
 	ctx.hw_inuse = hw_inuse;
 	ctx.vbudget = vbudget - vdebt;
+	/*
+	 * 针对所有的waitq上的每个entry 调用 iocg_wake_fn
+	 * ioc_rqos_throttle 中会将bio放入waitq
+	 */
 	__wake_up_locked_key(&iocg->waitq, TASK_NORMAL, &ctx);
+
+	/*waitq空了就返回*/
 	if (!waitqueue_active(&iocg->waitq))
 		return;
 	if (WARN_ON_ONCE(ctx.vbudget >= 0))
 		return;
 
+	/*vbudget < 0*/
 	/* determine next wakeup, add a quarter margin to guarantee chunking */
 	vshortage = -ctx.vbudget;
 	expires = now->now_ns +
@@ -1189,6 +1237,8 @@ static void iocg_kick_waitq(struct ioc_gq *iocg, struct ioc_now *now)
 
 	/* if already active and close enough, don't bother */
 	oexpires = ktime_to_ns(hrtimer_get_softexpires(&iocg->waitq_timer));
+	
+	/*间距太小,就不要再修改timer 超时时刻了*/
 	if (hrtimer_is_queued(&iocg->waitq_timer) &&
 	    abs(oexpires - expires) <= margin_ns / 4)
 		return;
@@ -1212,6 +1262,10 @@ static enum hrtimer_restart iocg_waitq_timer_fn(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+/*
+ * 主要用来修改 blkg 的 use delay 和 delay_nsec
+ * 注意这里的操作对象是   blkg！！！！
+ */
 static bool iocg_kick_delay(struct ioc_gq *iocg, struct ioc_now *now, u64 cost)
 {
 	struct ioc *ioc = iocg->ioc;
@@ -1237,6 +1291,7 @@ static bool iocg_kick_delay(struct ioc_gq *iocg, struct ioc_now *now, u64 cost)
 
 	/* use delay */
 	if (cost) {
+		/*cost 是VTIME,换算成ns*/
 		u64 cost_ns = DIV64_U64_ROUND_UP(cost * NSEC_PER_USEC,
 						 now->vrate);
 		blkcg_add_delay(blkg, now->now_ns, cost_ns);
@@ -1252,6 +1307,10 @@ static bool iocg_kick_delay(struct ioc_gq *iocg, struct ioc_now *now, u64 cost)
 	    abs(oexpires - expires) <= margin_ns / 4)
 		return true;
 
+	/*
+	 * 这个delay timer 事后又会调用本函数, 那时候,
+	 * vtime 可能就已经小于now->vnow, 便可以清除use_delay
+	 */
 	hrtimer_start_range_ns(&iocg->delay_timer, ns_to_ktime(expires),
 			       margin_ns / 4, HRTIMER_MODE_ABS);
 	return true;
@@ -1303,6 +1362,7 @@ static void ioc_lat_stat(struct ioc *ioc, u32 *missed_ppm_ar, u32 *rq_wait_pct_p
 			missed_ppm_ar[rw] = 0;
 	}
 
+	/*用来申请tag(req)的总时间占period的百分比*/
 	*rq_wait_pct_p = div64_u64(rq_wait_ns * 100,
 				   ioc->period_us * NSEC_PER_USEC);
 }
@@ -1338,6 +1398,7 @@ static u32 surplus_adjusted_hweight_inuse(u32 usage, u32 hw_inuse)
 	return usage;
 }
 
+/*每个设备的ioc对应的timer*/
 static void ioc_timer_fn(struct timer_list *timer)
 {
 	struct ioc *ioc = container_of(timer, struct ioc, timer);
@@ -1358,6 +1419,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 	ioc_now(ioc, &now);
 
+	/*period_at_vtime  period 起始的vtime*/
 	period_vtime = now.vnow - ioc->period_at_vtime;
 	if (WARN_ON_ONCE(!period_vtime)) {
 		spin_unlock_irq(&ioc->lock);
@@ -1627,12 +1689,13 @@ skip_surplus_transfers:
 	spin_unlock_irq(&ioc->lock);
 }
 
+/*bio消耗的VTIME时间*/
 static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 				    bool is_merge, u64 *costp)
 {
 	struct ioc *ioc = iocg->ioc;
 	u64 coef_seqio, coef_randio, coef_page;
-	u64 pages = max_t(u64, bio_sectors(bio) >> IOC_SECT_TO_PAGE_SHIFT, 1);
+	u64 pages = max_t(u64, bio_sectors(bio) >> IOC_SECT_TO_PAGE_SHIFT, 1); /*bio中覆盖了多少个page*/
 	u64 seek_pages = 0;
 	u64 cost = 0;
 
@@ -1657,6 +1720,7 @@ static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 	}
 
 	if (!is_merge) {
+		/*判断是否是rand 读写的依据*/
 		if (seek_pages > LCOEF_RANDIO_PAGES) {
 			cost += coef_randio;
 		} else {
@@ -1704,6 +1768,7 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 	vtime = atomic64_read(&iocg->vtime);
 	current_hweight(iocg, &hw_active, &hw_inuse);
 
+	/*inuse 应该 大于 active*/
 	if (hw_inuse < hw_active &&
 	    time_after_eq64(vtime + ioc->inuse_margin_vtime, now.vnow)) {
 		TRACE_IOCG_PATH(inuse_reset, iocg, &now,
@@ -1714,6 +1779,7 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 		current_hweight(iocg, &hw_active, &hw_inuse);
 	}
 
+	/*abs_cost 是绝对时间, 加上权重之后,换算得到cost, cost为VTIME*/
 	cost = abs_cost_to_cost(abs_cost, hw_inuse);
 
 	/*
@@ -1731,7 +1797,13 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 	/*
 	 * We're over budget.  If @bio has to be issued regardless,
 	 * remember the abs_cost instead of advancing vtime.
+	 *
+	 * 经过上面的路径没有return,说明我们已经超过预算了. 这时候如果我们依然想
+	 * 下发bio,那么把abs_cost记下, 计入到abs vdebt中
+	 *
 	 * iocg_kick_waitq() will pay off the debt before waking more IOs.
+	 * iocg_kick_waitq 函数会偿还vdevt再唤醒io
+	 *
 	 * This way, the debt is continuously paid off each period with the
 	 * actual budget available to the cgroup.  If we just wound vtime,
 	 * we would incorrectly use the current hw_inuse for the entire
@@ -1773,7 +1845,7 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 		return;
 	}
 
-	init_waitqueue_func_entry(&wait.wait, iocg_wake_fn);
+	init_waitqueue_func_entry(&wait.wait, iocg_wake_fn);/*自此卡再这里*/
 	wait.wait.private = current;
 	wait.bio = bio;
 	wait.abs_cost = abs_cost;
@@ -1784,6 +1856,7 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 
 	spin_unlock_irq(&iocg->waitq.lock);
 
+	/*挂到&iocg->waitq之后,就切换出去了*/
 	while (true) {
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		if (wait.committed)
@@ -1863,12 +1936,14 @@ static void ioc_rqos_done(struct rq_qos *rqos, struct request *rq)
 	default:
 		return;
 	}
-
+	/*从申请tag以前 到现在的时间*/
 	on_q_ns = ktime_get_ns() - rq->alloc_time_ns;
+	
+	/*rq_wait_ns 用来申请tag(req)的时间*/
 	rq_wait_ns = rq->start_time_ns - rq->alloc_time_ns;
 
 	if (on_q_ns <= ioc->params.qos[pidx] * NSEC_PER_USEC)
-		this_cpu_inc(ioc->pcpu_stat->missed[rw].nr_met);
+		this_cpu_inc(ioc->pcpu_stat->missed[rw].nr_met); /*这个rq在latency以内*/
 	else
 		this_cpu_inc(ioc->pcpu_stat->missed[rw].nr_missed);
 
@@ -1902,7 +1977,7 @@ static void ioc_rqos_exit(struct rq_qos *rqos)
 static struct rq_qos_ops ioc_rqos_ops = {
 	.throttle = ioc_rqos_throttle,
 	.merge = ioc_rqos_merge,
-	.done_bio = ioc_rqos_done_bio,
+	.done_bio = ioc_rqos_done_bio, /*bio_endio会调用他*/
 	.done = ioc_rqos_done,
 	.queue_depth_changed = ioc_rqos_queue_depth_changed,
 	.exit = ioc_rqos_exit,
@@ -2079,6 +2154,7 @@ static ssize_t ioc_weight_write(struct kernfs_open_file *of, char *buf,
 	u32 v;
 	int ret;
 
+	/*不含有:, 说明直接 echo xxx > blkio.cost.weight 设置的是dfl weight*/
 	if (!strchr(buf, ':')) {
 		struct blkcg_gq *blkg;
 
@@ -2089,7 +2165,8 @@ static ssize_t ioc_weight_write(struct kernfs_open_file *of, char *buf,
 			return -EINVAL;
 
 		spin_lock(&blkcg->lock);
-		iocc->dfl_weight = v;
+		iocc->dfl_weight = v; /*这里是dfl 是iocc的*/
+		/*对blkcg中的每一个blkcg_gq更新weight*/
 		hlist_for_each_entry(blkg, &blkcg->blkg_list, blkcg_node) {
 			struct ioc_gq *iocg = blkg_to_iocg(blkg);
 
@@ -2120,7 +2197,7 @@ static ssize_t ioc_weight_write(struct kernfs_open_file *of, char *buf,
 	}
 
 	spin_lock(&iocg->ioc->lock);
-	iocg->cfg_weight = v;
+	iocg->cfg_weight = v; /*iocg 的cfg weight*/
 	weight_updated(iocg);
 	spin_unlock(&iocg->ioc->lock);
 

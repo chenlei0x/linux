@@ -39,8 +39,8 @@ struct rq_qos_ops {
 	void (*merge)(struct rq_qos *, struct request *, struct bio *);
 	void (*issue)(struct rq_qos *, struct request *);
 	void (*requeue)(struct rq_qos *, struct request *);
-	void (*done)(struct rq_qos *, struct request *);
-	void (*done_bio)(struct rq_qos *, struct bio *);
+	void (*done)(struct rq_qos *, struct request *); /*__blk_mq_end_request 会调用*/
+	void (*done_bio)(struct rq_qos *, struct bio *); /* bio_endio会调用他*/
 	void (*cleanup)(struct rq_qos *, struct bio *);
 	void (*queue_depth_changed)(struct rq_qos *);
 	void (*exit)(struct rq_qos *);

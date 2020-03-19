@@ -1529,10 +1529,11 @@ static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 	 * the accumulated delay as we've already throttled enough that
 	 * everybody is happy with their IO latencies.
 	 */
+	/*delay开始至今已经超过1秒*/
 	if (time_before64(old + NSEC_PER_SEC, now) &&
 	    atomic64_cmpxchg(&blkg->delay_start, old, now) == old) {
 		u64 cur = atomic64_read(&blkg->delay_nsec);
-		u64 sub = min_t(u64, blkg->last_delay, now - old);
+		u64 sub = min_t(u64, blkg->last_delay, now - old);/*这次delay时间和上次delay 取最小*/
 		int cur_use = atomic_read(&blkg->use_delay);
 
 		/*
@@ -1601,6 +1602,7 @@ static void blkcg_maybe_throttle_blkg(struct blkcg_gq *blkg, bool use_memdelay)
 	tok = io_schedule_prepare();
 	do {
 		__set_current_state(TASK_KILLABLE);
+		/*睡眠 一直到HRTIMER_MODE_ABS timeout*/
 		if (!schedule_hrtimeout(&exp, HRTIMER_MODE_ABS))
 			break;
 	} while (!fatal_signal_pending(current));

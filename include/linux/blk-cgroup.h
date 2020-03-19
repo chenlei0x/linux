@@ -131,7 +131,7 @@ struct blkcg_gq {
 
 	spinlock_t			async_bio_lock;
 	struct bio_list			async_bios;
-	struct work_struct		async_bio_work;
+	struct work_struct		async_bio_work; /*blkg_async_bio_workfn*/
 
 	atomic_t			use_delay;
 	atomic64_t			delay_nsec;
@@ -636,12 +636,15 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
 	return !throtl;
 }
 
+/*use delay +1*/
 static inline void blkcg_use_delay(struct blkcg_gq *blkg)
 {
+	/*0 ====> 1*/
 	if (atomic_add_return(1, &blkg->use_delay) == 1)
 		atomic_inc(&blkg->blkcg->css.cgroup->congestion_count);
 }
 
+/*use delay -1*/
 static inline int blkcg_unuse_delay(struct blkcg_gq *blkg)
 {
 	int old = atomic_read(&blkg->use_delay);
@@ -670,6 +673,7 @@ static inline int blkcg_unuse_delay(struct blkcg_gq *blkg)
 	return 1;
 }
 
+/*use delay 清零*/
 static inline void blkcg_clear_delay(struct blkcg_gq *blkg)
 {
 	int old = atomic_read(&blkg->use_delay);
@@ -677,7 +681,9 @@ static inline void blkcg_clear_delay(struct blkcg_gq *blkg)
 		return;
 	/* We only want 1 person clearing the congestion count for this blkg. */
 	while (old) {
+
 		int cur = atomic_cmpxchg(&blkg->use_delay, old, 0);
+		/*替换成功了, 现在use delay = 0*/
 		if (cur == old) {
 			atomic_dec(&blkg->blkcg->css.cgroup->congestion_count);
 			break;

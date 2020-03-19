@@ -196,9 +196,11 @@ struct request {
 	struct hd_struct *part;
 #ifdef CONFIG_BLK_RQ_ALLOC_TIME
 	/* Time that the first bio started allocating this request. */
-	u64 alloc_time_ns;
+	/*blk_mq_get_request 刚进入的时候就会记录该时间，也就是申请tag(一个tag 对应一个req)的时候*/
+	u64 alloc_time_ns; 
 #endif
 	/* Time that this request was allocated for this IO. */
+	/*alloc 之后的时间戳, 所以start time - alloc time 就是申请tag(req)的时间*/
 	u64 start_time_ns;
 	/* Time that I/O was submitted to the device. */
 	u64 io_start_time_ns;
