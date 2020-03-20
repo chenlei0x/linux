@@ -333,8 +333,8 @@ enum {
 	QOS_RLAT, /* read latency 单位 us*/
 	QOS_WPPM,
 	QOS_WLAT,
-	QOS_MIN, /*最小速率调整比例*/
-	QOS_MAX, /*最大速率调整比例*/
+	QOS_MIN, /*该值决定了 vrate_min*/
+	QOS_MAX, /*该值决定了 vrate_max*/
 	NR_QOS_PARAMS,
 };
 
@@ -419,12 +419,18 @@ struct ioc {
 	u64				vrate_max;
 
 	spinlock_t			lock;
-	struct timer_list		timer; /*ioc_timer_fn   ioc_start_period */
+	struct timer_list		timer; /*ioc_timer_fn   ioc_start_period，每隔一个period  执行一次 */
 	struct list_head		active_iocgs;	/* active cgroups */
 	struct ioc_pcpu_stat __percpu	*pcpu_stat;
 
 	enum ioc_running		running;
-	atomic64_t			vtime_rate;
+	
+	/* 
+	 * 默认VTIME_PER_USEC
+	 * vtime 和实际时间的换算关系
+	 * vtime = wall-time * now->vrate;
+	 */
+	atomic64_t			vtime_rate; 
 
 	seqcount_t			period_seqcount;
 	u32				period_at;	/* wallclock starttime */
@@ -435,6 +441,7 @@ struct ioc {
 
 	u64				inuse_margin_vtime;
 	bool				weights_updated;
+	/*强迫 current_hweight 拿到权重前做权重更新*/
 	atomic_t			hweight_gen;	/* for lazy hweights */
 
 	u64				autop_too_fast_at;
@@ -465,9 +472,18 @@ struct ioc_gq {
 	 * surplus adjustments.
 	 */
 	u32				cfg_weight;
-	u32				weight; /*iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight*/
-	u32				active; /*active 随着io量增长才增长 从0逐渐增大到weight*/
-	u32				inuse; /*active 调整之后得到的inuse*/
+	
+	/*第一次会被初始化为 dfl， iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight*/
+	u32				weight;
+
+	/*
+	 * active 初始为0 随着io量增长才增长 从0逐渐增大到weight
+	 * 只有在 __propagate_active_weight 中有赋值
+	 */
+	u32				active;
+	
+	/*默认也为0 active 调整之后得到的inuse, 只有在__propagate_active_weight 函数中赋值*/
+	u32				inuse; 
 	u32				last_inuse;
 
 	sector_t			cursor;		/* to detect randio */
@@ -485,7 +501,9 @@ struct ioc_gq {
 	 * `last_vtime` is used to remember `vtime` at the end of the last
 	 * period to calculate utilization.
 	 */
-	atomic64_t			vtime;/*issue 时计入的vtime*/
+
+	/*vtime 是iocg_commit_bio中会增加*/
+	atomic64_t			vtime;/*issue 时计入的vtime */
 	atomic64_t			done_vtime; /*done之后计入的vtime*/
 	atomic64_t			abs_vdebt;
 	u64				last_vtime;
@@ -677,6 +695,8 @@ static struct ioc_cgrp *blkcg_to_iocc(struct blkcg *blkcg)
  * weight, the more expensive each IO.  Must round up.
  *
  * abs_cost * HWEIGHT_WHOLE / hw_inuse 向上取整
+ *
+ * hw_inuse权重 越小，计算出来的vcost 越大
  */
 static u64 abs_cost_to_cost(u64 abs_cost, u32 hw_inuse)
 {
@@ -954,10 +974,15 @@ static void __propagate_active_weight(struct ioc_gq *iocg, u32 active, u32 inuse
 		}
 
 		/* do we need to keep walking up? */
+		/*parent_active 要么为0 要么为  parent->weight
+		 */
 		if (parent_active == parent->active &&
 		    parent_inuse == parent->inuse)
 			break;
-
+		/*
+		 * 下次循环的时候，会把这次循环的父亲节点置为child
+		 * 所以本次循环的父亲的active inuse 也会被更新
+		 */
 		active = parent_active;
 		inuse = parent_inuse;
 	}
@@ -1009,6 +1034,7 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 
 	hwa = hwi = HWEIGHT_WHOLE;
 	/*root ====> leaf*/
+	/*所有节点按权重分配 HWEIGHT_WHOLE*/
 	for (lvl = 0; lvl <= iocg->level - 1; lvl++) {
 		struct ioc_gq *parent = iocg->ancestors[lvl];
 		struct ioc_gq *child = iocg->ancestors[lvl + 1];
@@ -1020,10 +1046,11 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 		/* we can race with deactivations and either may read as zero */
 		if (!active_sum || !inuse_sum)
 			continue;
-
+		/*child->active / parent->child_active_sum*/
 		active_sum = max(active, active_sum);
 		hwa = hwa * active / active_sum;	/* max 16bits * 10000 */
-
+		
+		/*child->inuse / parent->child_inuse_sum*/
 		inuse_sum = max(inuse, inuse_sum);
 		hwi = hwi * inuse / inuse_sum;		/* max 16bits * 10000 */
 	}
@@ -1048,6 +1075,7 @@ static void weight_updated(struct ioc_gq *iocg)
 	lockdep_assert_held(&ioc->lock);
 
 	/*DIV64_U64_ROUND_UP(iocg->inuse * weight, iocg->weight) 把inuse 按比例缩放*/
+	/*dfl weight CGROUP_WEIGHT_DFL*/
 	weight = iocg->cfg_weight ?: iocc->dfl_weight;
 	if (weight != iocg->weight && iocg->active)
 		propagate_active_weight(iocg, weight,
@@ -1055,6 +1083,10 @@ static void weight_updated(struct ioc_gq *iocg)
 	iocg->weight = weight;
 }
 
+/*
+ * 走到 ioc_rqos_throttle 说明已经有io产生了，
+ * 这时候需要activate 该iocg
+ */
 static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 {
 	struct ioc *ioc = iocg->ioc;
@@ -1123,6 +1155,8 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	 * wrapping.
 	 */
 	iocg->hweight_gen = atomic_read(&ioc->hweight_gen) - 1;
+		
+	/*加入active list*/
 	list_add(&iocg->active_list, &ioc->active_iocgs);
 	propagate_active_weight(iocg, iocg->weight,
 				iocg->last_inuse ?: iocg->weight);
@@ -1230,7 +1264,10 @@ static void iocg_kick_waitq(struct ioc_gq *iocg, struct ioc_now *now)
 
 	/*vbudget < 0*/
 	/* determine next wakeup, add a quarter margin to guarantee chunking */
+	/*vbudget 表明距现在时间最近的在waitq上的entry 需要等待的时间*/
 	vshortage = -ctx.vbudget;
+
+	/*vshortage 换算为时间*/
 	expires = now->now_ns +
 		DIV64_U64_ROUND_UP(vshortage, now->vrate) * NSEC_PER_USEC;
 	expires += margin_ns / 4;
@@ -1385,6 +1422,7 @@ static bool iocg_is_idle(struct ioc_gq *iocg)
 }
 
 /* returns usage with margin added if surplus is large enough */
+/* usage 和 hwinuse是否很接近， 如果接近说明没有富裕的需要捐献*/
 static u32 surplus_adjusted_hweight_inuse(u32 usage, u32 hw_inuse)
 {
 	/* add margin */
@@ -1453,6 +1491,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		spin_unlock(&iocg->waitq.lock);
 	}
+	/*强迫 current_hweight 拿到权重前做权重更新*/
 	commit_active_weights(ioc);
 
 	/* calc usages and see whether some weights need to be moved around */
@@ -1465,6 +1504,8 @@ static void ioc_timer_fn(struct timer_list *timer)
 		 * iocgs from accumulating a large amount of budget.
 		 */
 		vdone = atomic64_read(&iocg->done_vtime);
+		
+		/*vtime 是iocg_commit_bio中会增加*/
 		vtime = atomic64_read(&iocg->vtime);
 		current_hweight(iocg, &hw_active, &hw_inuse);
 
@@ -1482,9 +1523,12 @@ static void ioc_timer_fn(struct timer_list *timer)
 		    time_before64(vdone, now.vnow - period_vtime))
 			nr_lagging++;
 
+		/*说明一直有等待进程*/
 		if (waitqueue_active(&iocg->waitq))
 			vusage = now.vnow - iocg->last_vtime;
 		else if (time_before64(iocg->last_vtime, vtime))
+			/*没有等待了，那么消耗的时间为 issue io 的时间 - last vtime*/
+			/*？？？？？？？？？？？？vtime能反应什么时候waitq为空的吗？？*/
 			vusage = vtime - iocg->last_vtime;
 		else
 			vusage = 0;
@@ -1513,6 +1557,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		iocg->has_surplus = false;
 
+		/*没有排队的进程且 vtime < vmin*/
 		if (!waitqueue_active(&iocg->waitq) &&
 		    time_before64(vtime, vmin)) {
 			u64 delta = vmin - vtime;
@@ -1537,7 +1582,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 					      usage * SURPLUS_SCALE_PCT / 100 +
 					      SURPLUS_SCALE_ABS);
 			}
-
+			/*new_inuse 是通过inuse/hw_inuse * new_hwi得到的*/
 			new_inuse = div64_u64((u64)iocg->inuse * new_hwi,
 					      hw_inuse);
 			new_inuse = clamp_t(u32, new_inuse, 1, iocg->active);
