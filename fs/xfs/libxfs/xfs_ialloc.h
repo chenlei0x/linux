@@ -35,7 +35,9 @@ struct xfs_icluster {
 					 * sparse chunks */
 };
 
-/* Calculate and return the number of filesystem blocks per inode cluster */
+/* Calculate and return the number of filesystem blocks per inode cluster 
+ * inode_cluster 中含有多少个 block
+ */
 static inline int
 xfs_icluster_size_fsb(
 	struct xfs_mount	*mp)

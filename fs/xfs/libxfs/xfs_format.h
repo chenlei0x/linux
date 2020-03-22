@@ -1653,6 +1653,7 @@ struct xfs_btree_block_lhdr {
 	__be32		bb_pad; /* padding for alignment */
 };
 
+/*btree 的一个block 结构*/
 struct xfs_btree_block {
 	__be32		bb_magic;	/* magic number for block type */
 	__be16		bb_level;	/* 0 is a leaf */

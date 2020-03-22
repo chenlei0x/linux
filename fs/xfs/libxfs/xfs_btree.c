@@ -552,6 +552,7 @@ xfs_btree_high_key_offset(
 /*
  * Calculate offset of the n-th block pointer in a btree block.
  */
+ /*n 个 key + n 个ptr*/
 STATIC size_t
 xfs_btree_ptr_offset(
 	struct xfs_btree_cur	*cur,
