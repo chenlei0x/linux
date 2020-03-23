@@ -130,7 +130,7 @@ typedef void (*xfs_buf_iodone_t)(struct xfs_buf *);
 
 struct xfs_buf_map {
 	xfs_daddr_t		bm_bn;	/* block number for I/O */
-	int			bm_len;	/* size of I/O */
+	int			bm_len;	/* size of I/O 按sector来算*/
 };
 
 #define DEFINE_SINGLE_BUF_MAP(map, blkno, numblk) \
@@ -152,6 +152,8 @@ typedef struct xfs_buf {
 	 */
 	struct rhash_head	b_rhash_head;	/* pag buffer hash node */
 	xfs_daddr_t		b_bn;		/* block number of buffer */
+
+	/*每个 bp->b_maps[i] 的bm_len总长度*/
 	int			b_length;	/* size of buffer in BBs */
 	atomic_t		b_hold;		/* reference count */
 	atomic_t		b_lru_ref;	/* lru reclaim ref count */

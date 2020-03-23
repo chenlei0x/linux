@@ -31,6 +31,7 @@ extern kmem_zone_t	*xfs_btree_cur_zone;
  *
  * These are disk format structures, and are converted where necessary
  * by the btree specific code that needs to interpret them.
+ * ptr可以转换为具体的地址
  */
 union xfs_btree_ptr {
 	__be32			s;	/* short form ptr */
@@ -107,7 +108,7 @@ uint32_t xfs_btree_magic(int crc, xfs_btnum_t btnum);
 
 struct xfs_btree_ops {
 	/* size of the key and record structures */
-	size_t	key_len;
+	size_t	key_len; /*如果有high 的话, key_len = low + high*/
 	size_t	rec_len;
 
 	/* cursor operations */
@@ -149,7 +150,10 @@ struct xfs_btree_ops {
 	void	(*init_high_key_from_rec)(union xfs_btree_key *key,
 					  union xfs_btree_rec *rec);
 
-	/* difference between key value and cursor value */
+	/*
+	 * difference between key value and cursor value 
+	 * 返回值 return key - cur
+	 */
 	int64_t (*key_diff)(struct xfs_btree_cur *cur,
 			      union xfs_btree_key *key);
 
@@ -201,6 +205,8 @@ union xfs_btree_cur_private {
 /*
  * Btree cursor structure.
  * This collects all information needed by the btree code in one place.
+ *
+ * tree 从root到leaf的一条路径
  */
 typedef struct xfs_btree_cur
 {
@@ -210,10 +216,14 @@ typedef struct xfs_btree_cur
 	uint			bc_flags; /* btree features - below */
 	union xfs_btree_irec	bc_rec;	/* current insert/search record value */
 	struct xfs_buf	*bc_bufs[XFS_BTREE_MAXLEVELS];	/* buf ptr per level */
+
+	/*每层的key 或者record的index, 也就是keyno*/
 	int		bc_ptrs[XFS_BTREE_MAXLEVELS];	/* key/record # */
 	uint8_t		bc_ra[XFS_BTREE_MAXLEVELS];	/* readahead bits */
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */
+
+/* cur->bc_nlevels - 1 表明是第一层*/
 	uint8_t		bc_nlevels;	/* number of levels in the tree */
 	uint8_t		bc_blocklog;	/* log2(blocksize) of btree blocks */
 	xfs_btnum_t	bc_btnum;	/* identifies which btree type */

@@ -71,6 +71,11 @@ xfs_perag_get(
 
 /*
  * search from @first to find the next perag with the given tag set.
+ *tag:
+XFS_ICI_NO_TAG		(-1)	
+XFS_ICI_RECLAIM_TAG	0	
+XFS_ICI_EOFBLOCKS_TAG	1	
+XFS_ICI_COWBLOCKS_TAG	2
  */
 struct xfs_perag *
 xfs_perag_get_tag(

@@ -444,6 +444,8 @@ xfs_btree_dup_cursor(
  * record, key or pointer (xfs_btree_*_addr).  Note that all addressing
  * inside the btree block is done using indices starting at one, not zero!
  *
+ * index 从1 开始！！！
+ *
  * If XFS_BTREE_OVERLAPPING is set, then this btree supports keys containing
  * overlapping intervals.  In such a tree, records are still sorted lowest to
  * highest and indexed by the smallest key value that refers to the record.
@@ -491,6 +493,7 @@ xfs_btree_dup_cursor(
 
 /*
  * Return size of the btree block header for this btree instance.
+ * 只计算btree block header的长度
  */
 static inline size_t xfs_btree_block_len(struct xfs_btree_cur *cur)
 {
@@ -515,6 +518,7 @@ static inline size_t xfs_btree_ptr_len(struct xfs_btree_cur *cur)
 
 /*
  * Calculate offset of the n-th record in a btree block.
+ * 只有leaf 节点才是record, 因为index 从0开始，所以需要 -1
  */
 STATIC size_t
 xfs_btree_rec_offset(
@@ -539,6 +543,8 @@ xfs_btree_key_offset(
 
 /*
  * Calculate offset of the n-th high key in a btree block.
+ *
+ * 
  */
 STATIC size_t
 xfs_btree_high_key_offset(
@@ -552,7 +558,7 @@ xfs_btree_high_key_offset(
 /*
  * Calculate offset of the n-th block pointer in a btree block.
  */
- /*n 个 key + n 个ptr*/
+ /*maxrec * keylen + n-1 个ptr*/
 STATIC size_t
 xfs_btree_ptr_offset(
 	struct xfs_btree_cur	*cur,
@@ -566,6 +572,7 @@ xfs_btree_ptr_offset(
 
 /*
  * Return a pointer to the n-th record in the btree block.
+ * offset 计算偏移， addr 计算实际的地址
  */
 union xfs_btree_rec *
 xfs_btree_rec_addr(
@@ -707,8 +714,9 @@ xfs_btree_islastblock(
 
 	block = xfs_btree_get_block(cur, level, &bp);
 	xfs_btree_check_block(cur, block, level, bp);
+	/*同一level上右边没有节点了*/
 	if (cur->bc_flags & XFS_BTREE_LONG_PTRS)
-		return block->bb_u.l.bb_rightsib == cpu_to_be64(NULLFSBLOCK);
+		return block->bb_u.l.bb_rightsib == cpu_to_be64(NULLFSBLOCK); 
 	else
 		return block->bb_u.s.bb_rightsib == cpu_to_be32(NULLAGBLOCK);
 }
@@ -768,6 +776,7 @@ xfs_btree_lastrec(
 		return 0;
 	/*
 	 * Set the ptr value to numrecs, that's the last record/key.
+	 * 因为index 从1 开始
 	 */
 	cur->bc_ptrs[level] = be16_to_cpu(block->bb_numrecs);
 	return 1;
@@ -776,6 +785,9 @@ xfs_btree_lastrec(
 /*
  * Compute first and last byte offsets for the fields given.
  * Interprets the offsets table, which contains struct field offsets.
+ *
+ * 找出fields的最高位和最低位的index，通过这两个index 从offsets中拿到
+ * 两个值赋给 first last
  */
 void
 xfs_btree_offsets(
@@ -880,6 +892,10 @@ xfs_btree_reada_bufs(
 	xfs_buf_readahead(mp->m_ddev_targp, d, mp->m_bsize * count, ops);
 }
 
+/*
+ * 预读左右block, 这个函数和下面的函数区别在于 btree block是长
+ * 还是短格式的
+ */
 STATIC int
 xfs_btree_readahead_lblock(
 	struct xfs_btree_cur	*cur,
@@ -962,6 +978,8 @@ xfs_btree_readahead(
 	return xfs_btree_readahead_sblock(cur, lr, block);
 }
 
+
+/*非leaf 节点 ptr 转换为sector 地址*/
 STATIC xfs_daddr_t
 xfs_btree_ptr_to_daddr(
 	struct xfs_btree_cur	*cur,
@@ -1015,6 +1033,7 @@ xfs_btree_setbuf(
 	cur->bc_ra[lev] = 0;
 
 	b = XFS_BUF_TO_BLOCK(bp);
+	/*左右都没有block, 就设置为已经预读*/
 	if (cur->bc_flags & XFS_BTREE_LONG_PTRS) {
 		if (b->bb_u.l.bb_leftsib == cpu_to_be64(NULLFSBLOCK))
 			cur->bc_ra[lev] |= XFS_BTCUR_LEFTRA;
@@ -1097,6 +1116,7 @@ xfs_btree_set_sibling(
 	}
 }
 
+/*用各个参数初始化 一个btree block @buf*/
 void
 xfs_btree_init_block_int(
 	struct xfs_mount	*mp,
@@ -1120,7 +1140,7 @@ xfs_btree_init_block_int(
 		buf->bb_u.l.bb_rightsib = cpu_to_be64(NULLFSBLOCK);
 		if (crc) {
 			buf->bb_u.l.bb_blkno = cpu_to_be64(blkno);
-			buf->bb_u.l.bb_owner = cpu_to_be64(owner);
+			buf->bb_u.l.bb_owner = cpu_to_be64(owner); /*我属于哪个ag,或者ino*/
 			uuid_copy(&buf->bb_u.l.bb_uuid, &mp->m_sb.sb_meta_uuid);
 			buf->bb_u.l.bb_pad = 0;
 			buf->bb_u.l.bb_lsn = 0;
@@ -1154,6 +1174,7 @@ xfs_btree_init_block(
 				 btnum, level, numrecs, owner, flags);
 }
 
+/*owner 有区别*/
 STATIC void
 xfs_btree_init_block_cur(
 	struct xfs_btree_cur	*cur,
@@ -1203,6 +1224,8 @@ xfs_btree_is_lastrec(
 	return 1;
 }
 
+
+/*buf addr 转为 ptr, ptr 分长短*/
 STATIC void
 xfs_btree_buf_to_ptr(
 	struct xfs_btree_cur	*cur,
@@ -1261,6 +1284,12 @@ xfs_btree_get_buf_block(
 	ASSERT(!(flags & XBF_TRYLOCK));
 
 	d = xfs_btree_ptr_to_daddr(cur, ptr);
+
+	/*
+	 * mp->m_bsize = XFS_FSB_TO_BB(mp, 1); 
+	 * 一个fs block = 多少个 sector
+	 * 所以此处的buf 代表 1个 fs block
+	 */
 	*bpp = xfs_trans_get_buf(cur->bc_tp, mp->m_ddev_targp, d,
 				 mp->m_bsize, flags);
 
@@ -1299,6 +1328,7 @@ xfs_btree_read_buf_block(
 		return error;
 
 	xfs_btree_set_refs(cur, *bpp);
+	/*xfs_btree_block 应该就是磁盘中的镜像了*/
 	*block = XFS_BUF_TO_BLOCK(*bpp);
 	return 0;
 }
@@ -1347,6 +1377,7 @@ xfs_btree_copy_ptrs(
 
 /*
  * Shift keys one index left/right inside a single btree block.
+ * 在非leaf 节点中,把key 左移或者右移一个身位
  */
 STATIC void
 xfs_btree_shift_keys(
@@ -1366,6 +1397,7 @@ xfs_btree_shift_keys(
 
 /*
  * Shift records one index left/right inside a single btree block.
+ * 左右移动
  */
 STATIC void
 xfs_btree_shift_recs(
@@ -1385,6 +1417,7 @@ xfs_btree_shift_recs(
 
 /*
  * Shift block pointers one index left/right inside a single btree block.
+ * 左右移动
  */
 STATIC void
 xfs_btree_shift_ptrs(
@@ -1414,6 +1447,7 @@ xfs_btree_log_keys(
 {
 	XFS_BTREE_TRACE_CURSOR(cur, XBT_ENTRY);
 	XFS_BTREE_TRACE_ARGBII(cur, bp, first, last);
+	/*可能在inode里面*/
 
 	if (bp) {
 		xfs_trans_buf_set_type(cur->bc_tp, bp, XFS_BLFT_BTREE_BUF);
@@ -1554,6 +1588,9 @@ xfs_btree_log_block(
 /*
  * Increment cursor by one record at the level.
  * For nonzero levels the leaf-ward information is untouched.
+ *
+ * 能调用这个函数说明cursor指向的已经是一个没有右边sibling的btree block
+ * keyno > xfs_btree_get_numrecs(block)
  */
 int						/* error */
 xfs_btree_increment(
@@ -1588,6 +1625,7 @@ xfs_btree_increment(
 	if (++cur->bc_ptrs[level] <= xfs_btree_get_numrecs(block))
 		goto out1;
 
+	/*满了, 找找右边*/
 	/* Fail if we just went off the right edge of the tree. */
 	xfs_btree_get_sibling(cur, block, &ptr, XFS_BB_RIGHTSIB);
 	if (xfs_btree_ptr_is_null(cur, &ptr))
@@ -1598,15 +1636,13 @@ xfs_btree_increment(
 	/*
 	 * March up the tree incrementing pointers.
 	 * Stop when we don't go off the right edge of a block.
+	 * 当前父亲节点下的所有子节点都满了, 所以需要建立一个
+	 * 这需要让父亲新加一个子节点,但是父亲也可能是满的,那就得再往root方向找
+	 * 直到找到一个node 有空闲的空间可以创建一个子节点
 	 */
 	for (lev = level + 1; lev < cur->bc_nlevels; lev++) {
+		/*从cur 里面拿出对应lev 的buf*/
 		block = xfs_btree_get_block(cur, lev, &bp);
-
-#ifdef DEBUG
-		error = xfs_btree_check_block(cur, block, lev, bp);
-		if (error)
-			goto error0;
-#endif
 
 		if (++cur->bc_ptrs[lev] <= xfs_btree_get_numrecs(block))
 			break;
@@ -1631,6 +1667,10 @@ xfs_btree_increment(
 	/*
 	 * Now walk back down the tree, fixing up the cursor's buffer
 	 * pointers and key numbers.
+	 * 现在已经找到一个有空闲的祖先节点了,那么从这个祖先节点开始一直
+	 * 向叶子方向,挨个建立node
+	 *
+	 * 此时lev 指向空闲的祖先 level, 往叶子方向移动
 	 */
 	for (block = xfs_btree_get_block(cur, lev, &bp); lev > level; ) {
 		union xfs_btree_ptr	*ptrp;
@@ -1757,6 +1797,11 @@ error0:
 	return error;
 }
 
+
+/*
+ * 从 @cur 和 @level 中拿到 bp ===>  @blkp
+ * @blkp 是出参
+ */
 int
 xfs_btree_lookup_get_block(
 	struct xfs_btree_cur	*cur,	/* btree cursor */
@@ -1770,6 +1815,7 @@ xfs_btree_lookup_get_block(
 	/* special case the root block if in an inode */
 	if ((cur->bc_flags & XFS_BTREE_ROOT_IN_INODE) &&
 	    (level == cur->bc_nlevels - 1)) {
+	    /*XFS_BTREE_ROOT_IN_INODE 第一层也就是root层需要特殊处理*/
 		*blkp = xfs_btree_get_iroot(cur);
 		return 0;
 	}
@@ -1778,7 +1824,11 @@ xfs_btree_lookup_get_block(
 	 * If the old buffer at this level for the disk address we are
 	 * looking for re-use it.
 	 *
-	 * Otherwise throw it away and get a new one.
+	 * Otherwise throw it away and get a new one.*/
+
+	/*
+	 * 从 @cur 和 @level 中拿到 bp
+	 * 下面的逻辑其实就是 xfs_btree_get_block 的逻辑
 	 */
 	bp = cur->bc_bufs[level];
 	if (bp && XFS_BUF_ADDR(bp) == xfs_btree_ptr_to_daddr(cur, pp)) {
@@ -1786,10 +1836,13 @@ xfs_btree_lookup_get_block(
 		return 0;
 	}
 
+	/*bp为空, 那么通过pp 读取buf*/
 	error = xfs_btree_read_buf_block(cur, pp, 0, blkp, &bp);
 	if (error)
 		return error;
 
+	
+	/*下面都是check 不用看*/
 	/* Check the inode owner since the verifiers don't. */
 	if (xfs_sb_version_hascrc(&cur->bc_mp->m_sb) &&
 	    !(cur->bc_private.b.flags & XFS_BTCUR_BPRV_INVALID_OWNER) &&
@@ -1806,6 +1859,9 @@ xfs_btree_lookup_get_block(
 	if (level != 0 && be16_to_cpu((*blkp)->bb_numrecs) == 0)
 		goto out_bad;
 
+
+
+	/*因为bp为空, 所以需要设置一下*/
 	xfs_btree_setbuf(cur, level, bp);
 	return 0;
 
@@ -1924,7 +1980,7 @@ xfs_btree_lookup(
 
 				/*
 				 * Compute difference to get next direction:
-				 *  - less than, move right
+				 *  - kp < cur  === less than, move right    ====>cur > kp
 				 *  - greater than, move left
 				 *  - equal, we're done
 				 */
@@ -1946,21 +2002,21 @@ xfs_btree_lookup(
 			/*
 			 * If we moved left, need the previous key number,
 			 * unless there isn't one.
+			 * cur 比较大  ,但是 keyno = 1 或 0, 说明已经到左边的极限了
+			 * 那么keyno = 1
 			 */
 			if (diff > 0 && --keyno < 1)
 				keyno = 1;
+			
+			/*通过keyno block 找到  ptr 用作下一level的循环*/
 			pp = xfs_btree_ptr_addr(cur, keyno, block);
 
-#ifdef DEBUG
-			error = xfs_btree_check_ptr(cur, pp, 0, level);
-			if (error)
-				goto error0;
-#endif
 			cur->bc_ptrs[level] = keyno;
 		}
 	}
 
 	/* Done with the search. See if we need to adjust the results. */
+	/*diff < 0 说明应该右移,也就是说key值大于 cur*/
 	if (dir != XFS_LOOKUP_LE && diff < 0) {
 		keyno++;
 		/*
@@ -1985,7 +2041,7 @@ xfs_btree_lookup(
 	} else if (dir == XFS_LOOKUP_LE && diff > 0)
 		keyno--;
 	cur->bc_ptrs[0] = keyno;
-
+	/*stat 为1时 成功*/
 	/* Return if we succeeded or not. */
 	if (keyno == 0 || keyno > xfs_btree_get_numrecs(block))
 		*stat = 0;
@@ -2029,7 +2085,10 @@ xfs_btree_get_leaf_keys(
 	cur->bc_ops->init_key_from_rec(key, rec);
 
 	if (cur->bc_flags & XFS_BTREE_OVERLAPPING) {
-
+		/*
+		 * 如果有重叠,循环遍历所有的rec 找到每个rec的hight key,
+		 * 取其最大,看起来leaf 虽然全是rec,但是也会虚拟成一个个的key
+		 */
 		cur->bc_ops->init_high_key_from_rec(&max_hkey, rec);
 		for (n = 2; n <= xfs_btree_get_numrecs(block); n++) {
 			rec = xfs_btree_rec_addr(cur, n, block);
@@ -2045,6 +2104,10 @@ xfs_btree_get_leaf_keys(
 }
 
 /* Determine the low (and high if overlapped) keys of a node block */
+/*
+ * 找到一个node 的最小key 和最大key
+ * 需要考虑overlapping的情况
+ */
 STATIC void
 xfs_btree_get_node_keys(
 	struct xfs_btree_cur	*cur,
@@ -2057,6 +2120,11 @@ xfs_btree_get_node_keys(
 	int			n;
 
 	if (cur->bc_flags & XFS_BTREE_OVERLAPPING) {
+		/*
+		 * 如果有重复,一个key包含了 low 和 high, 
+		 * 且整个block排序这些key时是按照low key的升序排序的
+		 * 所以需要遍历每个high key 取最大
+		 */
 		memcpy(key, xfs_btree_key_addr(cur, 1, block),
 				cur->bc_ops->key_len / 2);
 

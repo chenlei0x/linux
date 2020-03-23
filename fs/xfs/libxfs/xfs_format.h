@@ -1642,22 +1642,37 @@ struct xfs_btree_block_shdr {
 
 /* long form block header */
 struct xfs_btree_block_lhdr {
+	/*这两个元素用来连接同一个父亲的直系 block*/
 	__be64		bb_leftsib;
 	__be64		bb_rightsib;
 
 	__be64		bb_blkno;
+	/*
+	 * Log sequence number of the last write to this block
+	 * 最近一次写入该block 的log seq #
+	 */
 	__be64		bb_lsn;
 	uuid_t		bb_uuid;
+	/*这个block 属于哪个 ag#*/
+	/*	
+	 * if (cur->bc_flags & XFS_BTREE_LONG_PTRS)
+			owner = cur->bc_private.b.ip->i_ino;
+		else
+			owner = cur->bc_private.a.agno;
+	*/
 	__be64		bb_owner;
 	__le32		bb_crc;
 	__be32		bb_pad; /* padding for alignment */
 };
 
-/*btree 的一个block 结构*/
+/*btree 的一个block 结构
+xfs_btree_block 应该就是磁盘中的镜像了
+
+*/
 struct xfs_btree_block {
 	__be32		bb_magic;	/* magic number for block type */
 	__be16		bb_level;	/* 0 is a leaf */
-	__be16		bb_numrecs;	/* current # of data records */
+	__be16		bb_numrecs;	/* 最大records有多少个 current # of data records */
 	union {
 		struct xfs_btree_block_shdr s;
 		struct xfs_btree_block_lhdr l;

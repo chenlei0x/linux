@@ -85,6 +85,8 @@ typedef struct xfs_mount {
 	int			m_fsname_len;	/* strlen of fs name */
 	char			*m_rtname;	/* realtime device name */
 	char			*m_logname;	/* external log device name */
+
+	/*mp->m_bsize = XFS_FSB_TO_BB(mp, 1); 一个fs block = 多少个 sector*/
 	int			m_bsize;	/* fs logical block size */
 	xfs_agnumber_t		m_agfrotor;	/* last ag where space found */
 	xfs_agnumber_t		m_agirotor;	/* last ag dir inode alloced */
@@ -346,6 +348,7 @@ struct xfs_ag_resv {
 /*
  * Per-ag incore structure, copies of information in agf and agi, to improve the
  * performance of allocation group selection.
+ * perag 结构体是从agf 和 agi中生成的
  */
 typedef struct xfs_perag {
 	struct xfs_mount *pag_mount;	/* owner filesystem */

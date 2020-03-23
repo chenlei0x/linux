@@ -174,6 +174,7 @@ xfs_trans_get_buf_map(
 
 	ASSERT(!bp->b_error);
 
+	/*buf 绑定到transaction上*/
 	_xfs_trans_bjoin(tp, bp, 1);
 	trace_xfs_trans_get_buf(bp->b_fspriv);
 	return bp;
