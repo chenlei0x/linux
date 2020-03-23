@@ -2143,7 +2143,9 @@ xfs_btree_get_node_keys(
 	}
 }
 
-/* Derive the keys for any btree block. */
+/* Derive the keys for any btree block. 
+ * 获取一个leaf 或者node 的low key 和 high key, 合并放到@key中
+ */
 STATIC void
 xfs_btree_get_keys(
 	struct xfs_btree_cur	*cur,
@@ -2175,6 +2177,7 @@ xfs_btree_needs_key_update(
  * Update the low and high parent keys of the given level, progressing
  * towards the root.  If force_all is false, stop if the keys for a given
  * level do not need updating.
+ * 向root方向,更新父节点的low key 和 high key
  */
 STATIC int
 __xfs_btree_updkeys(
@@ -2202,27 +2205,23 @@ __xfs_btree_updkeys(
 
 	lkey = &key;
 	hkey = xfs_btree_high_key_from_key(cur, lkey);
+	/*拿到block中的 low key 和 high key , 放到 &key中*/
 	xfs_btree_get_keys(cur, block, lkey);
 	for (level++; level < cur->bc_nlevels; level++) {
-#ifdef DEBUG
-		int		error;
-#endif
+		/*block往父亲节点移动一次, 现在block是刚才的block的父亲*/
 		block = xfs_btree_get_block(cur, level, &bp);
 		trace_xfs_btree_updkeys(cur, level, bp);
-#ifdef DEBUG
-		error = xfs_btree_check_block(cur, block, level, bp);
-		if (error) {
-			XFS_BTREE_TRACE_CURSOR(cur, XBT_ERROR);
-			return error;
-		}
-#endif
-		ptr = cur->bc_ptrs[level];
+
+	
+		ptr = cur->bc_ptrs[level]; /*放的是每一层的index*/
+		/*block 这层的命中的index 为 ptr, 拿到index = ptr 的key 的地址*/
 		nlkey = xfs_btree_key_addr(cur, ptr, block);
 		nhkey = xfs_btree_high_key_addr(cur, ptr, block);
 		if (!force_all &&
 		    !(cur->bc_ops->diff_two_keys(cur, nlkey, lkey) != 0 ||
 		      cur->bc_ops->diff_two_keys(cur, nhkey, hkey) != 0))
 			break;
+		/*拷贝完整的key        low & high*/
 		xfs_btree_copy_keys(cur, nlkey, lkey, 1);
 		xfs_btree_log_keys(cur, bp, ptr, ptr);
 		if (level + 1 >= cur->bc_nlevels)
