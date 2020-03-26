@@ -115,20 +115,22 @@ typedef struct xfs_sb {
 	xfs_ino_t	sb_rsumino;	/* summary inode for rt bitmap */
 	xfs_agblock_t	sb_rextsize;	/* realtime extent size, blocks */
 	/*每个ag含有多少个block*/
-	xfs_agblock_t	sb_agblocks;	/* size of an allocation group */
+	xfs_agblock_t	sb_agblocks;	/* size of an allocation group*/
+
+	/*有多少个ag*/
 	xfs_agnumber_t	sb_agcount;	/* number of allocation groups */
 	xfs_extlen_t	sb_rbmblocks;	/* number of rt bitmap blocks */
 	xfs_extlen_t	sb_logblocks;	/* number of log blocks */
 	uint16_t	sb_versionnum;	/* header version == XFS_SB_VERSION */
 	uint16_t	sb_sectsize;	/* volume sector size, bytes */
 	uint16_t	sb_inodesize;	/* inode size, bytes */
-	uint16_t	sb_inopblock;	/* inodes per block */
+	uint16_t	sb_inopblock;	/* inodes per block 一个block 可以有多少个inode */
 	char		sb_fname[12];	/* file system name */
 	uint8_t		sb_blocklog;	/* log2 of sb_blocksize */
 	uint8_t		sb_sectlog;	/* log2 of sb_sectsize */
 	uint8_t		sb_inodelog;	/* log2 of sb_inodesize */
-	uint8_t		sb_inopblog;	/* log2 of sb_inopblock */
-	uint8_t		sb_agblklog;	/* log2 of sb_agblocks (rounded up) */
+	uint8_t		sb_inopblog;	/* log2 of sb_inopblock sb_inopblock的对数 */
+	uint8_t		sb_agblklog;	/* log2 of sb_agblocks (rounded up) 一个ag 有多少个block 向上取整的对数*/
 	uint8_t		sb_rextslog;	/* log2 of sb_rextents */
 	uint8_t		sb_inprogress;	/* mkfs is in progress, don't mount */
 	uint8_t		sb_imax_pct;	/* max % of fs for inode space */
@@ -150,6 +152,13 @@ typedef struct xfs_sb {
 	uint16_t	sb_qflags;	/* quota flags */
 	uint8_t		sb_flags;	/* misc. flags */
 	uint8_t		sb_shared_vn;	/* shared version number */
+	/*
+	  sbp->sb_inoalignmt = XFS_INODES_PER_CHUNK *
+			cfg->inodesize >> cfg->blocklog;  
+		64 个 xfs inode 占用的block数量  4 ~ 32个block
+		一个cluster 是8k
+
+	*/
 	xfs_extlen_t	sb_inoalignmt;	/* inode chunk alignment, fsblocks */
 	uint32_t	sb_unit;	/* stripe or raid unit */
 	uint32_t	sb_width;	/* stripe or raid width */
@@ -1095,6 +1104,8 @@ static inline void xfs_dinode_put_rdev(struct xfs_dinode *dip, xfs_dev_t rdev)
 #define	XFS_INO_TO_AGBNO(mp,i)		\
 	(((xfs_agblock_t)(i) >> XFS_INO_OFFSET_BITS(mp)) & \
 		XFS_INO_MASK(XFS_INO_AGBNO_BITS(mp)))
+
+/*ino# 在 block中的偏移 byte*/
 #define	XFS_INO_TO_OFFSET(mp,i)		\
 	((int)(i) & XFS_INO_MASK(XFS_INO_OFFSET_BITS(mp)))
 #define	XFS_INO_TO_FSB(mp,i)		\

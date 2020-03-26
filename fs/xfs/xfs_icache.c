@@ -70,7 +70,7 @@ xfs_inode_alloc(
 	ASSERT(ip->i_ino == 0);
 
 	/* initialise the xfs inode */
-	ip->i_ino = ino;
+	ip->i_ino = ino;  /*!!!!!!*/
 	ip->i_mount = mp;
 	memset(&ip->i_imap, 0, sizeof(struct xfs_imap));
 	ip->i_afp = NULL;
@@ -505,10 +505,12 @@ xfs_iget_cache_miss(
 	xfs_agino_t		agino = XFS_INO_TO_AGINO(mp, ino);
 	int			iflags;
 
+	/*申请一个新的incore inode 结构体*/
 	ip = xfs_inode_alloc(mp, ino);
 	if (!ip)
 		return -ENOMEM;
 
+	/*ip->i_ino = ino, 读上来*/
 	error = xfs_iread(mp, tp, ip, flags);
 	if (error)
 		goto out_destroy;
@@ -632,7 +634,10 @@ xfs_iget(
 	 */
 	ASSERT((lock_flags & (XFS_IOLOCK_EXCL | XFS_IOLOCK_SHARED)) == 0);
 
-	/* reject inode numbers outside existing AGs */
+	/*
+	 * reject inode numbers outside existing AGs 
+	 * 如果 通过ino 得到 ag# ,如果ag# >= mp->m_sb.sb_agcount,说明越界了
+	 */
 	if (!ino || XFS_INO_TO_AGNO(mp, ino) >= mp->m_sb.sb_agcount)
 		return -EINVAL;
 
@@ -640,6 +645,8 @@ xfs_iget(
 
 	/* get the perag structure and ensure that it's inode capable */
 	pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, ino));
+	/*一个inode# 分为三部分  ag#       block_offset_in_ag + inode_offset_in_block*/
+	/*agino = ag内的ino# = block_offset_in_ag +  inode_offset_in_block  */
 	agino = XFS_INO_TO_AGINO(mp, ino);
 
 again:

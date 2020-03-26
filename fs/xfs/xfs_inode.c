@@ -784,6 +784,8 @@ xfs_ialloc(
 	/*
 	 * Call the space management code to pick
 	 * the on-disk inode to be allocated.
+	 *
+	 * 如果申请到了,放到ino中. ino 代表了inode在磁盘中的位置
 	 */
 	error = xfs_dialloc(tp, pip ? pip->i_ino : 0, mode, okalloc,
 			    ialloc_context, &ino);
@@ -800,6 +802,7 @@ xfs_ialloc(
 	 * This is because we're setting fields here we need
 	 * to prevent others from looking at until we're done.
 	 */
+	 
 	error = xfs_iget(mp, tp, ino, XFS_IGET_CREATE,
 			 XFS_ILOCK_EXCL, &ip);
 	if (error)
@@ -1143,8 +1146,9 @@ xfs_bumplink(
 }
 
 /*
- * @dp directory inode
+ * @dp  directory inode
  * @name 需要创建的文件的名字
+ * @rdev对于普通文件 = 0
  */
 int
 xfs_create(
@@ -1154,6 +1158,7 @@ xfs_create(
 	xfs_dev_t		rdev,
 	xfs_inode_t		**ipp)
 {
+	/*用来区分创建的是普通文件还是文件夹*/
 	int			is_dir = S_ISDIR(mode);
 	struct xfs_mount	*mp = dp->i_mount;
 	struct xfs_inode	*ip = NULL;
@@ -1238,6 +1243,10 @@ xfs_create(
 	 * A newly created regular or special file just has one directory
 	 * entry pointing to them, but a directory also the "." entry
 	 * pointing to itself.
+	 */
+	/*
+	 * 从dp这里申请一个 inode
+	 * 如果申请的inode是一个目录, nlink = 2 否则 nlink=1
 	 */
 	error = xfs_dir_ialloc(&tp, dp, mode, is_dir ? 2 : 1, rdev,
 			       prid, resblks > 0, &ip, NULL);

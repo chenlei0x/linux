@@ -139,6 +139,9 @@ xfs_cleanup_inode(
 	xfs_remove(XFS_I(dir), &teardown, XFS_I(inode));
 }
 
+/*
+ * 对于普通文件@rdev = 0 且 @tmpfile = 0
+ */
 STATIC int
 xfs_generic_create(
 	struct inode	*dir,

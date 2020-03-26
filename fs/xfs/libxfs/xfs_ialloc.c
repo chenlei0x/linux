@@ -2265,6 +2265,8 @@ xfs_imap_lookup(
 
 /*
  * Return the location of the inode in imap, for mapping it into a buffer.
+ * 主要是通过ino 来填充imap
+ * imap用作地址后期进行io
  */
 int
 xfs_imap(
@@ -2362,7 +2364,7 @@ xfs_imap(
 	 */
 	if (mp->m_inoalign_mask) {
 		offset_agbno = agbno & mp->m_inoalign_mask;
-		chunk_agbno = agbno - offset_agbno;
+		chunk_agbno = agbno - offset_agbno; /*chunk > cluster*/
 	} else {
 		error = xfs_imap_lookup(mp, tp, agno, agino, agbno,
 					&chunk_agbno, &offset_agbno, flags);
@@ -2370,6 +2372,14 @@ xfs_imap(
 			return error;
 	}
 
+/*
+ * sparse inode特性
+ * 综上所述，由于inode分配是基于容纳64个inode的chunk，若没有与chunk大小匹配的空闲extent
+ * 则inode分配就会失败，XFS认为已经耗尽space，在一个free space高度碎片化的文件系统中，
+ * 这会导致实际耗尽free space之前就产生耗尽space错误，故而引入sparse inode特性，
+ * 利用xfs_inobt_rec结构中freecount字段里早前没有用的bit，跟踪inode B+tree里一部分未分配给inode使用的chunk，
+ * 使得XFS在必要的时候可以基于一个block分配inode。
+ */
 out_map:
 	ASSERT(agbno >= chunk_agbno);
 	cluster_agbno = chunk_agbno +

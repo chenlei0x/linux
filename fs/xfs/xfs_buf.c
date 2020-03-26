@@ -1546,9 +1546,11 @@ xfs_buf_offset(
 {
 	struct page		*page;
 
+	/*一个buf 的长度小于等于一个页*/
 	if (bp->b_addr)
 		return bp->b_addr + offset;
 
+	/*buf包含了多个页*/
 	offset += bp->b_offset;
 	page = bp->b_pages[offset >> PAGE_SHIFT];
 	return page_address(page) + (offset & (PAGE_SIZE-1));

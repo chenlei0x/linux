@@ -3764,6 +3764,7 @@ xfs_btree_kill_root(
 
 	cur->bc_bufs[level] = NULL;
 	cur->bc_ra[level] = 0;
+	/*层数减一了*/
 	cur->bc_nlevels--;
 
 	XFS_BTREE_TRACE_CURSOR(cur, XBT_EXIT);
@@ -4318,6 +4319,8 @@ error0:
  * Delete the record pointed to by cur.
  * The cursor refers to the place where the record was (could be inserted)
  * when the operation returns.
+ *
+ * 从leaf开始向root节点挨个删除leaf 上的节点
  */
 int					/* error */
 xfs_btree_delete(

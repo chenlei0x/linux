@@ -168,6 +168,9 @@ const struct xfs_buf_ops xfs_inode_buf_ra_ops = {
  *
  * If a non-zero error is returned, then the contents of bpp and dipp are
  * undefined.
+ * 
+ * 通过imap 拿到buf, 因为一个buf中可能含有多个xfs_dinode
+ * 所以再通过buf拿到xfs_dinode
  */
 int
 xfs_imap_to_bp(

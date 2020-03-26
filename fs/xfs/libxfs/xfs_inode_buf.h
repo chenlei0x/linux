@@ -57,8 +57,8 @@ struct xfs_icdinode {
  * xfs_imap_to_bp() to get a buffer and dinode for a given inode.
  */
 struct xfs_imap {
-	xfs_daddr_t	im_blkno;	/* starting BB of inode chunk */
-	unsigned short	im_len;		/* length in BBs of inode chunk */
+	xfs_daddr_t	im_blkno;	/* starting BB of inode chunk,就是sector */
+	unsigned short	im_len;		/* length in BBs of inode chunk 多少个BB长 */
 	unsigned short	im_boffset;	/* inode offset in block in bytes */
 };
 
