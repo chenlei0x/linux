@@ -776,7 +776,7 @@ xfs_btree_lastrec(
 		return 0;
 	/*
 	 * Set the ptr value to numrecs, that's the last record/key.
-	 * 因为index 从1 开始
+	 * 因为index 从1 开始，这样指向最后一个 numrecs
 	 */
 	cur->bc_ptrs[level] = be16_to_cpu(block->bb_numrecs);
 	return 1;
@@ -1204,6 +1204,8 @@ xfs_btree_init_block_cur(
  * Return true if ptr is the last record in the btree and
  * we need to track updates to this record.  The decision
  * will be further refined in the update_lastrec method.
+ *
+ * 判断@block是不是整个树最右边的block
  */
 STATIC int
 xfs_btree_is_lastrec(
@@ -1702,6 +1704,8 @@ error0:
 /*
  * Decrement cursor by one record at the level.
  * For nonzero levels the leaf-ward information is untouched.
+ *
+ * 主要目的是修改cur->bc_ptrs， 调用的前提是整个树已经修改完毕
  */
 int						/* error */
 xfs_btree_decrement(
@@ -1730,12 +1734,6 @@ xfs_btree_decrement(
 	/* Get a pointer to the btree block. */
 	block = xfs_btree_get_block(cur, level, &bp);
 
-#ifdef DEBUG
-	error = xfs_btree_check_block(cur, block, level, bp);
-	if (error)
-		goto error0;
-#endif
-
 	/* Fail if we just went off the left edge of the tree. */
 	xfs_btree_get_sibling(cur, block, &ptr, XFS_BB_LEFTSIB);
 	if (xfs_btree_ptr_is_null(cur, &ptr))
@@ -1746,6 +1744,7 @@ xfs_btree_decrement(
 	/*
 	 * March up the tree decrementing pointers.
 	 * Stop when we don't go off the left edge of a block.
+	 * 对cur 上的每个节点都预读left
 	 */
 	for (lev = level + 1; lev < cur->bc_nlevels; lev++) {
 		if (--cur->bc_ptrs[lev] > 0)
@@ -1773,13 +1772,14 @@ xfs_btree_decrement(
 	 */
 	for (block = xfs_btree_get_block(cur, lev, &bp); lev > level; ) {
 		union xfs_btree_ptr	*ptrp;
-
+		/*之前bc_ptrs挨个减一了，所以这里读到的都是每个节点的左节点*/
 		ptrp = xfs_btree_ptr_addr(cur, cur->bc_ptrs[lev], block);
 		--lev;
 		error = xfs_btree_read_buf_block(cur, ptrp, 0, &block, &bp);
 		if (error)
 			goto error0;
 		xfs_btree_setbuf(cur, lev, bp);
+		/*指向每个节点左边节点的最后一个节点*/
 		cur->bc_ptrs[lev] = xfs_btree_get_numrecs(block);
 	}
 out1:
@@ -2247,6 +2247,7 @@ xfs_btree_updkeys_force(
 
 /*
  * Update the parent keys of the given level, progressing towards the root.
+ * 对于 XFS_BTREE_OVERLAPPING， 只有当第一个rec 对应的block变了才需要更新
  */
 STATIC int
 xfs_btree_update_keys(
@@ -2274,21 +2275,15 @@ xfs_btree_update_keys(
 	 * Stop when we reach a level where the cursor isn't pointing
 	 * at the first entry in the block.
 	 */
+	 /*拿到这个child     block在父节点中应该呈现的key*/
 	xfs_btree_get_keys(cur, block, &key);
+	/*往root方向, 每个节点都赋值 key*/
 	for (level++, ptr = 1; ptr == 1 && level < cur->bc_nlevels; level++) {
-#ifdef DEBUG
-		int		error;
-#endif
+
 		block = xfs_btree_get_block(cur, level, &bp);
-#ifdef DEBUG
-		error = xfs_btree_check_block(cur, block, level, bp);
-		if (error) {
-			XFS_BTREE_TRACE_CURSOR(cur, XBT_ERROR);
-			return error;
-		}
-#endif
+		/*该child block 在父节点中的位置*/
 		ptr = cur->bc_ptrs[level];
-		kp = xfs_btree_key_addr(cur, ptr, block);
+		kp = xfs_btree_key_addr(cur, ptr, block);/*拿到block内ptr 的指针*/
 		xfs_btree_copy_keys(cur, kp, &key, 1);
 		xfs_btree_log_keys(cur, bp, ptr, ptr);
 	}
@@ -2301,6 +2296,8 @@ xfs_btree_update_keys(
  * Update the record referred to by cur to the value in the
  * given record. This either works (return 0) or gets an
  * EFSCORRUPTED error.
+ *
+ * 把 record 拷贝到 cur 的leaf 的rec中
  */
 int
 xfs_btree_update(
@@ -2390,12 +2387,6 @@ xfs_btree_lshift(
 	/* Set up variables for this block as "right". */
 	right = xfs_btree_get_block(cur, level, &rbp);
 
-#ifdef DEBUG
-	error = xfs_btree_check_block(cur, right, level, rbp);
-	if (error)
-		goto error0;
-#endif
-
 	/* If we've got no left sibling then we can't shift an entry left. */
 	xfs_btree_get_sibling(cur, right, &lptr, XFS_BB_LEFTSIB);
 	if (xfs_btree_ptr_is_null(cur, &lptr))
@@ -2404,17 +2395,21 @@ xfs_btree_lshift(
 	/*
 	 * If the cursor entry is the one that would be moved, don't
 	 * do it... it's too complicated.
+	 * 当前的level的ptr 如果是第一个就不移动了，也就是说移动完之后，
+	 * cur->bc_ptrs[level]只要自减1就好，保证还在该block内
 	 */
 	if (cur->bc_ptrs[level] <= 1)
 		goto out0;
 
 	/* Set up the left neighbor as "left". */
+	/*把left 读上来*/
 	error = xfs_btree_read_buf_block(cur, &lptr, 0, &left, &lbp);
 	if (error)
 		goto error0;
 
 	/* If it's full, it can't take another entry. */
 	lrecs = xfs_btree_get_numrecs(left);
+	/*左边没有空位了*/
 	if (lrecs == cur->bc_ops->get_maxrecs(cur, level))
 		goto out0;
 
@@ -2439,10 +2434,13 @@ xfs_btree_lshift(
 		/* It's a non-leaf.  Move keys and pointers. */
 		union xfs_btree_key	*lkp;	/* left btree key */
 		union xfs_btree_ptr	*lpp;	/* left address pointer */
-
+		/*对于非叶子节点一个rec =【key，ptr】组成， 所以需要处理key 和ptr*/
+		/*left 的第一个空闲的key位置 */
 		lkp = xfs_btree_key_addr(cur, lrecs, left);
+		/*right 的第一个key的位置*/
 		rkp = xfs_btree_key_addr(cur, 1, right);
 
+		/*从key再得到ptr的指针*/
 		lpp = xfs_btree_ptr_addr(cur, lrecs, left);
 		rpp = xfs_btree_ptr_addr(cur, 1, right);
 #ifdef DEBUG
@@ -2450,6 +2448,7 @@ xfs_btree_lshift(
 		if (error)
 			goto error0;
 #endif
+		/*先拷贝过去*/
 		xfs_btree_copy_keys(cur, lkp, rkp, 1);
 		xfs_btree_copy_ptrs(cur, lpp, rpp, 1);
 
@@ -2461,7 +2460,7 @@ xfs_btree_lshift(
 	} else {
 		/* It's a leaf.  Move records.  */
 		union xfs_btree_rec	*lrp;	/* left record pointer */
-
+		/*如果是叶子节点就比较好办了， 只要拷贝rec就可以了*/
 		lrp = xfs_btree_rec_addr(cur, lrecs, left);
 		rrp = xfs_btree_rec_addr(cur, 1, right);
 
@@ -2484,15 +2483,11 @@ xfs_btree_lshift(
 	XFS_BTREE_STATS_ADD(cur, moves, rrecs - 1);
 	if (level > 0) {
 		/* It's a nonleaf. operate on keys and ptrs */
-#ifdef DEBUG
-		int			i;		/* loop index */
-
-		for (i = 0; i < rrecs; i++) {
-			error = xfs_btree_check_ptr(cur, rpp, i + 1, level);
-			if (error)
-				goto error0;
-		}
-#endif
+		/*
+		 * 上面的步骤只做了拷贝，没有删除右边节点的，这里做删除
+		 * 将右边节点的key + ptr 都往左边移动一个，这样就删除了
+		 *
+		 */
 		xfs_btree_shift_keys(cur,
 				xfs_btree_key_addr(cur, 2, right),
 				-1, rrecs);
@@ -2521,6 +2516,7 @@ xfs_btree_lshift(
 		i = xfs_btree_firstrec(tcur, level);
 		XFS_WANT_CORRUPTED_GOTO(tcur->bc_mp, i == 1, error0);
 
+		/**/
 		error = xfs_btree_decrement(tcur, level, &i);
 		if (error)
 			goto error1;
@@ -2534,6 +2530,10 @@ xfs_btree_lshift(
 	}
 
 	/* Update the parent keys of the right block. */
+	/*
+	 * 如果不是overlapping的话，追加一条rec不会影响该block的key，
+	 * 所以左边节点不需要更新
+	 */
 	error = xfs_btree_update_keys(cur, level);
 	if (error)
 		goto error0;
@@ -3040,7 +3040,7 @@ xfs_btree_new_iroot(
 
 	ASSERT(cur->bc_flags & XFS_BTREE_ROOT_IN_INODE);
 
-	level = cur->bc_nlevels - 1;
+	level = cur->bc_nlevels - 1; /*root level*/
 
 	block = xfs_btree_get_iroot(cur);
 	pp = xfs_btree_ptr_addr(cur, 1, block);
@@ -3856,6 +3856,7 @@ xfs_btree_delrec(
 
 	/* Excise the entries being deleted. */
 	if (level > 0) {
+		/*非leaf 节点*/
 		/* It's a nonleaf. operate on keys and ptrs */
 		union xfs_btree_key	*lkp;
 		union xfs_btree_ptr	*lpp;
@@ -3872,6 +3873,7 @@ xfs_btree_delrec(
 #endif
 
 		if (ptr < numrecs) {
+			/*左移一个身位*/
 			xfs_btree_shift_keys(cur, lkp, -1, numrecs - ptr);
 			xfs_btree_shift_ptrs(cur, lpp, -1, numrecs - ptr);
 			xfs_btree_log_keys(cur, bp, ptr, numrecs - 1);
@@ -3908,6 +3910,7 @@ xfs_btree_delrec(
 	 * nothing left to do.
 	 */
 	if (level == cur->bc_nlevels - 1) {
+		/*删除的是根节点*/
 		if (cur->bc_flags & XFS_BTREE_ROOT_IN_INODE) {
 			xfs_iroot_realloc(cur->bc_private.b.ip, -1,
 					  cur->bc_private.b.whichfork);
@@ -4010,6 +4013,7 @@ xfs_btree_delrec(
 	 * out of it.
 	 */
 	if (!xfs_btree_ptr_is_null(cur, &rptr)) {
+		/*右边还有block*/
 		/*
 		 * Move the temp cursor to the last entry in the next block.
 		 * Actually any entry but the first would suffice.
@@ -4017,6 +4021,7 @@ xfs_btree_delrec(
 		i = xfs_btree_lastrec(tcur, level);
 		XFS_WANT_CORRUPTED_GOTO(cur->bc_mp, i == 1, error0);
 
+		/*现在tcur的ptr[level] 指向的是block->bb_numrecs*/
 		error = xfs_btree_increment(tcur, level, &i);
 		if (error)
 			goto error0;
@@ -4115,6 +4120,7 @@ xfs_btree_delrec(
 			if (error)
 				goto error0;
 			if (i) {
+				/*确实发生了移动*/
 				ASSERT(xfs_btree_get_numrecs(block) >=
 				       cur->bc_ops->get_minrecs(tcur, level));
 				xfs_btree_del_cursor(tcur, XFS_BTREE_NOERROR);
@@ -4157,6 +4163,8 @@ xfs_btree_delrec(
 
 	/*
 	 * If that won't work, see if we can join with the right neighbor block.
+	 *
+	 * 相邻两个block 需要合并
 	 */
 	} else if (!xfs_btree_ptr_is_null(cur, &rptr) &&
 		   rrecs + xfs_btree_get_numrecs(block) <=
@@ -4191,6 +4199,8 @@ xfs_btree_delrec(
 	 * in "right" to "left" and deleting "right".
 	 */
 	XFS_BTREE_STATS_ADD(cur, moves, rrecs);
+	
+	/*合并block ----- start*/
 	if (level > 0) {
 		/* It's a non-leaf.  Move keys and pointers. */
 		union xfs_btree_key	*lkp;	/* left btree key */
@@ -4225,6 +4235,7 @@ xfs_btree_delrec(
 		xfs_btree_copy_recs(cur, lrp, rrp, rrecs);
 		xfs_btree_log_recs(cur, lbp, lrecs + 1, lrecs + rrecs);
 	}
+	/*合并block ----- end*/
 
 	XFS_BTREE_STATS_INC(cur, join);
 

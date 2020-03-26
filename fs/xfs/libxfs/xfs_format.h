@@ -1672,7 +1672,11 @@ xfs_btree_block 应该就是磁盘中的镜像了
 struct xfs_btree_block {
 	__be32		bb_magic;	/* magic number for block type */
 	__be16		bb_level;	/* 0 is a leaf */
-	__be16		bb_numrecs;	/* 最大records有多少个 current # of data records */
+	/*
+	 * 当前有多少个 records， 对于叶子节点，就是rec 数量
+	 * 对于非叶子节点就是【key，ptr】键值对的数量
+	 */
+	__be16		bb_numrecs;	/*   , current # of data records */
 	union {
 		struct xfs_btree_block_shdr s;
 		struct xfs_btree_block_lhdr l;
