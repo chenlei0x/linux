@@ -53,6 +53,7 @@ xfs_icluster_size_fsb(
 static inline struct xfs_dinode *
 xfs_make_iptr(struct xfs_mount *mp, struct xfs_buf *b, int o)
 {
+	/*o 代表第几个inode, 左移 inodelog之后换算成inode size*/
 	return xfs_buf_offset(b, o << (mp)->m_sb.sb_inodelog);
 }
 

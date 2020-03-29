@@ -765,6 +765,7 @@ xfs_sb_mount_common(
 					sbp->sb_inopblock);
 	mp->m_ialloc_blks = mp->m_ialloc_inos >> sbp->sb_inopblog;
 
+	/*sparse inode 使该值不为0 */
 	if (sbp->sb_spino_align)
 		mp->m_ialloc_min_blks = sbp->sb_spino_align;
 	else

@@ -340,7 +340,7 @@ xfs_ialloc_inode_init(
 		for (i = 0; i < inodes_per_cluster; i++) {
 			int	ioffset = i << mp->m_sb.sb_inodelog;
 			uint	isize = xfs_dinode_size(version);
-
+			/*fbuf 中的每个元素 i 都是一个free inode*/
 			free = xfs_make_iptr(mp, fbuf, i);
 			free->di_magic = cpu_to_be16(XFS_DINODE_MAGIC);
 			free->di_version = version;
@@ -694,6 +694,7 @@ xfs_ialloc_ag_alloc(
 		args.minalignslop = 0;
 	}
 
+	/*申请到之后会放到fsbno中*/
 	if (unlikely(args.fsbno == NULLFSBLOCK)) {
 		/*
 		 * Set the alignment for the allocation.
@@ -1705,6 +1706,9 @@ xfs_dialloc(
 	/*
 	 * We do not have an agbp, so select an initial allocation
 	 * group for inode allocation.
+	 *
+	 * 选定一个合适的ag
+	 *
 	 */
 	start_agno = xfs_ialloc_ag_select(tp, parent, mode, okalloc);
 	if (start_agno == NULLAGNUMBER) {
@@ -2657,6 +2661,8 @@ xfs_ialloc_read_agi(
 
 /*
  * Read in the agi to initialise the per-ag data in the mount structure
+ *
+ * 读上来agi 并初始化他对应的pag
  */
 int
 xfs_ialloc_pagi_init(

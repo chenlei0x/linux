@@ -83,8 +83,8 @@ struct partition {
 
 struct disk_stats {
 	unsigned long sectors[2];	/* READs and WRITEs */
-	unsigned long ios[2];
-	unsigned long merges[2];
+	unsigned long ios[2]; /*blk_account_io_done 中会加一 */
+	unsigned long merges[2]; /*一个bio merge 到一个req之后 这里会加一*/
 	unsigned long ticks[2];
 	unsigned long io_ticks; /*time elapsed 和下面的time in queue 相比，不考虑io个数*/
 	unsigned long time_in_queue; /*inflight*time_elapse 比如inflight 中有20个io，过了10ms，那就是20*10=200ms*/

@@ -129,7 +129,10 @@ typedef struct xfs_sb {
 	uint8_t		sb_blocklog;	/* log2 of sb_blocksize */
 	uint8_t		sb_sectlog;	/* log2 of sb_sectsize */
 	uint8_t		sb_inodelog;	/* log2 of sb_inodesize */
-	uint8_t		sb_inopblog;	/* log2 of sb_inopblock sb_inopblock的对数 */
+	/*
+	 * 通常inode size = 512 block size = 4k, inode per block = 8
+	 */
+	uint8_t		sb_inopblog;	/* log2 of sb_inopblock   sb_inopblock的对数 */
 	uint8_t		sb_agblklog;	/* log2 of sb_agblocks (rounded up) 一个ag 有多少个block 向上取整的对数*/
 	uint8_t		sb_rextslog;	/* log2 of sb_rextents */
 	uint8_t		sb_inprogress;	/* mkfs is in progress, don't mount */
@@ -751,7 +754,7 @@ typedef struct xfs_agi {
 	__be32		agi_magicnum;	/* magic number == XFS_AGI_MAGIC */
 	__be32		agi_versionnum;	/* header version == XFS_AGI_VERSION */
 	__be32		agi_seqno;	/* sequence # starting from 0 */
-	__be32		agi_length;	/* size in blocks of a.g. */
+	__be32		agi_length;	/* size in blocks of a.g. ag的长度 */
 	/*
 	 * Inode information
 	 * Inodes are mapped by interpreting the inode number, so no
@@ -803,7 +806,11 @@ typedef struct xfs_agi {
 #define	XFS_AGI_NUM_BITS_R2	13
 
 /* disk block (xfs_daddr_t) in the AG */
-/*agi的 sector */
+/*
+ * sector 是用户态指定的 sector size
+ * bb 是xfs 写死的, basic block = 512B
+ * agi 在一个ag的第二个sector中
+ */
 #define XFS_AGI_DADDR(mp)	((xfs_daddr_t)(2 << (mp)->m_sectbb_log))
 
 /*第2个block 对应的sector对应的block*/
@@ -1291,7 +1298,7 @@ typedef __be32 xfs_alloc_ptr_t;
 #define	XFS_FIBT_CRC_MAGIC	0x46494233	/* 'FIB3' */
 
 typedef uint64_t	xfs_inofree_t;
-#define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t))
+#define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t)) /*64*/
 #define	XFS_INODES_PER_CHUNK_LOG	(XFS_NBBYLOG + 3)
 #define	XFS_INOBT_ALL_FREE		((xfs_inofree_t)-1)
 #define	XFS_INOBT_MASK(i)		((xfs_inofree_t)1 << (i))

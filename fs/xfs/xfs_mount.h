@@ -78,6 +78,11 @@ typedef struct xfs_mount {
 	spinlock_t		m_sb_lock;	/* sb counter lock */
 	struct percpu_counter	m_icount;	/* allocated inodes counter */
 	struct percpu_counter	m_ifree;	/* free inodes counter */
+
+	/*
+	 * 整个文件系统的free block, 在文件系统初始化后, 
+	 * m_fdblocks * block_size = 整个盘的大小
+	 */
 	struct percpu_counter	m_fdblocks;	/* free block counter */
 
 	struct xfs_buf		*m_sb_bp;	/* buffer for superblock */
@@ -154,8 +159,8 @@ typedef struct xfs_mount {
 	uint			m_dmevmask;	/* DMI events for this FS */
 	uint64_t		m_flags;	/* global mount flags */
 	bool			m_inotbt_nores; /* no per-AG finobt resv. */
-	int			m_ialloc_inos;	/* inodes in inode allocation */
-	int			m_ialloc_blks;	/* blocks in inode allocation */
+	int			m_ialloc_inos;	/* inodes in inode allocation  通常为    XFS_INODES_PER_CHUNK = 64 */
+	int			m_ialloc_blks;	/* blocks in inode allocation  通常为 m_ialloc_inos / inodes_per_block = 8*/
 	int			m_ialloc_min_blks;/* min blocks in sparse inode
 						   * allocation */
 	int			m_inoalign_mask;/* mask sb_inoalignmt if used */
