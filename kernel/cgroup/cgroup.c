@@ -538,6 +538,8 @@ static struct cgroup_subsys_state *cgroup_e_css_by_mask(struct cgroup *cgrp,
  *
  * The returned css is not guaranteed to be online, and therefore it is the
  * callers responsiblity to tryget a reference for it.
+ *
+ * cgroup 中可能没有创建该css, 往上找直到某个 cgroup中含有该css的结构
  */
 struct cgroup_subsys_state *cgroup_e_css(struct cgroup *cgrp,
 					 struct cgroup_subsys *ss)

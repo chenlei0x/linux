@@ -2104,7 +2104,7 @@ void bio_associate_blkg_from_css(struct bio *bio,
 	rcu_read_lock();
 
 	if (!css || !css->parent)
-		blkg = q->root_blkg;
+		blkg = q->root_blkg; /*root_blkg 指向root blkcg 下该q的blkg*/
 	else
 		blkg = blkg_lookup_create(css_to_blkcg(css), q);
 
