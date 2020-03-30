@@ -16,6 +16,21 @@ static inline unsigned long __phys_addr_nodebug(unsigned long x)
 	unsigned long y = x - __START_KERNEL_map;
 
 	/* use the carry flag to determine if x was < __START_KERNEL_map */
+	/*
+	 * x 可能会来自于两个地方,第一个 x > __START_KERNEL_map
+	 * 第二个 x > PAGE_OFFSET  且 < __START_KERNEL_map
+	 * 
+	  * 只有当x > __START_KERNEL_map时, x > y 才会成立
+	 * __START_KERNEL_map ~ 0xffffffff ffffffff 是内核用来线性映射内存的 phys_base ~ phsy_base + 2G - 1, 通常 phys_base = 0
+	 * 所以返回的是物理地址的开始即 phys_base
+
+	 * 当 x < y 时, PAGE_OFFSET < x < __START_KERNEL_map
+	 * 这时候, return = y + __START_KERNEL_map - PAGE_OFFSET = x + PAGE_OFFSET
+	 * PAGE_OFFSET ~ PAGE_OFFSET + 64TB 映射物理内存的 0 ~ 64TB
+	 *
+	 * 当phys_base = 0时, __START_KERNEL_map 和 PAGE_OFFSET 都映射着物理地址 从0 开始的部分,只是长度不同
+	 * 但是内核可以载入到任意物理地址上, 只要他的让他的__START_KERNEL_map 映射到载入到的地址上就可以了
+	 */
 	x = y + ((x > y) ? phys_base : (__START_KERNEL_map - PAGE_OFFSET));
 
 	return x;
