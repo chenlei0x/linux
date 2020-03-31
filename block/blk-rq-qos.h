@@ -48,13 +48,16 @@ struct rq_qos_ops {
 };
 
 struct rq_depth {
-	unsigned int max_depth;
+	unsigned int max_depth; /*UINT_MAX*/
 
-	int scale_step;
+	/*初始化为0, > 0 表示latency 增大, < 0 表示可以增大depth*/
+	int scale_step; 
+
+	/*rq_depth_calc_max_depth 计算得到*/
 	bool scaled_max;
 
-	unsigned int queue_depth;
-	unsigned int default_depth;
+	unsigned int queue_depth; /*初始化为blkg->q->nr_requests*/
+	unsigned int default_depth; /*初始化为blkg->q->nr_requests*/
 };
 
 static inline struct rq_qos *rq_qos_id(struct request_queue *q,

@@ -85,7 +85,7 @@ struct iolatency_grp;
 
 struct blk_iolatency {
 	struct rq_qos rqos;
-	struct timer_list timer;
+	struct timer_list timer; /*blkiolatency_timer_fn*/
 	atomic_t enabled;
 };
 
@@ -138,7 +138,7 @@ struct iolatency_grp {
 	struct rq_depth rq_depth;
 	struct rq_wait rq_wait;
 	atomic64_t window_start;
-	atomic_t scale_cookie;
+	atomic_t scale_cookie; /*DEFAULT_SCALE_COOKIE*/
 	u64 min_lat_nsec;
 	u64 cur_win_nsec;
 
@@ -338,8 +338,13 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 			atomic_set(&lat_info->scale_cookie,
 				   DEFAULT_SCALE_COOKIE);
 		else if (diff > qd)
+			/*
+			 * 当前cookie 和 DEFAULT 相差过大,大于rqos.q->nr_requests,
+			 * 说明之前情况极度恶劣, 那么scale_cookie 慢慢往上涨
+			 */
 			atomic_inc(&lat_info->scale_cookie);
 		else
+			/*差值没那么大,涨幅可以等于scale*/
 			atomic_add(scale, &lat_info->scale_cookie);
 	} else {
 		/*
@@ -410,9 +415,9 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	scale_lat = READ_ONCE(lat_info->scale_lat);
 
 	if (cur_cookie < our_cookie)
-		direction = -1;
+		direction = -1; /*iolate->max_depth 需要减小*/
 	else if (cur_cookie > our_cookie)
-		direction = 1;
+		direction = 1;/*iolate->max_depth 需要增大*/
 	else
 		return;
 
@@ -979,7 +984,7 @@ static void iolatency_pd_init(struct blkg_policy_data *pd)
 	iolat->rq_depth.max_depth = UINT_MAX;
 	iolat->rq_depth.default_depth = iolat->rq_depth.queue_depth;
 	iolat->blkiolat = blkiolat;
-	iolat->cur_win_nsec = 100 * NSEC_PER_MSEC;
+	iolat->cur_win_nsec = 100 * NSEC_PER_MSEC;/*用100 000 表示 100 msec*/
 	atomic64_set(&iolat->window_start, now);
 
 	/*
