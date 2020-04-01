@@ -140,12 +140,12 @@ struct iolatency_grp {
 	struct blkg_policy_data pd;
 	struct latency_stat __percpu *stats;
 	struct latency_stat cur_stat;
-	struct blk_iolatency *blkiolat;
+	struct blk_iolatency *blkiolat; /*该queue 对应结构体，内含qos*/
 	struct rq_depth rq_depth;
 	struct rq_wait rq_wait; /*__blkcg_iolatency_throttle 可能会把任务挂起到该进程上*/
 	atomic64_t window_start;
 	atomic_t scale_cookie; /*DEFAULT_SCALE_COOKIE*/
-	u64 min_lat_nsec;
+	u64 min_lat_nsec; /*用户通过latency文件可以配置*/
 	u64 cur_win_nsec;
 
 	/* total running average of our io latency. */
@@ -266,6 +266,7 @@ static inline void iolat_update_total_lat_avg(struct iolatency_grp *iolat,
 	exp_idx = min_t(int, BLKIOLATENCY_NR_EXP_FACTORS - 1,
 			div64_u64(iolat->cur_win_nsec,
 				  BLKIOLATENCY_EXP_BUCKET_SIZE));
+	/**/
 	iolat->lat_avg = calc_load(iolat->lat_avg,
 				   iolatency_exp_factors[exp_idx],
 				   stat->rqs.mean);
@@ -325,6 +326,9 @@ static inline unsigned long scale_amount(unsigned long qd, bool up)
  * Each group has their own local copy of the last scale cookie they saw, so if
  * the global scale cookie goes up or down they know which way they need to go
  * based on their last knowledge of it.
+ *
+ * @lat_info 为parent -> child_lat
+ * 调整parent 的 scale_cookie
  */
 static void scale_cookie_change(struct blk_iolatency *blkiolat,
 				struct child_latency_info *lat_info,
@@ -376,7 +380,7 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 static void scale_change(struct iolatency_grp *iolat, bool up)
 {
 	unsigned long qd = iolat->blkiolat->rqos.q->nr_requests;
-	unsigned long scale = scale_amount(qd, up);
+	unsigned long scale = scale_amount(qd, up); /*看来每次增加或者减少的都是一样的*/
 	unsigned long old = iolat->rq_depth.max_depth;
 
 	if (old > qd)
@@ -530,31 +534,43 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 #define BLKIOLATENCY_MIN_ADJUST_TIME (500 * NSEC_PER_MSEC)
 #define BLKIOLATENCY_MIN_GOOD_SAMPLES 5
 
+
+/*
+ * @iolat blkg 对应的 latency policy data
+ */
 static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 {
+	/*iolatency_grp --- per queue - blkcg*/
 	struct blkcg_gq *blkg = lat_to_blkg(iolat);
 	struct iolatency_grp *parent;
 	struct child_latency_info *lat_info;
-	struct latency_stat stat;
+	struct latency_stat stat; /*调用者所属的blkcg 的 blkg的stat*/
 	unsigned long flags;
 	int cpu;
 
 	latency_stat_init(iolat, &stat);
 	preempt_disable();
+
+	/*该blkg中的所有latency stat 汇总到 @stat中*/
 	for_each_online_cpu(cpu) {
 		struct latency_stat *s;
 		s = per_cpu_ptr(iolat->stats, cpu);
+		
+		/*stat +=s*/
 		latency_stat_sum(iolat, &stat, s);
+		/*s = 0*/
 		latency_stat_init(iolat, s);
 	}
 	preempt_enable();
 
+	/*iolatency_grp*/
 	parent = blkg_to_lat(blkg->parent);
 	if (!parent)
 		return;
 
 	lat_info = &parent->child_lat;
 
+	/*根据 stat->rqs.mean 计算iolat->lat_avg*/
 	iolat_update_total_lat_avg(iolat, &stat);
 
 	/* Everything is ok and we don't need to adjust the scale. */
@@ -565,6 +581,7 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 	/* Somebody beat us to the punch, just bail. */
 	spin_lock_irqsave(&lat_info->lock, flags);
 
+	/* iolat->cur_stat += stat*/
 	latency_stat_sum(iolat, &iolat->cur_stat, &stat);
 	lat_info->nr_samples -= iolat->nr_samples;
 	lat_info->nr_samples += latency_stat_samples(iolat, &iolat->cur_stat);
@@ -579,10 +596,20 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 		if (latency_stat_samples(iolat, &iolat->cur_stat) <
 		    BLKIOLATENCY_MIN_GOOD_SAMPLES)
 			goto out;
+
+		/**/
 		if (lat_info->scale_grp == iolat) {
 			lat_info->last_scale_event = now;
+			/*放大depth*/
 			scale_cookie_change(iolat->blkiolat, lat_info, true);
 		}
+
+		/*
+		 * 如果超时,调整parent scale_lat,如果一个parent 有好几个子cgroup
+		 * 则每个cgroup 都有可能走进来, 不断更新scale lat,使得scale lat = 最小的
+		 * iolat->min_lat_nsec,并且让lat_info->scale_grp 记录下来scale lat 是谁
+		 * 设置的
+		 */
 	} else if (lat_info->scale_lat == 0 ||
 		   lat_info->scale_lat >= iolat->min_lat_nsec) {
 		lat_info->last_scale_event = now;

@@ -477,10 +477,11 @@ static inline bool blk_qc_t_is_internal(blk_qc_t cookie)
 }
 
 struct blk_rq_stat {
-	u64 mean;
+	u64 mean; /*blk_rq_stat_sum 更新*/
 	u64 min;
 	u64 max;
 	u32 nr_samples;
+	/* 对于latency 来说，batch每次加的就是该io的latency*/
 	u64 batch;
 };
 

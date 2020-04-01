@@ -34,6 +34,7 @@ void blk_rq_stat_sum(struct blk_rq_stat *dst, struct blk_rq_stat *src)
 	dst->min = min(dst->min, src->min);
 	dst->max = max(dst->max, src->max);
 
+	/*历史运行的总的平均值*/
 	dst->mean = div_u64(src->batch + dst->mean * dst->nr_samples,
 				dst->nr_samples + src->nr_samples);
 
