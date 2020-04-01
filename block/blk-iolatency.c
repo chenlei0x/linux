@@ -85,7 +85,9 @@ struct iolatency_grp;
 
 struct blk_iolatency {
 	struct rq_qos rqos;
-	struct timer_list timer; /*blkiolatency_timer_fn*/
+	
+	/*blkiolatency_timer_fn*/
+	struct timer_list timer;
 	atomic_t enabled;
 };
 
@@ -123,6 +125,10 @@ struct percentile_stats {
 	u64 missed;
 };
 
+/*
+ * 取决于该盘是ssd还是hd， 如果是ssd，则用ps字段，
+ * 如果是hd 则用rqs字段
+ */
 struct latency_stat {
 	union {
 		struct percentile_stats ps;
@@ -136,7 +142,7 @@ struct iolatency_grp {
 	struct latency_stat cur_stat;
 	struct blk_iolatency *blkiolat;
 	struct rq_depth rq_depth;
-	struct rq_wait rq_wait;
+	struct rq_wait rq_wait; /*__blkcg_iolatency_throttle 可能会把任务挂起到该进程上*/
 	atomic64_t window_start;
 	atomic_t scale_cookie; /*DEFAULT_SCALE_COOKIE*/
 	u64 min_lat_nsec;
@@ -325,7 +331,7 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 				bool up)
 {
 	unsigned long qd = blkiolat->rqos.q->nr_requests;
-	unsigned long scale = scale_amount(qd, up);
+	unsigned long scale = scale_amount(qd, up); /*这个其实是一个差量值*/
 	unsigned long old = atomic_read(&lat_info->scale_cookie);
 	unsigned long max_scale = qd << 1;
 	unsigned long diff = 0;
@@ -384,6 +390,7 @@ static void scale_change(struct iolatency_grp *iolat, bool up)
 			old += scale;
 			old = min(old, qd);
 			iolat->rq_depth.max_depth = old;
+			/*唤醒*/
 			wake_up_all(&iolat->rq_wait.wait);
 		}
 	} else {
@@ -406,6 +413,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	if (lat_to_blkg(iolat)->parent == NULL)
 		return;
 
+	/*parent iolatency_grp*/
 	parent = blkg_to_lat(lat_to_blkg(iolat)->parent);
 	if (!parent)
 		return;

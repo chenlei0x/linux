@@ -669,6 +669,8 @@ u64 wbt_default_latency_nsec(struct request_queue *q)
 		return 75000000ULL;
 }
 
+
+/*bucket fn*/
 static int wbt_data_dir(const struct request *rq)
 {
 	const int op = req_op(rq);

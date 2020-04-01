@@ -429,6 +429,8 @@ struct ioc {
 	 * 默认VTIME_PER_USEC
 	 * vtime 和实际时间的换算关系
 	 * vtime = wall-time * now->vrate;
+	 *
+	 * ioc_timer_fn 函数中会更新该值, 该值一个ioc 只有一个
 	 */
 	atomic64_t			vtime_rate; 
 
@@ -729,6 +731,12 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 	lockdep_assert_held(&ioc->lock);
 
 	/* pick the higher latency target */
+	/*
+	 * params.qos 的设置
+	 * echo "254:48 enable=1 ctrl=user rpct=95.00 rlat=5000 wpct=95.00 wlat=5000 min=50.00 max=150.00" 
+	 * > /sys/fs/cgroup/blkio/blkio.cost.qos
+	 */
+	/*找读latency 和write latency 中较大的, 单位为us*/
 	if (ioc->params.qos[QOS_RLAT] >= ioc->params.qos[QOS_WLAT]) {
 		ppm = ioc->params.qos[QOS_RPPM];
 		lat = ioc->params.qos[QOS_RLAT];
@@ -736,7 +744,7 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 		ppm = ioc->params.qos[QOS_WPPM];
 		lat = ioc->params.qos[QOS_WLAT];
 	}
-
+	
 	/*
 	 * We want the period to be long enough to contain a healthy number
 	 * of IOs while short enough for granular control.  Define it as a
@@ -1443,7 +1451,9 @@ static void ioc_timer_fn(struct timer_list *timer)
 	struct ioc_gq *iocg, *tiocg;
 	struct ioc_now now;
 	int nr_surpluses = 0, nr_shortages = 0, nr_lagging = 0;
-	u32 ppm_rthr = MILLION - ioc->params.qos[QOS_RPPM];
+
+	/*percent 95 ----> 950000 ==> ppm_rthr = 50000*/
+	u32 ppm_rthr = MILLION - ioc->params.qos[QOS_RPPM]; 
 	u32 ppm_wthr = MILLION - ioc->params.qos[QOS_WPPM];
 	u32 missed_ppm[2], rq_wait_pct;
 	u64 period_vtime;
@@ -1648,6 +1658,7 @@ skip_surplus_transfers:
 	if (rq_wait_pct > RQ_WAIT_BUSY_PCT ||
 	    missed_ppm[READ] > ppm_rthr ||
 	    missed_ppm[WRITE] > ppm_wthr) {
+	    /*过多的latency*/
 		ioc->busy_level = max(ioc->busy_level, 0);
 		ioc->busy_level++;
 	} else if (rq_wait_pct <= RQ_WAIT_BUSY_PCT * UNBUSY_THR_PCT / 100 &&
@@ -1696,7 +1707,10 @@ skip_surplus_transfers:
 				adj_pct = 100 - adj_pct;
 			else
 				adj_pct = 100 + adj_pct;
-
+			/*
+			 * busy_level 最终会影响vrate, vrate 变小,造成vtime也会变小
+			 * vtime 变小使得同样墙上时间内,下发的数据变小
+			 */
 			vrate = clamp(DIV64_U64_ROUND_UP(vrate * adj_pct, 100),
 				      vrate_min, vrate_max);
 		}
@@ -1704,7 +1718,6 @@ skip_surplus_transfers:
 		trace_iocost_ioc_vrate_adj(ioc, vrate, &missed_ppm, rq_wait_pct,
 					   nr_lagging, nr_shortages,
 					   nr_surpluses);
-
 		atomic64_set(&ioc->vtime_rate, vrate);
 		ioc->inuse_margin_vtime = DIV64_U64_ROUND_UP(
 			ioc->period_us * vrate * INUSE_MARGIN_PCT, 100);

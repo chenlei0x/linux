@@ -56,8 +56,11 @@ void blk_stat_add(struct request *rq, u64 now)
 	int bucket, cpu;
 	u64 value;
 
+
+	/*value 为rq 开始到显现的时间长度*/
 	value = (now >= rq->io_start_time_ns) ? now - rq->io_start_time_ns : 0;
 
+	
 	blk_throtl_stat_add(rq, value);
 
 	rcu_read_lock();
