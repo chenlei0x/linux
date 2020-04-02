@@ -43,6 +43,7 @@ typedef struct xfs_inode {
 
 	/* Inode location stuff */
 	xfs_ino_t		i_ino;		/* inode number (agno/agino)*/
+	/* 通过ino# 翻译成具体的磁盘上的位置*/
 	struct xfs_imap		i_imap;		/* location for xfs_imap() */
 
 	/* Extent information. */

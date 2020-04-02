@@ -173,7 +173,7 @@ typedef struct xfs_mount {
 	int			m_dalign;	/* stripe unit */
 	int			m_swidth;	/* stripe width */
 	int			m_sinoalign;	/* stripe unit inode alignment */
-	uint8_t			m_sectbb_log;	/* sectlog - BBSHIFT */
+	uint8_t			m_sectbb_log;	/* sectlog - BBSHIFT  = 9 - 9 = 0*/
 	const struct xfs_nameops *m_dirnameops;	/* vector of dir name ops */
 	const struct xfs_dir_ops *m_dir_inode_ops; /* vector of dir inode ops */
 	const struct xfs_dir_ops *m_nondir_inode_ops; /* !dir inode ops */

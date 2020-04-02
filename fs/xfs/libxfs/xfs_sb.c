@@ -726,7 +726,7 @@ xfs_sb_mount_common(
 	mp->m_maxagi = mp->m_sb.sb_agcount;
 	mp->m_blkbit_log = sbp->sb_blocklog + XFS_NBBYLOG;
 	mp->m_blkbb_log = sbp->sb_blocklog - BBSHIFT;
-	mp->m_sectbb_log = sbp->sb_sectlog - BBSHIFT;
+	mp->m_sectbb_log = sbp->sb_sectlog - BBSHIFT; /*默认 sectlog = 9*/
 	mp->m_agno_log = xfs_highbit32(sbp->sb_agcount - 1) + 1;
 	mp->m_agino_log = sbp->sb_inopblog + sbp->sb_agblklog; /*一个ag内的inode 需要多少位*/
 	mp->m_blockmask = sbp->sb_blocksize - 1;

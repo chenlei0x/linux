@@ -941,9 +941,12 @@ xfs_ialloc_ag_select(
 	needspace = S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode);
 	mp = tp->t_mountp;
 	agcount = mp->m_maxagi;
+
+	/*如果是目录，循环每个ag给这个目录分配inode*/
 	if (S_ISDIR(mode))
 		pagno = xfs_ialloc_next_ag(mp);
 	else {
+		/*如果是普通文件，则保证和所在目录处于同一个ag*/
 		pagno = XFS_INO_TO_AGNO(mp, parent);
 		if (pagno >= agcount)
 			pagno = 0;
@@ -961,12 +964,14 @@ xfs_ialloc_ag_select(
 	agno = pagno;
 	flags = XFS_ALLOC_FLAG_TRYLOCK;
 	for (;;) {
+		/*从m_perag_tree里面拿*/
 		pag = xfs_perag_get(mp, agno);
 		if (!pag->pagi_inodeok) {
 			xfs_ialloc_next_ag(mp);
 			goto nextag;
 		}
 
+		/*还没有被初始化*/
 		if (!pag->pagi_init) {
 			error = xfs_ialloc_pagi_init(mp, tp, agno);
 			if (error)
@@ -2612,6 +2617,7 @@ xfs_read_agi(
 	trace_xfs_read_agi(mp, agno);
 
 	ASSERT(agno != NULLAGNUMBER);
+	/*xfs_agi_t 在一个ag的第二个sector上*/
 	error = xfs_trans_read_buf(mp, tp, mp->m_ddev_targp,
 			XFS_AG_DADDR(mp, agno, XFS_AGI_DADDR(mp)),
 			XFS_FSS_TO_BB(mp, 1), 0, bpp, &xfs_agi_buf_ops);

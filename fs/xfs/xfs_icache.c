@@ -645,13 +645,19 @@ xfs_iget(
 
 	/* get the perag structure and ensure that it's inode capable */
 	pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, ino));
-	/*一个inode# 分为三部分  ag#       block_offset_in_ag + inode_offset_in_block*/
-	/*agino = ag内的ino# = block_offset_in_ag +  inode_offset_in_block  */
+	/*
+	 * 一个inode# 分为三部分     
+	 * ag#    block_offset_in_ag    inode_offset_in_block
+	 * 
+	 * agino = ag内的ino#
+	 * = block_offset_in_ag +  inode_offset_in_block
+	 */
 	agino = XFS_INO_TO_AGINO(mp, ino);
 
 again:
 	error = 0;
 	rcu_read_lock();
+	/*cache里面查*/
 	ip = radix_tree_lookup(&pag->pag_ici_root, agino);
 
 	if (ip) {

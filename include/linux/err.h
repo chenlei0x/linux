@@ -19,7 +19,7 @@
 
 #ifndef __ASSEMBLY__
 
-#define IS_ERR_VALUE(x) unlikely((unsigned long)(void *)(x) >= (unsigned long)-MAX_ERRNO)
+#define IS_ERR_VALUE(x) unlikely((unsigned long)(void *)(x) >= (unsigned long)-MAX_ERRNO) /*-4095 = ‭FFFFFFFFFFFFF001‬*/
 
 static inline void * __must_check ERR_PTR(long error)
 {

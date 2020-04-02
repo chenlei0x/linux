@@ -809,9 +809,9 @@ typedef struct xfs_agi {
 /*
  * sector 是用户态指定的 sector size
  * bb 是xfs 写死的, basic block = 512B
- * agi 在一个ag的第二个sector中
+ * agi 在一个ag的第2个sector中
  */
-#define XFS_AGI_DADDR(mp)	((xfs_daddr_t)(2 << (mp)->m_sectbb_log))
+#define XFS_AGI_DADDR(mp)	((xfs_daddr_t)(2 << (mp)->m_sectbb_log)) /*默认=2*/
 
 /*第2个block 对应的sector对应的block*/
 #define	XFS_AGI_BLOCK(mp)	XFS_HDR_BLOCK(mp, XFS_AGI_DADDR(mp))

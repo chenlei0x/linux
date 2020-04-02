@@ -482,6 +482,7 @@ xfs_iread(
 
 	/*
 	 * Fill in the location information in the in-core inode.
+	 * 通过ino# 翻译成具体的磁盘上的位置
 	 */
 	error = xfs_imap(mp, tp, ip->i_ino, &ip->i_imap, iget_flags);
 	if (error)

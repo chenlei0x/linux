@@ -34,6 +34,8 @@
 
 #define HUGE_MAX_HSTATE 2
 
+
+/*整个虚拟地址的起始地址   第一个物理页映射到     的地址*/
 #define PAGE_OFFSET		((unsigned long)__PAGE_OFFSET)
 
 #define VM_DATA_DEFAULT_FLAGS \
