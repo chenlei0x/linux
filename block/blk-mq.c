@@ -712,6 +712,7 @@ static void blk_mq_requeue_work(struct work_struct *work)
 	struct request *rq, *next;
 
 	spin_lock_irq(&q->requeue_lock);
+	/*q->requeue_list 加到 rq_list 中*/
 	list_splice_init(&q->requeue_list, &rq_list);
 	spin_unlock_irq(&q->requeue_lock);
 
@@ -735,9 +736,10 @@ static void blk_mq_requeue_work(struct work_struct *work)
 	while (!list_empty(&rq_list)) {
 		rq = list_entry(rq_list.next, struct request, queuelist);
 		list_del_init(&rq->queuelist);
+		/*把rq_list中的rq 放到他的ctx中*/
 		blk_mq_sched_insert_request(rq, false, false, false);
 	}
-
+	/*让hw queue 从他对应的ctx中取到所有的rq,并调用ops中的queue_rq钩子函数*/
 	blk_mq_run_hw_queues(q, false);
 }
 
@@ -768,6 +770,7 @@ void blk_mq_add_to_requeue_list(struct request *rq, bool at_head,
 
 void blk_mq_kick_requeue_list(struct request_queue *q)
 {
+	/*blk_mq_requeue_work*/
 	kblockd_mod_delayed_work_on(WORK_CPU_UNBOUND, &q->requeue_work, 0);
 }
 EXPORT_SYMBOL(blk_mq_kick_requeue_list);
@@ -996,6 +999,10 @@ static bool dispatch_rq_from_ctx(struct sbitmap *sb, unsigned int bitnr,
 	return !dispatch_data->rq;
 }
 
+/*
+ * 对hctx 的每个对应的ctx 把他们的request 都拿出来
+ * 
+ */
 struct request *blk_mq_dequeue_from_ctx(struct blk_mq_hw_ctx *hctx,
 					struct blk_mq_ctx *start)
 {
@@ -1200,7 +1207,9 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		if (!got_budget && !blk_mq_get_dispatch_budget(hctx))
 			break;
 
+		/*申请到了 返回true*/
 		if (!blk_mq_get_driver_tag(rq)) {
+			/*没申请到哇*/
 			/*
 			 * The initial allocation attempt failed, so we need to
 			 * rerun the hardware queue when a tag is freed. The
@@ -1235,6 +1244,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 			bd.last = !blk_mq_get_driver_tag(nxt);
 		}
 
+		/*驱动注册的 如 nvme_queue_rq*/
 		ret = q->mq_ops->queue_rq(hctx, &bd);
 		if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {
 			/*
@@ -1474,6 +1484,8 @@ void blk_mq_run_hw_queue(struct blk_mq_hw_ctx *hctx, bool async)
 }
 EXPORT_SYMBOL(blk_mq_run_hw_queue);
 
+
+/*让hw queue 从他对应的ctx中取到所有的rq,并调用ops中的queue_rq钩子函数*/
 void blk_mq_run_hw_queues(struct request_queue *q, bool async)
 {
 	struct blk_mq_hw_ctx *hctx;
@@ -1597,6 +1609,8 @@ static void blk_mq_run_work_fn(struct work_struct *work)
 	__blk_mq_run_hw_queue(hctx);
 }
 
+
+/*插入到ctx队列中*/
 static inline void __blk_mq_insert_req_list(struct blk_mq_hw_ctx *hctx,
 					    struct request *rq,
 					    bool at_head)
@@ -1614,6 +1628,8 @@ static inline void __blk_mq_insert_req_list(struct blk_mq_hw_ctx *hctx,
 		list_add_tail(&rq->queuelist, &ctx->rq_lists[type]);
 }
 
+
+/*插入到ctx队列中*/
 void __blk_mq_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
 			     bool at_head)
 {
@@ -1658,6 +1674,7 @@ void blk_mq_insert_requests(struct blk_mq_hw_ctx *hctx, struct blk_mq_ctx *ctx,
 	}
 
 	spin_lock(&ctx->lock);
+	/*list 嫁接到 ctx->rq_lists[type]上*/
 	list_splice_tail_init(list, &ctx->rq_lists[type]);
 	blk_mq_hctx_mark_pending(hctx, ctx);
 	spin_unlock(&ctx->lock);

@@ -34,6 +34,8 @@ struct blk_mq_hw_ctx {
 
 	/**
 	 * @run_work: Used for scheduling a hardware queue run at a later time.
+	 *
+	 * blk_mq_run_work_fn
 	 */
 	struct delayed_work	run_work;
 	/** @cpumask: Map of available CPUs where this hctx can run. */

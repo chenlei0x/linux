@@ -375,6 +375,7 @@ static bool blk_mq_sched_bypass_insert(struct blk_mq_hw_ctx *hctx,
 	return false;
 }
 
+
 void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 				 bool run_queue, bool async)
 {
@@ -401,6 +402,7 @@ void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 		e->type->ops.insert_requests(hctx, &list, at_head);
 	} else {
 		spin_lock(&ctx->lock);
+		/*直接放入ctx中*/
 		__blk_mq_insert_request(hctx, rq, at_head);
 		spin_unlock(&ctx->lock);
 	}

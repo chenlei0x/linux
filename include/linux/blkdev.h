@@ -536,7 +536,7 @@ struct request_queue {
 
 	struct list_head	requeue_list;
 	spinlock_t		requeue_lock;
-	struct delayed_work	requeue_work;
+	struct delayed_work	requeue_work; /*blk_mq_requeue_work*/
 
 	struct mutex		sysfs_lock;
 	struct mutex		sysfs_dir_lock;
@@ -604,6 +604,10 @@ struct request_queue {
 #define QUEUE_FLAG_INIT_DONE	14	/* queue is initialized */
 #define QUEUE_FLAG_POLL		16	/* IO polling enabled if set */
 #define QUEUE_FLAG_WC		17	/* Write back caching */
+
+/*
+ * 忽略cache,强制写入到磁盘
+ */
 #define QUEUE_FLAG_FUA		18	/* device supports FUA writes */
 #define QUEUE_FLAG_DAX		19	/* device supports DAX */
 #define QUEUE_FLAG_STATS	20	/* track IO start and completion times */

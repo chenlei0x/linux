@@ -398,6 +398,7 @@ static inline void list_cut_before(struct list_head *list,
 	entry->prev = head;
 }
 
+/*把list 接到 prev next上*/
 static inline void __list_splice(const struct list_head *list,
 				 struct list_head *prev,
 				 struct list_head *next)
