@@ -375,6 +375,12 @@ typedef struct xfs_perag {
 	uint8_t		pagf_levels[XFS_BTNUM_AGF];
 					/* # of levels in bno & cnt btree */
 	bool		pagf_agflreset; /* agfl requires reset before use */
+
+	/*
+	 * 目前猜测, agfl::bno 数组,每个元素代表一个free 的block#, 	agf_flfirst 和 
+	 * agf_fllast;	共同维护bno数组中开始的free block # 和 最后一个 free block#
+	 * pagf_flcount 表明一个共有多少个 free block
+	 */
 	uint32_t	pagf_flcount;	/* count of blocks in freelist */
 	xfs_extlen_t	pagf_freeblks;	/* total free blocks */
 	xfs_extlen_t	pagf_longest;	/* longest free space */

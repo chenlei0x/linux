@@ -506,7 +506,7 @@ xfs_allocbt_init_cursor(
 
 	cur->bc_tp = tp;
 	cur->bc_mp = mp;
-	cur->bc_btnum = btnum;
+	cur->bc_btnum = btnum; /*xfs_allocbt_init_ptr_from_cur 函数会根据这个值决定root节点*/
 	cur->bc_blocklog = mp->m_sb.sb_blocklog;
 
 	if (btnum == XFS_BTNUM_CNT) {

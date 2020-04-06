@@ -356,6 +356,8 @@ xfs_alloc_compute_diff(
  * len should be k * prod + mod for some k.
  * If len is too small it is returned unchanged.
  * If len hits maxlen it is left alone.
+ *
+ * 调整 args->len, 使得 = k * prod + mod
  */
 STATIC void
 xfs_alloc_fix_len(
@@ -393,7 +395,8 @@ xfs_alloc_fix_len(
  * starting at rbno, rlen blocks.  The extent is contained within the
  * actual (current) free extent fbno for flen blocks.
  * Flags are passed in indicating whether the cursors are set to the
- * relevant records.
+ * relevant records.*
+ * 从 fbno, flen 这个free extent 中删除 rbno, rlen
  */
 STATIC int				/* error code */
 xfs_alloc_fixup_trees(
@@ -482,12 +485,19 @@ xfs_alloc_fixup_trees(
 	}
 	/*
 	 * Delete the entry from the by-size btree.
+	 *
+	 * 不管怎样, fbno,flen这个extent 总是得被删除了
+	 *
+	 * cnt_cur 应该是指的afg 中的count tree
 	 */
 	if ((error = xfs_btree_delete(cnt_cur, &i)))
 		return error;
 	XFS_WANT_CORRUPTED_RETURN(mp, i == 1);
 	/*
 	 * Add new by-size btree entry(s).
+	 *
+	 * [nfbno1, nflen1], [nfbno2, nflen2] 代表删除之后的两个
+	 * 剩余的extent,添加到cnt tree中
 	 */
 	if (nfbno1 != NULLAGBLOCK) {
 		if ((error = xfs_alloc_lookup_eq(cnt_cur, nfbno1, nflen1, &i)))
@@ -507,6 +517,8 @@ xfs_alloc_fixup_trees(
 	}
 	/*
 	 * Fix up the by-block btree entry(s).
+	 *
+	 * 从block tree 中修正他们
 	 */
 	if (nfbno1 == NULLAGBLOCK) {
 		/*
@@ -2377,6 +2389,7 @@ xfs_alloc_get_freelist(
 		logflags |= XFS_AGF_BTREEBLKS;
 	}
 
+	/*agf 变化了,需要重新做日志*/
 	xfs_alloc_log_agf(tp, agbp, logflags);
 	*bnop = bno;
 

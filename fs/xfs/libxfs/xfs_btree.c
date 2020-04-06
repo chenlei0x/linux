@@ -3569,7 +3569,9 @@ xfs_btree_insert(
 	xfs_btree_set_ptr_null(cur, &nptr);
 
 	/* Make a key out of the record data to be inserted, and save it. */
+	/*通过 cur->bc_rec 初始化 rec*/
 	cur->bc_ops->init_rec_from_cur(cur, &rec);
+	/* 通过rec 初始化 key*/
 	cur->bc_ops->init_key_from_rec(key, &rec);
 
 	/*

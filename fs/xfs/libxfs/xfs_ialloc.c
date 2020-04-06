@@ -650,10 +650,16 @@ xfs_ialloc_ag_alloc(
 	agi = XFS_BUF_TO_AGI(agbp);
 	newino = be32_to_cpu(agi->agi_newino);
 	agno = be32_to_cpu(agi->agi_seqno);
+	/*
+	 * 通过inode# 可以确定在ag中的位置
+	 * 上次分配的地方在agi->agi_newino, 长度为args.mp->m_ialloc_blks, 
+	 * 这次尝试着接着上次继续分配
+	 */
 	args.agbno = XFS_AGINO_TO_AGBNO(args.mp, newino) +
 		     args.mp->m_ialloc_blks;
 	if (do_sparse)
 		goto sparse_alloc;
+	/*agi_newino 被初始化为NULLAGINO*/
 	if (likely(newino != NULLAGINO &&
 		  (args.agbno < be32_to_cpu(agi->agi_length)))) {
 		args.fsbno = XFS_AGB_TO_FSB(args.mp, agno, args.agbno);
@@ -1749,6 +1755,7 @@ xfs_dialloc(
 			goto nextag;
 		}
 
+		/*pag中的agi相关字段没有被初始化*/
 		if (!pag->pagi_init) {
 			error = xfs_ialloc_pagi_init(mp, tp, agno);
 			if (error)
@@ -2642,13 +2649,14 @@ xfs_ialloc_read_agi(
 	int			error;
 
 	trace_xfs_ialloc_read_agi(mp, agno);
-
+	/*读取 AGi*/
 	error = xfs_read_agi(mp, tp, agno, bpp);
 	if (error)
 		return error;
 
 	agi = XFS_BUF_TO_AGI(*bpp);
 	pag = xfs_perag_get(mp, agno);
+	/*初始化 pag 中的agi相关字段*/
 	if (!pag->pagi_init) {
 		pag->pagi_freecount = be32_to_cpu(agi->agi_freecount);
 		pag->pagi_count = be32_to_cpu(agi->agi_count);

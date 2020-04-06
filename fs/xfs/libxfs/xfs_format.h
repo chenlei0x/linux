@@ -1283,8 +1283,8 @@ typedef __be32 xfs_alloc_ptr_t;
  * Block numbers in the AG:
  * SB is sector 0, AGF is sector 1, AGI is sector 2, AGFL is sector 3.
  */
-#define	XFS_BNO_BLOCK(mp)	((xfs_agblock_t)(XFS_AGFL_BLOCK(mp) + 1))
-#define	XFS_CNT_BLOCK(mp)	((xfs_agblock_t)(XFS_BNO_BLOCK(mp) + 1))
+#define	XFS_BNO_BLOCK(mp)	((xfs_agblock_t)(XFS_AGFL_BLOCK(mp) + 1)) /*key = block# 的b+ 树, afg树之一*/
+#define	XFS_CNT_BLOCK(mp)	((xfs_agblock_t)(XFS_BNO_BLOCK(mp) + 1)) /*key = block count 的b+ 树, afg树之一*/
 
 
 /*
@@ -1365,8 +1365,8 @@ typedef __be32 xfs_inobt_ptr_t;
 /*
  * block numbers in the AG.
  */
-#define	XFS_IBT_BLOCK(mp)		((xfs_agblock_t)(XFS_CNT_BLOCK(mp) + 1))
-#define	XFS_FIBT_BLOCK(mp)		((xfs_agblock_t)(XFS_IBT_BLOCK(mp) + 1))
+#define	XFS_IBT_BLOCK(mp)		((xfs_agblock_t)(XFS_CNT_BLOCK(mp) + 1)) /*inode btree*/
+#define	XFS_FIBT_BLOCK(mp)		((xfs_agblock_t)(XFS_IBT_BLOCK(mp) + 1)) /*free inode btree*/
 
 /*
  * Reverse mapping btree format definitions
