@@ -217,9 +217,15 @@ typedef struct xfs_btree_cur
 	union xfs_btree_irec	bc_rec;	/* current insert/search record value */
 	struct xfs_buf	*bc_bufs[XFS_BTREE_MAXLEVELS];	/* buf ptr per level */
 
-	/*每层的key 或者record的index*/
+	/*
+	 * 每层的key 或者record的index, 
+	 * bc_ptrs[0] 代表叶子节点的rec index
+	 */
 	int		bc_ptrs[XFS_BTREE_MAXLEVELS];	/* key/record # */
-	/*每一层的buf，和bc_ptrs一一对应*/
+	
+	/*
+	 * 每一层的buf，和bc_ptrs一一对应
+	 */
 	uint8_t		bc_ra[XFS_BTREE_MAXLEVELS];	/* readahead bits */
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */

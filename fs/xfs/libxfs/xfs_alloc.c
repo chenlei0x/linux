@@ -237,6 +237,8 @@ xfs_alloc_get_rec(
 /*
  * Compute aligned version of the found extent.
  * Takes alignment and min length into account.
+ *
+ * 根据对齐和min max 调整found extent
  */
 STATIC bool
 xfs_alloc_compute_aligned(
@@ -258,6 +260,8 @@ xfs_alloc_compute_aligned(
 	/*
 	 * If we have a largish extent that happens to start before min_agbno,
 	 * see if we can shift it into range...
+	 *
+	 * bno 在min 左边,看能不能调整回来
 	 */
 	if (bno < args->min_agbno && bno + len > args->min_agbno) {
 		diff = args->min_agbno - bno;
@@ -1426,6 +1430,10 @@ restart:
 	} else {
 		/*
 		 * Search for a non-busy extent that is large enough.
+		 * 
+		 * 这个循环的过程就是先拿出一个rec, 然后看看合适不,如果不合适
+		 * 通过xfs_btree_increment 拿下一个rec,直到遇到一个合适的rec
+		 *
 		 */
 		for (;;) {
 			error = xfs_alloc_get_rec(cnt_cur, &fbno, &flen, &i);
@@ -1436,9 +1444,15 @@ restart:
 			busy = xfs_alloc_compute_aligned(args, fbno, flen,
 					&rbno, &rlen, &busy_gen);
 
+			/*合适不??*/
 			if (rlen >= args->maxlen)
 				break;
-
+			/*
+			 * 把叶子节点的record index 加一, 也就是指向下一个rec
+			 * 注意, 这里是by-size tree, 下一个rec 会让len增大, 
+			 * 但是bno 在哪并不能确定, 这回让调整之后的得到rlen 可能会
+			 * 变大也可能变小
+			 */
 			error = xfs_btree_increment(cnt_cur, 0, &i);
 			if (error)
 				goto error0;
@@ -1464,10 +1478,14 @@ restart:
 	 * once aligned; if not, we search left for something better.
 	 * This can't happen in the second case above.
 	 */
+	/*
+	 * rlen是按照对齐之后调整的, 调整之后的rlen 可能小于 maxlen
+	 */
 	rlen = XFS_EXTLEN_MIN(args->maxlen, rlen);
 	XFS_WANT_CORRUPTED_GOTO(args->mp, rlen == 0 ||
 			(rlen <= flen && rbno + rlen <= fbno + flen), error0);
 	if (rlen < args->maxlen) {
+		/*只有走到1417 if (!i)行的分支里面才会走到这里*/
 		xfs_agblock_t	bestfbno;
 		xfs_extlen_t	bestflen;
 		xfs_agblock_t	bestrbno;
@@ -1477,6 +1495,10 @@ restart:
 		bestrbno = rbno;
 		bestflen = flen;
 		bestfbno = fbno;
+		/*
+		 * 此处是按照by-size tree 查找的, size 肯定符合要求,但是start bno可能不符合要求
+		 * 所以要一直查找
+		 */
 		for (;;) {
 			if ((error = xfs_btree_decrement(cnt_cur, 0, &i)))
 				goto error0;
@@ -1486,6 +1508,14 @@ restart:
 					&i)))
 				goto error0;
 			XFS_WANT_CORRUPTED_GOTO(args->mp, i == 1, error0);
+			/*
+			 * 这里需要说明一下, 在by-size tree中, key = block count,
+			 * 那么有很多key相同的元素. 当key相同时,按照bno 升序排序
+			 *
+			 * 我们期望decrement操作,可以让block count保持不变,同时bno 减小
+			 * 但是遇到第一个比之前decrement效果还差的,就退出循环
+			 *
+			 */
 			if (flen < bestrlen)
 				break;
 			busy = xfs_alloc_compute_aligned(args, fbno, flen,
@@ -1535,6 +1565,12 @@ restart:
 	 */
 	bno_cur = xfs_allocbt_init_cursor(args->mp, args->tp, args->agbp,
 		args->agno, XFS_BTNUM_BNO);
+	/* 
+	 * fbno flen 是树中的record
+	 * rbno rlen 是调整之后的
+	 *
+	 * 这个函数用来调整afg 中的两个树, 在树中, 把rbno rlen部分从 fbno flen 中删除
+	 */
 	if ((error = xfs_alloc_fixup_trees(cnt_cur, bno_cur, fbno, flen,
 			rbno, rlen, XFSA_FIXUP_CNT_OK)))
 		goto error0;
@@ -1596,6 +1632,8 @@ xfs_alloc_ag_vextent_small(
 	 * Nothing in the btree, try the freelist.  Make sure
 	 * to respect minleft even when pulling from the
 	 * freelist.
+	 *
+	 * btree 中已经没有了
 	 */
 	else if (args->minlen == 1 && args->alignment == 1 &&
 		 args->resv != XFS_AG_RESV_AGFL &&
@@ -2254,12 +2292,14 @@ xfs_alloc_fix_freelist(
 		xfs_rmap_skip_owner_update(&targs.oinfo);
 	else
 		xfs_rmap_ag_owner(&targs.oinfo, XFS_RMAP_OWN_AG);
+	/*把多余的freelist block 释放掉*/
 	while (!(flags & XFS_ALLOC_FLAG_NOSHRINK) && pag->pagf_flcount > need) {
 		struct xfs_buf	*bp;
-
+		/*这里会对pag->pagf_flcount --*/
 		error = xfs_alloc_get_freelist(tp, agbp, &bno, 0);
 		if (error)
 			goto out_agbp_relse;
+		/*从free list中拿到block 然后还回去*/
 		error = xfs_free_ag_extent(tp, agbp, args->agno, bno, 1,
 					   &targs.oinfo, XFS_AG_RESV_AGFL);
 		if (error)
@@ -2284,9 +2324,10 @@ xfs_alloc_fix_freelist(
 		goto out_agbp_relse;
 
 	/* Make the freelist longer if it's too short. */
+	/*给free list 补货*/
 	while (pag->pagf_flcount < need) {
 		targs.agbno = 0;
-		targs.maxlen = need - pag->pagf_flcount;
+		targs.maxlen = need - pag->pagf_flcount; /*规定上限*/
 		targs.resv = XFS_AG_RESV_AGFL;
 
 		/* Allocate as many blocks as possible at once. */
@@ -2308,6 +2349,7 @@ xfs_alloc_fix_freelist(
 		 * Put each allocated block on the list.
 		 */
 		for (bno = targs.agbno; bno < targs.agbno + targs.len; bno++) {
+			/*这里会对pag->pagf_flcount ++*/
 			error = xfs_alloc_put_freelist(tp, agbp,
 							agflbp, bno, 0);
 			if (error)

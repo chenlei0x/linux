@@ -475,7 +475,7 @@ xfs_rmapbt_init_cursor(
 	cur->bc_tp = tp;
 	cur->bc_mp = mp;
 	/* Overlapping btree; 2 keys per pointer. */
-	cur->bc_btnum = XFS_BTNUM_RMAP;
+	cur->bc_btnum = XFS_BTNUM_RMAP; /*xfs_rmapbt_init_ptr_from_cur 会用到*/
 	cur->bc_flags = XFS_BTREE_CRC_BLOCKS | XFS_BTREE_OVERLAPPING;
 	cur->bc_blocklog = mp->m_sb.sb_blocklog;
 	cur->bc_ops = &xfs_rmapbt_ops;

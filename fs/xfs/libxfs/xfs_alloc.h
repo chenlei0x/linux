@@ -64,6 +64,7 @@ typedef unsigned int xfs_alloctype_t;
 typedef struct xfs_alloc_arg {
 	struct xfs_trans *tp;		/* transaction pointer */
 	struct xfs_mount *mp;		/* file system mount point */
+	/*ag buffer 注释错*/
 	struct xfs_buf	*agbp;		/* buffer for a.g. freelist header */
 	struct xfs_perag *pag;		/* per-ag struct for this agno */
 	struct xfs_inode *ip;		/* for userdata zeroing method */

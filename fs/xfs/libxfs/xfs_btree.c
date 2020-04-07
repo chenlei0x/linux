@@ -1591,6 +1591,8 @@ xfs_btree_log_block(
  * Increment cursor by one record at the level.
  * For nonzero levels the leaf-ward information is untouched.
  *
+ * 将cursor 在level层的ptr 指向下一个
+ *
  * 能调用这个函数说明cursor指向的已经是一个没有右边sibling的btree block
  * keyno > xfs_btree_get_numrecs(block)
  */
@@ -1983,11 +1985,12 @@ xfs_btree_lookup(
 				 *  - kp < cur  === less than, move right    ====>cur > kp
 				 *  - greater than, move left
 				 *  - equal, we're done
+				 * cur 代表要找的目标
 				 */
 				diff = cur->bc_ops->key_diff(cur, kp);
-				if (diff < 0)
+				if (diff < 0) /*cur > kp*/
 					low = keyno + 1;
-				else if (diff > 0)
+				else if (diff > 0) /*cur < kp*/
 					high = keyno - 1;
 				else
 					break;
@@ -4406,6 +4409,7 @@ xfs_btree_get_rec(
 
 	/*
 	 * Off the right end or left end, return failure.
+	 * ptr 超范围了
 	 */
 	if (ptr > xfs_btree_get_numrecs(block) || ptr <= 0) {
 		*stat = 0;

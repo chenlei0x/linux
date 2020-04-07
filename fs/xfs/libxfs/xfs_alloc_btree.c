@@ -264,6 +264,8 @@ xfs_bnobt_key_diff(
 	return (int64_t)be32_to_cpu(kp->ar_startblock) - rec->ar_startblock;
 }
 
+
+/*block count 相同的情况下, 按照startblock升序排列*/
 STATIC int64_t
 xfs_cntbt_key_diff(
 	struct xfs_btree_cur	*cur,
