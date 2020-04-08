@@ -2454,6 +2454,8 @@ unsigned int blk_rq_err_bytes(const struct request *rq)
 }
 EXPORT_SYMBOL_GPL(blk_rq_err_bytes);
 
+
+/*调用bio_endio之前 调用*/
 void blk_account_io_completion(struct request *req, unsigned int bytes)
 {
 	if (blk_do_io_stat(req)) {
@@ -2468,6 +2470,7 @@ void blk_account_io_completion(struct request *req, unsigned int bytes)
 	}
 }
 
+/*调用完bio_endio后调用,表示彻底完了*/
 void blk_account_io_done(struct request *req)
 {
 	/*
@@ -2753,6 +2756,8 @@ EXPORT_SYMBOL(blk_fetch_request);
  *     %false - this request doesn't have any more data
  *     %true  - this request has more data
  * 让一个req 完成@nr_bytes
+ *
+ * 调用 bio_endio
  **/
 bool blk_update_request(struct request *req, blk_status_t error,
 		unsigned int nr_bytes)

@@ -428,6 +428,12 @@ struct request_queue {
 	make_request_fn		*make_request_fn;
 	prep_rq_fn		*prep_rq_fn;
 	unprep_rq_fn		*unprep_rq_fn;
+	
+	/*
+	 * 其实就是blk_mq_ops 的complete 函数
+	 * blk_mq_init_allocated_queue
+	 * ====> blk_queue_softirq_done(q, set->ops->complete);	
+	 */
 	softirq_done_fn		*softirq_done_fn;
 	rq_timed_out_fn		*rq_timed_out_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
