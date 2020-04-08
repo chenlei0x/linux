@@ -167,6 +167,7 @@ xfs_trans_get_buf_map(
 		return bp;
 	}
 
+	/*申请buf*/
 	bp = xfs_buf_get_map(target, map, nmaps, flags);
 	if (bp == NULL) {
 		return NULL;

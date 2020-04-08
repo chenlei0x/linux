@@ -1612,6 +1612,8 @@ typedef enum {
 
 /*
  * Incore version of above.
+ *
+ * 文件 tree的 leaf节点的一个record
  */
 typedef struct xfs_bmbt_irec
 {

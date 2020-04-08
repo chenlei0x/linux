@@ -670,6 +670,7 @@ xfs_buf_get_map(
 	if (unlikely(!new_bp))
 		return NULL;
 
+	/*根据new_bp->b_length 申请内存*/
 	error = xfs_buf_allocate_memory(new_bp, flags);
 	if (error) {
 		xfs_buf_free(new_bp);

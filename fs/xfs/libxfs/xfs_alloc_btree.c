@@ -92,7 +92,9 @@ xfs_allocbt_alloc_block(
 
 	xfs_extent_busy_reuse(cur->bc_mp, cur->bc_private.a.agno, bno, 1, false);
 
+	/*空函数*/
 	xfs_trans_agbtree_delta(cur->bc_tp, 1);
+	
 	new->s = cpu_to_be32(bno);
 
 	XFS_BTREE_TRACE_CURSOR(cur, XBT_EXIT);

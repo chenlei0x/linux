@@ -1227,7 +1227,8 @@ xfs_btree_is_lastrec(
 }
 
 
-/*buf addr 转为 ptr, ptr 分长短*/
+/*buf 对应的磁盘 block addr 转为 ptr, 
+ ptr 分长短*/
 STATIC void
 xfs_btree_buf_to_ptr(
 	struct xfs_btree_cur	*cur,
@@ -2743,6 +2744,8 @@ error1:
  * Split cur/level block in half.
  * Return new block number and the key to its first
  * record (to be inserted into parent).
+ * 从level所指向的节点作为 left 
+ * 从其右边新生成一个right bloc, 然后平分
  */
 STATIC int					/* error */
 __xfs_btree_split(
@@ -2783,10 +2786,11 @@ __xfs_btree_split(
 	if (error)
 		goto error0;
 #endif
-
+	/*磁盘block # ====> lptr*/
 	xfs_btree_buf_to_ptr(cur, lbp, &lptr);
 
 	/* Allocate the new block. If we can't do it, we're toast. Give up. */
+	/*申请一个新的block, 其地址放到rptr中*/
 	error = cur->bc_ops->alloc_block(cur, &lptr, &rptr, stat);
 	if (error)
 		goto error0;
@@ -2795,17 +2799,21 @@ __xfs_btree_split(
 	XFS_BTREE_STATS_INC(cur, alloc);
 
 	/* Set up the new block as "right". */
+	/*rptr 既然是个指针,就有硬盘上的对应的block, rbp right 用来指向他的buf和磁盘内容*/
 	error = xfs_btree_get_buf_block(cur, &rptr, 0, &right, &rbp);
 	if (error)
 		goto error0;
 
 	/* Fill in the btree header for the new right block. */
+	/*初始化这个block相关的一些元信息*/
 	xfs_btree_init_block_cur(cur, rbp, xfs_btree_get_level(left), 0);
 
 	/*
 	 * Split the entries between the old and the new block evenly.
 	 * Make sure that if there's an odd number of entries now, that
 	 * each new block will have the same number of entries.
+	 *
+	 * 开始搬运key -pointer 或者 records
 	 */
 	lrecs = xfs_btree_get_numrecs(left);
 	rrecs = lrecs / 2;
@@ -2873,6 +2881,8 @@ __xfs_btree_split(
 	/*
 	 * Find the left block number by looking in the buffer.
 	 * Adjust sibling pointers.
+	 *
+	 * 左右sibling相互绑定一下
 	 */
 	xfs_btree_get_sibling(cur, left, &rrptr, XFS_BB_RIGHTSIB);
 	xfs_btree_set_sibling(cur, right, &rrptr, XFS_BB_RIGHTSIB);
@@ -2887,10 +2897,13 @@ __xfs_btree_split(
 	 * point back to right instead of to left.
 	 */
 	if (!xfs_btree_ptr_is_null(cur, &rrptr)) {
+		/*rrblock 是新block 的右边的block		 */
 		error = xfs_btree_read_buf_block(cur, &rrptr,
 							0, &rrblock, &rrbp);
 		if (error)
 			goto error0;
+
+		/*rrblock->left = rptr*/
 		xfs_btree_set_sibling(cur, rrblock, &rptr, XFS_BB_LEFTSIB);
 		xfs_btree_log_block(cur, rrbp, XFS_BB_LEFTSIB);
 	}
@@ -3327,6 +3340,29 @@ xfs_btree_make_block_unfull(
 /*
  * Insert one record/level.  Return information to the caller
  * allowing the next level up to proceed if necessary.
+ * 只在这个@level层级 进行插入一个block
+ 
+ 
+ 
+															   new
+ 
+ +----------------------------------------+ 			 +---------------------------------------+
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ |		 |		   |		 |			  | 			 |		 |		 |		   |			 |
+ +----------------------------------------+ 			 +---------------------------------------+
+ 
+ 
+ 
+ 
+ 
+
+ 
  */
 STATIC int
 xfs_btree_insrec(
@@ -3548,6 +3584,9 @@ error0:
  * A multi-level split of the tree on insert will invalidate the original
  * cursor.  All callers of this function should assume that the cursor is
  * no longer valid and revalidate it.
+ *
+ * 对每个level 进行插入,因为下层插入一条 可能会让整个祖先分裂
+ *
  */
 int
 xfs_btree_insert(
@@ -3596,7 +3635,7 @@ xfs_btree_insert(
 		}
 
 		XFS_WANT_CORRUPTED_GOTO(cur->bc_mp, i == 1, error0);
-		level++;
+		level++; /*往root方向,可能需要继续插入*/
 
 		/*
 		 * See if the cursor we just used is trash.

@@ -230,9 +230,10 @@ typedef struct xfs_btree_cur
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */
 
-/* cur->bc_nlevels - 1 表明是第一层*/
+/* cur->bc_nlevels - 1 表明是第一层, leaf 为0层*/
 	uint8_t		bc_nlevels;	/* number of levels in the tree */
 	uint8_t		bc_blocklog;	/* log2(blocksize) of btree blocks */
+	/*btree 类型, 会根据他生成ptr*/
 	xfs_btnum_t	bc_btnum;	/* identifies which btree type */
 	int		bc_statoff;	/* offset of btre stats array */
 	union {
