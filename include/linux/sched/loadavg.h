@@ -24,6 +24,11 @@ extern void get_avenrun(unsigned long *loads, unsigned long offset, int shift);
 
 /*
  * a1 = a0 * e + a * (1 - e)
+ *
+ * 用历史值和新值及其权重来计算新的load值
+ * @load 为历史值
+ * @active 为新值
+ * exp 为load权重, 1-exp为active 权重
  */
 static inline unsigned long
 calc_load(unsigned long load, unsigned long exp, unsigned long active)
