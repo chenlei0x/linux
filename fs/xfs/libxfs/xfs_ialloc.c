@@ -1771,6 +1771,7 @@ xfs_dialloc(
 		/*
 		 * Then read in the AGI buffer and recheck with the AGI buffer
 		 * lock held.
+		 * agi 读取上来放到agbp里面, agi 在第3个sector中,也就是第3个BB中
 		 */
 		error = xfs_ialloc_read_agi(mp, tp, agno, &agbp);
 		if (error)

@@ -765,6 +765,7 @@ typedef struct xfs_agi {
 	__be32		agi_level;	/* levels in inode btree */
 	__be32		agi_freecount;	/* number of free inodes */
 
+	/*上次分配的inode# 存储在agi->agi_newino, 长度为args.mp->m_ialloc_blks*/
 	__be32		agi_newino;	/* new inode just allocated */
 	__be32		agi_dirino;	/* last directory inode chunk */
 	/*

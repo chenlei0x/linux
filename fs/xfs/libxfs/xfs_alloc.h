@@ -68,7 +68,14 @@ typedef struct xfs_alloc_arg {
 	struct xfs_buf	*agbp;		/* buffer for a.g. freelist header */
 	struct xfs_perag *pag;		/* per-ag struct for this agno */
 	struct xfs_inode *ip;		/* for userdata zeroing method */
+
+	/*
+	 * fsb 的大小在mkfs中可以指定 默认4k
+	 * fsb 也是申请的结果
+	 * fsbno = (agno << ag_shift) | agbno
+	 */
 	xfs_fsblock_t	fsbno;		/* file system block number */
+	/*申请的结果放到 agno 和 agbno中*/
 	xfs_agnumber_t	agno;		/* allocation group number */
 	xfs_agblock_t	agbno;		/* allocation group-relative block # */
 	xfs_extlen_t	minlen;		/* minimum size of extent */
@@ -84,6 +91,8 @@ typedef struct xfs_alloc_arg {
 	xfs_extlen_t	len;		/* output: actual size of extent */
 	xfs_alloctype_t	type;		/* allocation type XFS_ALLOCTYPE_... */
 	xfs_alloctype_t	otype;		/* original allocation type */
+
+	/*xfs_alloc_is_userdata 函数可以确定是否是 用户数据*/
 	int		datatype;	/* mask defining data type treatment */
 	char		wasdel;		/* set if allocation was prev delayed */
 	char		wasfromfl;	/* set if allocation is from freelist */
