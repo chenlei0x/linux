@@ -122,6 +122,7 @@ ftrace_func_t ftrace_trace_function __read_mostly = ftrace_stub;
 struct ftrace_ops global_ops;
 
 #if ARCH_SUPPORTS_FTRACE_OPS
+/*x86 这个函数是一个ftrace_func_t 类型的*/
 static void ftrace_ops_list_func(unsigned long ip, unsigned long parent_ip,
 				 struct ftrace_ops *op, struct pt_regs *regs);
 #else
@@ -182,6 +183,7 @@ static ftrace_func_t ftrace_ops_get_list_func(struct ftrace_ops *ops)
 	return ftrace_ops_get_func(ops);
 }
 
+/*更新 ftrace_trace_function 全局变量*/
 static void update_ftrace_function(void)
 {
 	ftrace_func_t func;
@@ -205,9 +207,11 @@ static void update_ftrace_function(void)
 	 */
 	} else if (rcu_dereference_protected(ftrace_ops_list->next,
 			lockdep_is_held(&ftrace_lock)) == &ftrace_list_end) {
+			/*只剩下最后一个了*/
 		func = ftrace_ops_get_list_func(ftrace_ops_list);
 
 	} else {
+		/*还有多个ops, 那就通过ftrace_ops_list_func 去挨个调用每个ops的func*/
 		/* Just use the default ftrace_ops */
 		set_function_trace_op = &ftrace_list_end;
 		func = ftrace_ops_list_func;
@@ -261,6 +265,7 @@ static void update_ftrace_function(void)
 	ftrace_trace_function = func;
 }
 
+/*@list 为 &ftrace_ops_list*/
 static void add_ftrace_ops(struct ftrace_ops __rcu **list,
 			   struct ftrace_ops *ops)
 {
@@ -288,6 +293,8 @@ static int remove_ftrace_ops(struct ftrace_ops __rcu **list,
 			lockdep_is_held(&ftrace_lock)) == ops &&
 	    rcu_dereference_protected(ops->next,
 			lockdep_is_held(&ftrace_lock)) == &ftrace_list_end) {
+
+		/*这种情况下,ops 后面就是ftrace_list_end, 所以他是最后一个ops */
 		*list = &ftrace_list_end;
 		return 0;
 	}
@@ -332,6 +339,7 @@ int __register_ftrace_function(struct ftrace_ops *ops)
 	if (!core_kernel_data((unsigned long)ops))
 		ops->flags |= FTRACE_OPS_FL_DYNAMIC;
 
+	/*加入ftrace_ops_list中, 头插法*/
 	add_ftrace_ops(&ftrace_ops_list, ops);
 
 	/* Always save the function, and reset at unregistering */
@@ -340,6 +348,7 @@ int __register_ftrace_function(struct ftrace_ops *ops)
 	if (ftrace_pids_enabled(ops))
 		ops->func = ftrace_pid_func;
 
+	/*每个ops都有自己的trampoline*/
 	ftrace_update_trampoline(ops);
 
 	if (ftrace_enabled)
@@ -1145,6 +1154,8 @@ __ftrace_lookup_ip(struct ftrace_hash *hash, unsigned long ip)
  * exists in it.
  *
  * Returns the entry that holds the @ip if found. NULL otherwise.
+ *
+ * 在ftrace_hash中查找 ip
  */
 struct ftrace_func_entry *
 ftrace_lookup_ip(struct ftrace_hash *hash, unsigned long ip)
@@ -1367,6 +1378,7 @@ ftrace_hash_rec_enable_modify(struct ftrace_ops *ops, int filter_hash);
 static int ftrace_hash_ipmodify_update(struct ftrace_ops *ops,
 				       struct ftrace_hash *new_hash);
 
+/*把src中的所有entry 搬移到 new_hash中*/
 static struct ftrace_hash *dup_hash(struct ftrace_hash *src, int size)
 {
 	struct ftrace_func_entry *entry;
@@ -1414,9 +1426,11 @@ __ftrace_hash_move(struct ftrace_hash *src)
 	if (ftrace_hash_empty(src))
 		return EMPTY_HASH;
 
+	/*从src中搬移到新hash中*/
 	return dup_hash(src, size);
 }
 
+/*dst = &ops->func_hash->filter_hash*/
 static int
 ftrace_hash_move(struct ftrace_ops *ops, int enable,
 		 struct ftrace_hash **dst, struct ftrace_hash *src)
@@ -1428,9 +1442,11 @@ ftrace_hash_move(struct ftrace_ops *ops, int enable,
 	if (ops->flags & FTRACE_OPS_FL_IPMODIFY && !enable)
 		return -EINVAL;
 
+	/*搬移src到new_hash*/
 	new_hash = __ftrace_hash_move(src);
 	if (!new_hash)
 		return -ENOMEM;
+	/*src中现在没有entry了*/
 
 	/* Make sure this can be applied if it is IPMODIFY ftrace_ops */
 	if (enable) {
@@ -1638,6 +1654,8 @@ ftrace_find_tramp_ops_any(struct dyn_ftrace *rec);
 static struct ftrace_ops *
 ftrace_find_tramp_ops_next(struct dyn_ftrace *rec, struct ftrace_ops *ops);
 
+
+/*根据ops 更新所有的rec*/
 static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
 				     int filter_hash,
 				     bool inc)
@@ -1721,7 +1739,7 @@ static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
 			continue;
 
 		if (inc) {
-			rec->flags++;
+			rec->flags++; /*ftrace_rec_count(rec)++*/
 			if (FTRACE_WARN_ON(ftrace_rec_count(rec) == FTRACE_REF_MAX))
 				return false;
 
@@ -1843,12 +1861,15 @@ static void ftrace_hash_rec_update_modify(struct ftrace_ops *ops,
 	} while_for_each_ftrace_op(op);
 }
 
+/*rec中的每个ref count --*/
 static void ftrace_hash_rec_disable_modify(struct ftrace_ops *ops,
 					   int filter_hash)
 {
 	ftrace_hash_rec_update_modify(ops, filter_hash, 0);
 }
 
+
+/*rec中的每个ref count ++*/
 static void ftrace_hash_rec_enable_modify(struct ftrace_ops *ops,
 					  int filter_hash)
 {
@@ -1856,6 +1877,7 @@ static void ftrace_hash_rec_enable_modify(struct ftrace_ops *ops,
 }
 
 /*
+ * ftrace_rec 应该就是dyn_ftrace, 对每个rec更新FTRACE_FL_IPMODIFY 标记
  * Try to update IPMODIFY flag on each ftrace_rec. Return 0 if it is OK
  * or no-needed to update, -EBUSY if it detects a conflict of the flag
  * on a ftrace_rec, and -EINVAL if the new_hash tries to trace all recs.
@@ -1893,6 +1915,7 @@ static int __ftrace_hash_update_ipmodify(struct ftrace_ops *ops,
 			continue;
 
 		/* We need to update only differences of filter_hash */
+		
 		in_old = !!ftrace_lookup_ip(old_hash, rec->ip);
 		in_new = !!ftrace_lookup_ip(new_hash, rec->ip);
 		if (in_old == in_new)
@@ -2072,6 +2095,7 @@ void ftrace_bug(int failed, struct dyn_ftrace *rec)
 	}
 }
 
+/*检查并更新各种flag*/
 static int ftrace_check_record(struct dyn_ftrace *rec, bool enable, bool update)
 {
 	unsigned long flag = 0UL;
@@ -2102,6 +2126,7 @@ static int ftrace_check_record(struct dyn_ftrace *rec, bool enable, bool update)
 	 * Same for direct calls.
 	 */
 	if (flag) {
+		/*flag记录xxx状态, 当xxx_EN != xxx*/
 		if (!(rec->flags & FTRACE_FL_REGS) !=
 		    !(rec->flags & FTRACE_FL_REGS_EN))
 			flag |= FTRACE_FL_REGS;
@@ -2180,6 +2205,7 @@ static int ftrace_check_record(struct dyn_ftrace *rec, bool enable, bool update)
 		 *   from the save regs, to a non-save regs function or
 		 *   vice versa, or from a trampoline call.
 		 */
+		 /*走到这里说明 flag = FTRACE_FL_ENABLED 但是 rec->flags = !FTRACE_FL_ENABLED */
 		if (flag & FTRACE_FL_ENABLED) {
 			ftrace_bug_type = FTRACE_BUG_CALL;
 			return FTRACE_UPDATE_MAKE_CALL;
@@ -2445,6 +2471,8 @@ unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec)
  * represents the current state of the function.
  *
  * Returns the address of the trampoline that is currently being called
+ *
+ * 根据flag 返回当前的caller (regs 还是 非 regs)
  */
 unsigned long ftrace_get_addr_curr(struct dyn_ftrace *rec)
 {
@@ -2667,6 +2695,9 @@ void ftrace_modify_all_code(int command)
 	 * traced.
 	 */
 	if (update) {
+		/*
+		 * 让ftrace_caller 及ftrace_regs_caller 调用ftrace_ops_list_func
+		 */
 		err = ftrace_update_ftrace_func(ftrace_ops_list_func);
 		if (FTRACE_WARN_ON(err))
 			return;
@@ -2728,6 +2759,7 @@ void __weak arch_ftrace_update_code(int command)
 	ftrace_run_stop_machine(command);
 }
 
+/*根据command 修改每个dyn_ftrace 对应的代码*/
 static void ftrace_run_update_code(int command)
 {
 	int ret;
@@ -4020,6 +4052,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	} while_for_each_ftrace_op(op);
 }
 
+/*orig_hash = &ops->func_hash->filter_hash*/
 static int ftrace_hash_move_and_update_ops(struct ftrace_ops *ops,
 					   struct ftrace_hash **orig_hash,
 					   struct ftrace_hash *hash,
@@ -4030,8 +4063,10 @@ static int ftrace_hash_move_and_update_ops(struct ftrace_ops *ops,
 	int ret;
 
 	old_hash = *orig_hash;
+	/*保留原始的指针*/
 	old_hash_ops.filter_hash = ops->func_hash->filter_hash;
 	old_hash_ops.notrace_hash = ops->func_hash->notrace_hash;
+	/*hash ===[move]===> orig_hash*/
 	ret = ftrace_hash_move(ops, enable, orig_hash, hash);
 	if (!ret) {
 		ftrace_ops_update_code(ops, &old_hash_ops);
@@ -4864,6 +4899,7 @@ ftrace_match_addr(struct ftrace_hash *hash, unsigned long ip, int remove)
 {
 	struct ftrace_func_entry *entry;
 
+	/*这个ip是不是一个dyn_ftrace 对应的可以修改指令的地方*/
 	if (!ftrace_location(ip))
 		return -EINVAL;
 
@@ -4875,6 +4911,7 @@ ftrace_match_addr(struct ftrace_hash *hash, unsigned long ip, int remove)
 		return 0;
 	}
 
+	/*这个ip 需要被该ftrace_ops接管, 所以把他添加到自己的哈希表中*/
 	return add_hash_entry(hash, ip);
 }
 
@@ -4899,6 +4936,7 @@ ftrace_set_hash(struct ftrace_ops *ops, unsigned char *buf, int len,
 	if (reset)
 		hash = alloc_ftrace_hash(FTRACE_HASH_DEFAULT_BITS);
 	else
+		/*复制orig_hash中的每一条*/
 		hash = alloc_and_copy_ftrace_hash(FTRACE_HASH_DEFAULT_BITS, *orig_hash);
 
 	if (!hash) {
@@ -4911,6 +4949,7 @@ ftrace_set_hash(struct ftrace_ops *ops, unsigned char *buf, int len,
 		goto out_regex_unlock;
 	}
 	if (ip) {
+		/*这里会把该ip 从hash加入或者删除*/
 		ret = ftrace_match_addr(hash, ip, remove);
 		if (ret < 0)
 			goto out_regex_unlock;
@@ -6798,6 +6837,7 @@ void ftrace_reset_array_ops(struct trace_array *tr)
 	tr->ops->func = ftrace_stub;
 }
 
+/*对每个ftrace_ops 的func进行调用*/
 static nokprobe_inline void
 __ftrace_ops_list_func(unsigned long ip, unsigned long parent_ip,
 		       struct ftrace_ops *ignored, struct pt_regs *regs)

@@ -81,6 +81,7 @@ ftrace_text_replace(unsigned char op, unsigned long ip, unsigned long addr)
 	return calc.code;
 }
 
+/*生成替换指令, 0xe8为call*/
 static unsigned char *
 ftrace_call_replace(unsigned long ip, unsigned long addr)
 {
@@ -265,6 +266,12 @@ static int update_ftrace_func(unsigned long ip, void *new)
 	return ret;
 }
 
+/*
+ * ftrace_caller 中 ftrace_call 指向需要替换指令的地方
+ * ftrace_regs_caller 中 ftrace_regs_call 指向需要替换指令的地方
+ *
+ * 替换这两个地方的call 指令 使之call @func
+ */
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
 	unsigned long ip = (unsigned long)(&ftrace_call);
@@ -273,7 +280,9 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
 
 	ftrace_update_func_call = (unsigned long)func;
 
+	/*new 为替换的指令*/
 	new = ftrace_call_replace(ip, (unsigned long)func);
+	/*把new 指令写入ip指向的地址中*/
 	ret = update_ftrace_func(ip, new);
 
 	/* Also update the regs callback function */
@@ -481,6 +490,11 @@ static int add_update_nop(struct dyn_ftrace *rec)
 	return add_update_code(ip, new);
 }
 
+/*
+ * 根据rec中的flags 拿到一个合适的ftrace_addr, 然后根据ret值更新为不同
+ * 的指令
+ * @enable = FTRACE_MODIFY_ENABLE_FL
+ */
 static int add_update(struct dyn_ftrace *rec, bool enable)
 {
 	unsigned long ftrace_addr;
@@ -576,6 +590,7 @@ static void run_sync(void)
 		local_irq_disable();
 }
 
+/*对每个dyn_ftrace rec ,修改其指令*/
 void ftrace_replace_code(int enable)
 {
 	struct ftrace_rec_iter *iter;
@@ -600,7 +615,7 @@ void ftrace_replace_code(int enable)
 
 	for_ftrace_rec_iter(iter) {
 		rec = ftrace_rec_iter_record(iter);
-
+		/*这里会强制生成nop指令*/
 		ret = add_update(rec, enable);
 		if (ret)
 			goto remove_breakpoints;
@@ -614,7 +629,7 @@ void ftrace_replace_code(int enable)
 
 	for_ftrace_rec_iter(iter) {
 		rec = ftrace_rec_iter_record(iter);
-
+		/*这里会对每个rec 设置FTRACE_FL_ENABLED, 并生成最终的跳转代码*/
 		ret = finish_update(rec, enable);
 		if (ret)
 			goto remove_breakpoints;

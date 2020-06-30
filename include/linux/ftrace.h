@@ -416,6 +416,10 @@ enum {
 	FTRACE_FL_ENABLED	= (1UL << 31),
 	FTRACE_FL_REGS		= (1UL << 30),
 	FTRACE_FL_REGS_EN	= (1UL << 29),
+	/*
+	 * 当某个rec 只需要被一个ops处理,那么这时候就可以用TRAMP, 速度更快
+	 * 否则需要经过ftrace_ops_list_func,层层循环比较慢
+	 */
 	FTRACE_FL_TRAMP		= (1UL << 28),
 	FTRACE_FL_TRAMP_EN	= (1UL << 27),
 	FTRACE_FL_IPMODIFY	= (1UL << 26),
@@ -453,6 +457,8 @@ void ftrace_ops_set_global_filter(struct ftrace_ops *ops);
 enum {
 	FTRACE_UPDATE_CALLS		= (1 << 0),
 	FTRACE_DISABLE_CALLS		= (1 << 1),
+	
+	/*使ftrace_caller ftrace_regs_caller 调用ftrace_ops_list_func*/
 	FTRACE_UPDATE_TRACE_FUNC	= (1 << 2),
 	FTRACE_START_FUNC_RET		= (1 << 3),
 	FTRACE_STOP_FUNC_RET		= (1 << 4),
@@ -512,6 +518,7 @@ unsigned long ftrace_location_range(unsigned long start, unsigned long end);
 unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec);
 unsigned long ftrace_get_addr_curr(struct dyn_ftrace *rec);
 
+/*初始化为 ftrace_stub*/
 extern ftrace_func_t ftrace_trace_function;
 
 int ftrace_regex_open(struct ftrace_ops *ops, int flag,

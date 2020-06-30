@@ -24,6 +24,7 @@
 	while (likely(op = rcu_dereference_raw_check((op)->next)) &&	\
 	       unlikely((op) != &ftrace_list_end))
 
+/*ftrace_ops_list 初始化为ftrace_list_end*/
 extern struct ftrace_ops __rcu *ftrace_ops_list;
 extern struct ftrace_ops ftrace_list_end;
 extern struct mutex ftrace_lock;

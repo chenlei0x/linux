@@ -3007,6 +3007,8 @@ static void free_copy(struct load_info *info)
 	vfree(info->hdr);
 }
 
+
+/*section 的起始位置 从offset 转换为 内存地址*/
 static int rewrite_section_headers(struct load_info *info, int flags)
 {
 	unsigned int i;
@@ -3047,6 +3049,8 @@ static int rewrite_section_headers(struct load_info *info, int flags)
  *
  * Set info->mod to the temporary copy of the module in info->hdr. The final one
  * will be allocated in move_module().
+ *
+ * 初始化 section header 数组指针  string table 指针 symbole table
  */
 static int setup_load_info(struct load_info *info, int flags)
 {
@@ -4020,6 +4024,7 @@ SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs, int, flags)
 	info.hdr = hdr;
 	info.len = size;
 
+	/*把module 文件全部读进来, info.hdr 指向这个buffer, info.len 为module文件长度*/
 	return load_module(&info, uargs, flags);
 }
 
