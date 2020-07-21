@@ -2041,7 +2041,8 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  */
 #define I_DIRTY_SYNC		(1 << 0) /*inode脏了,虽然脏了,但是不一定需要刷下去,比如inode的属性(如:访问时间)改变*/
 /*
- * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。当fdatasync发现了I_DIRTY_DATASYNC被设置，
+ * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。
+ * 当fdatasync发现了I_DIRTY_DATASYNC被设置，
  * 就知道metadata需要马上回写了
  */
 #define I_DIRTY_DATASYNC	(1 << 1)

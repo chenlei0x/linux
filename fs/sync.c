@@ -225,7 +225,10 @@ static int do_fsync(unsigned int fd, int datasync)
 	}
 	return ret;
 }
-
+/*
+fsync: 同步文件的数据块及metadata.
+fdatasync: 同步文件的数据块，在必要时候同步metadata.
+*/
 SYSCALL_DEFINE1(fsync, unsigned int, fd)
 {
 	return do_fsync(fd, 0);
