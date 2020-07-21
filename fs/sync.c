@@ -180,6 +180,9 @@ SYSCALL_DEFINE1(syncfs, int, fd)
  * Write back data in range @start..@end and metadata for @file to disk.  If
  * @datasync is set only metadata needed to access modified file data is
  * written.
+ *
+ * @datasync  0 表示 meta + data 都同步  
+              1 表示只同步data
  */
 int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 {

@@ -640,6 +640,8 @@ struct inode {
 	unsigned long		dirtied_time_when;
 
 	struct hlist_node	i_hash;
+
+	/*这个点用来挂载到wb中*/
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
 	struct bdi_writeback	*i_wb;		/* the associated cgroup wb */
@@ -1829,6 +1831,38 @@ struct super_operations {
    	void (*dirty_inode) (struct inode *, int flags);
 	int (*write_inode) (struct inode *, struct writeback_control *wbc);
 	int (*drop_inode) (struct inode *);
+
+	
+	/*
+	以下解释了evict_inode的函数作用
+	I think you're confused about what evict_inode() does.  The i_count
+	field tracks how many in-memory references the inode has.  Each iput()
+	decrements i_count.  Once i_count goes to zero, there are no more open
+	file descriptors for that inode.
+
+	Then there is also i_nlink.  This is the number of directory entries
+	which point at the inode on disk.  When you unlink() a file, this
+	drops the i_nlink on the inode.  When i_nlink drops to zero, then the
+	inode is no longer referenced by any directory entry.  But, this
+	doesn't mean we can actually release the inode and the blocks
+	associated with the file --- Unix semantics is that you can have an
+	open file descriptor on an unlinked file, and when the last fd is
+	closed, only then does the inode get released.
+
+	evict_inode() is what happens when i_nlink *and* i_icount hits zero.
+	So it is only then that the local disk file system can actually
+	release the inode and blocks associated with that inode.
+
+	So by the time the file system's evict_inode() is called, the inode is
+	not coming back.  With apologies to Monty Python, the inode is no
+	more; it has ceased to be.  It's expired and gone to meet its
+	maker..... It is an ex-inode.  :-)
+
+	Hence, there is no point trying to worry about what hapens if the file
+	is reopened again, since the original inode is *gone*.  You could
+	create a new file with the same file name, but none of the resources
+	associated with the old inode need to be preserved for the newly
+*/
 	void (*evict_inode) (struct inode *);
 	void (*put_super) (struct super_block *);
 	int (*sync_fs)(struct super_block *sb, int wait);
@@ -2019,6 +2053,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define __I_DIO_WAKEUP		9
 #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
 #define I_LINKABLE		(1 << 10)
+/*只有时间戳脏了*/
 #define I_DIRTY_TIME		(1 << 11)
 #define __I_DIRTY_TIME_EXPIRED	12
 #define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
@@ -3211,8 +3246,10 @@ static inline int iocb_flags(struct file *file)
 		res |= IOCB_APPEND;
 	if (io_is_direct(file))
 		res |= IOCB_DIRECT;
+	/*纯用户数据同步*/
 	if ((file->f_flags & O_DSYNC) || IS_SYNC(file->f_mapping->host))
 		res |= IOCB_DSYNC;
+	/*只有open时用O_SYNC 标记才会有_O_SYNC，表示数据和元数据都同步*/
 	if (file->f_flags & __O_SYNC)
 		res |= IOCB_SYNC;
 	return res;

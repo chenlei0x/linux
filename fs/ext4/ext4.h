@@ -1097,7 +1097,7 @@ struct ext4_inode_info {
 	 * Transactions that contain inode's metadata needed to complete
 	 * fsync and fdatasync, respectively.
 	 */
-	tid_t i_sync_tid;
+	tid_t i_sync_tid; /*我这个inode 在哪个journal transaction中?*/
 	tid_t i_datasync_tid;
 
 #ifdef CONFIG_QUOTA
@@ -1413,6 +1413,7 @@ struct ext4_sb_info {
 	unsigned short s_mount_state;
 	unsigned short s_pad;
 	int s_addr_per_block_bits;
+	/*每个block内含有多少个group desc，log2 对数*/
 	int s_desc_per_block_bits;
 	int s_inode_size;
 	int s_first_ino;
@@ -1461,8 +1462,14 @@ struct ext4_sb_info {
 #endif
 
 	/* for buddy allocator */
-	struct ext4_group_info ***s_group_info; /*[block#][grp_offset_in_blk] = ext4_group_info *     */
-	struct inode *s_buddy_cache; /*所有的group bitmap 和buddyinfo 全部存放到一个个page中,这些page 由s_buddy_cache->i_mapping管理*/
+	/*[block#][grp_offset_in_blk] = ext4_group_info*/
+	struct ext4_group_info ***s_group_info;
+
+	/*
+	 * 所有的group bitmap 和buddyinfo 全部存放到一个个page中,
+	 * 这些page 由s_buddy_cache->i_mapping管理
+	 */
+	struct inode *s_buddy_cache;
 	spinlock_t s_md_lock;
 	unsigned short *s_mb_offsets;
 	unsigned int *s_mb_maxs;

@@ -35,6 +35,10 @@
  */
 #define MIN_WRITEBACK_PAGES	(4096UL >> (PAGE_SHIFT - 10))
 
+/*
+ * 在 wb_queue_work inc
+ * 在 finish_writeback_work dec
+ */
 struct wb_completion {
 	atomic_t		cnt;
 };
@@ -144,7 +148,10 @@ static bool inode_io_list_move_locked(struct inode *inode,
 	list_move(&inode->i_io_list, head);
 
 	/* dirty_time doesn't count as dirty_io until expiration */
-	/* 如果不是b_dirty_time, 说明该wb已经被填充了,所以要打上标记*/
+	/* 
+	 * 如果不是b_dirty_time, 说明该wb可能从不脏变为脏了,
+	 * 所以要打上标记WB_has_dirty_io
+	 */
 	if (head != &wb->b_dirty_time)
 		return wb_io_lists_populated(wb);
 
@@ -184,6 +191,7 @@ static void finish_writeback_work(struct bdi_writeback *wb,
 
 	if (work->auto_free)
 		kfree(work);
+	/*done --*/
 	if (done && atomic_dec_and_test(&done->cnt))
 		wake_up_all(&wb->bdi->wb_waitq);
 }
@@ -200,7 +208,7 @@ static void wb_queue_work(struct bdi_writeback *wb,
 	
 	if (test_bit(WB_registered, &wb->state)) {
 		list_add_tail(&work->list, &wb->work_list);/*把work挂到 wb->work_lisit*/
-		/*wb_workfn*/
+		/*wb_workfn,现在这个wb有活干了,那么把他放到bdi_wq上*/
 		mod_delayed_work(bdi_wq, &wb->dwork, 0);
 	} else
 		finish_writeback_work(wb, work);
@@ -222,6 +230,7 @@ static void wb_queue_work(struct bdi_writeback *wb,
 static void wb_wait_for_completion(struct backing_dev_info *bdi,
 				   struct wb_completion *done)
 {
+	/*DEFINE_WB_COMPLETION_ONSTACK 这个宏会把cnt 置为1*/
 	atomic_dec(&done->cnt);		/* put down the initial count */
 	wait_event(bdi->wb_waitq, !atomic_read(&done->cnt));
 }
@@ -300,6 +309,7 @@ locked_inode_to_wb_and_lock_list(struct inode *inode)
 		 */
 		wb_get(wb);
 		spin_unlock(&inode->i_lock);
+		/*wb->list_lock 持有期间, inode 的wb 会不会变?*/
 		spin_lock(&wb->list_lock);
 
 		/* i_wb may have changed inbetween, can't use inode_to_wb() */
@@ -799,7 +809,7 @@ int inode_congested(struct inode *inode, int cong_bits)
 		unlocked_inode_to_wb_end(inode, &lock_cookie);
 		return congested;
 	}
-
+	/* WB_async_congested or WB_sync_congested*/
 	return wb_congested(&inode_to_bdi(inode)->wb, cong_bits);
 }
 EXPORT_SYMBOL_GPL(inode_congested);
@@ -843,7 +853,8 @@ static long wb_split_bdi_pages(struct bdi_writeback *wb, long nr_pages)
  * distributed to the busy wbs according to each wb's proportion in the
  * total active write bandwidth of @bdi.
  *
- * 把@base_work 分配到不同的wb上.
+ * 把@base_work 拆分到每个wb上
+ * 按照wb的带宽限制
  */
 static void bdi_split_work_to_wbs(struct backing_dev_info *bdi,
 				  struct wb_writeback_work *base_work,
@@ -1128,6 +1139,8 @@ static void inode_sync_complete(struct inode *inode)
 	wake_up_bit(&inode->i_state, __I_SYNC);
 }
 
+
+/*inode->dirtied_when 超过了t */
 static bool inode_dirtied_after(struct inode *inode, unsigned long t)
 {
 	bool ret = time_after(inode->dirtied_when, t);
@@ -1947,6 +1960,7 @@ static long wb_check_old_data_flush(struct bdi_writeback *wb)
 
 /*
  * Retrieve work items and do the writeback they describe
+ * 对一个wb进行回写
  */
 static long wb_do_writeback(struct bdi_writeback *wb)
 {
@@ -2201,6 +2215,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 		 * If the inode is being synced, just update its dirty state.
 		 * The unlocker will place the inode on the appropriate
 		 * superblock list, based upon its state.
+		 * I_SYNC 表示正在被同步下去，所以直接退出就好
 		 */
 		if (inode->i_state & I_SYNC)
 			goto out_unlock_inode;
@@ -2378,6 +2393,7 @@ static void __writeback_inodes_sb_nr(struct super_block *sb, unsigned long nr,
 		return;
 	WARN_ON(!rwsem_is_locked(&sb->s_umount));
 
+	/*work会被split为多个,每个work中的done 都指向上面的done 局部变量*/
 	bdi_split_work_to_wbs(sb->s_bdi, &work, skip_if_busy);
 	wb_wait_for_completion(bdi, &done);
 }

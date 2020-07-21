@@ -1010,6 +1010,9 @@ struct journal_s
 	 *
 	 * Sequence number of the most recently committed transaction
 	 * [j_state_lock].
+	 * 初始化为 journal->j_transaction_sequence - 1;
+	 * 表示最近一个已经完成的transaction 的tid序号， 由于tid是自加的，所以
+	 * 这个值也是自加的
 	 */
 	tid_t			j_commit_sequence;
 

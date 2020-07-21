@@ -2385,6 +2385,7 @@ static int ext4_mb_seq_groups_show(struct seq_file *seq, void *v)
 			      " 2^0   2^1   2^2   2^3   2^4   2^5   2^6  "
 			      " 2^7   2^8   2^9   2^10  2^11  2^12  2^13  ]\n");
 
+	/*blocksize_bits 代表了一个*/
 	i = (blocksize_bits + 2) * sizeof(sg.info.bb_counters[0]) +
 		sizeof(struct ext4_group_info);
 

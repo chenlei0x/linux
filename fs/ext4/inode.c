@@ -201,7 +201,7 @@ void ext4_evict_inode(struct inode *inode)
 	trace_ext4_evict_inode(inode);
 
 	if (inode->i_nlink) {
-		// 还有地方在引用
+		// 某个目录中还引用他
 		/*
 		 * When journalling data dirty buffers are tracked only in the
 		 * journal. So although mm thinks everything is clean and
@@ -5360,6 +5360,7 @@ int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 		if (wbc->sync_mode != WB_SYNC_ALL || wbc->for_sync)
 			return 0;
 
+		/*开始等kjournald去完成*/
 		err = jbd2_complete_transaction(EXT4_SB(inode->i_sb)->s_journal,
 						EXT4_I(inode)->i_sync_tid);
 	} else {

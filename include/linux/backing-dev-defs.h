@@ -93,6 +93,7 @@ struct bdi_writeback {
 	struct list_head b_dirty;	/* dirty inodes */
 	struct list_head b_io;		/* parked for writeback */
 	struct list_head b_more_io;	/* parked for more writeback */
+	/*时间戳脏了的 inode 挂在这里*/
 	struct list_head b_dirty_time;	/* time stamps are dirty */
 	spinlock_t list_lock;		/* protects the b_* lists */
 
@@ -119,7 +120,7 @@ struct bdi_writeback {
 	int dirty_exceeded;
 
 	spinlock_t work_lock;		/* protects work_list & dwork scheduling */
-	struct list_head work_list; /*所有的人都会挂到这里*/
+	struct list_head work_list; /*该wb的wb_writeback_work都会挂到这里*/
 	struct delayed_work dwork;	/* work item used for writeback 初始化为 wb_workfn */
 
 	unsigned long dirty_sleep;	/* last wait */
@@ -162,8 +163,14 @@ struct backing_dev_info {
 	atomic_long_t tot_write_bandwidth;
 
 	struct bdi_writeback wb;  /* the root writeback info for this bdi */
+
+	/*bdi_writeback.bdi_node连接在这里*/
 	struct list_head wb_list; /* list of all wbs */
 #ifdef CONFIG_CGROUP_WRITEBACK
+	/*
+	 * 通过memcg_css->id 找到wb
+	 * 每个memcg 在这个bdi中都有一个wb
+     */
 	struct radix_tree_root cgwb_tree; /* radix tree of active cgroup wbs */
 	struct rb_root cgwb_congested_tree; /* their congested states */
 	struct mutex cgwb_release_mutex;  /* protect shutdown of wb structs */
