@@ -6021,6 +6021,8 @@ int ext4_mark_inode_dirty(handle_t *handle, struct inode *inode)
  * If only the I_DIRTY_TIME flag is set, we can skip everything.  If
  * I_DIRTY_TIME and I_DIRTY_SYNC is set, the only inode fields we need
  * to copy into the on-disk inode structure are the timestamp files.
+ *
+ * 交给jbd 去刷inode
  */
 void ext4_dirty_inode(struct inode *inode, int flags)
 {

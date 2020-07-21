@@ -1260,6 +1260,8 @@ static int write_inode(struct inode *inode, struct writeback_control *wbc)
 /*
  * Wait for writeback on an inode to complete. Called with i_lock held.
  * Caller must make sure inode cannot go away when we drop i_lock.
+ *
+ * 等待 inode->i_state 上 I_SYNC 标记消失
  */
 static void __inode_wait_for_writeback(struct inode *inode)
 	__releases(inode->i_lock)
@@ -1413,7 +1415,7 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	 */
 	spin_lock(&inode->i_lock);
 
-	dirty = inode->i_state & I_DIRTY;
+	dirty = inode->i_state & I_DIRTY; /*除过time dirty之外的所有dirty*/
 	if (inode->i_state & I_DIRTY_TIME) {
 		if ((dirty & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) ||
 		    wbc->sync_mode == WB_SYNC_ALL ||
