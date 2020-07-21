@@ -434,6 +434,7 @@ static void __filemap_fdatawait_range(struct address_space *mapping,
 			if (page->index > end)
 				continue;
 
+			/*核心在这里, 等待每个页 的 PG_writeback 标记消失*/
 			wait_on_page_writeback(page);
 			ClearPageError(page);
 		}
