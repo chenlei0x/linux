@@ -846,6 +846,7 @@ static inline bool managed_zone(struct zone *zone)
 /* Returns true if a zone has memory */
 static inline bool populated_zone(struct zone *zone)
 {
+	/*这个zone中存在多少page*/
 	return zone->present_pages;
 }
 

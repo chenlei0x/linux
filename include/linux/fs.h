@@ -2039,8 +2039,11 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  *
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
-#define I_DIRTY_SYNC		(1 << 0) /*inode脏了,虽然脏了,但是不一定需要刷下去,比如inode的属性(如:访问时间)改变*/
+
+/*表示inode 有不重要的数据脏了,虽然脏了,但是不一定需要刷下去,比如inode的属性(如:访问时间)改变*/
+#define I_DIRTY_SYNC		(1 << 0)
 /*
+ * 表示inode 结构体有重要数据脏了,比如文件长度等
  * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。
  * 当fdatasync发现了I_DIRTY_DATASYNC被设置，
  * 就知道metadata需要马上回写了
@@ -2067,6 +2070,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_WB_SWITCH		(1 << 13)
 #define I_OVL_INUSE			(1 << 14)
 
+/*inode 有重要或者不重要的改动或者有脏页*/
 #define I_DIRTY (I_DIRTY_SYNC | I_DIRTY_DATASYNC | I_DIRTY_PAGES)
 #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)
 

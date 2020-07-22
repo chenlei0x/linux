@@ -19,6 +19,10 @@
 
 struct percpu_counter {
 	raw_spinlock_t lock;
+	 /*
+	  * counters 是percpu的, 每个cpu的counter如果大于batch,会进位给count
+	  * 其实sum值 = count + per_cpu(counters)
+	  */
 	s64 count;
 #ifdef CONFIG_HOTPLUG_CPU
 	struct list_head list;	/* All percpu_counters are on a list */

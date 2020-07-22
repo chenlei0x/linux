@@ -149,7 +149,7 @@ static bool inode_io_list_move_locked(struct inode *inode,
 
 	/* dirty_time doesn't count as dirty_io until expiration */
 	/* 
-	 * 如果不是b_dirty_time, 说明该wb可能从不脏变为脏了,
+	 * 如果不是b_dirty_time, 说明该wb有一个inode 真的需要刷下去数据
 	 * 所以要打上标记WB_has_dirty_io
 	 */
 	if (head != &wb->b_dirty_time)
@@ -1115,6 +1115,10 @@ static void redirty_tail(struct inode *inode, struct bdi_writeback *wb)
 		struct inode *tail;
 
 		tail = wb_inode(wb->b_dirty.next);
+		/*
+		 * 如果inode dirty 时刻在 dirty列表的tail的dirty时刻之前,
+		 * 则刷新inode->dirtied_when, 以保证能把他插入到dirty列表中的末尾
+		 */
 		if (time_before(inode->dirtied_when, tail->dirtied_when))
 			inode->dirtied_when = jiffies;
 	}
@@ -1348,6 +1352,7 @@ static void requeue_inode(struct inode *inode, struct bdi_writeback *wb,
 		 */
 		if (wbc->nr_to_write <= 0) {
 			/* Slice used up. Queue for next turn. */
+			/*挂到more io上*/
 			requeue_io(inode, wb);
 		} else {
 			/*
@@ -1622,6 +1627,8 @@ static long writeback_sb_inodes(struct super_block *sb,
 			continue;
 		}
 		if ((inode->i_state & I_SYNC) && wbc.sync_mode != WB_SYNC_ALL) {
+			/*inode 正在落盘,而且我们wbc 没有要求SYNC_ALL,也就是说不需要等,
+			 那么就可以把这个inode放到后面再说*/
 			/*
 			 * If this inode is locked for writeback and we are not
 			 * doing writeback-for-data-integrity, move it to

@@ -89,7 +89,9 @@ void percpu_counter_add_batch(struct percpu_counter *fbc, s64 amount, s32 batch)
 	if (count >= batch || count <= -batch) {
 		unsigned long flags;
 		raw_spin_lock_irqsave(&fbc->lock, flags);
+		/*this cpu counter 加到count中去*/
 		fbc->count += count;
+		/*count - amount 为之前这个cpu的counter值,   再给他剪掉 */
 		__this_cpu_sub(*fbc->counters, count - amount);
 		raw_spin_unlock_irqrestore(&fbc->lock, flags);
 	} else {
@@ -102,6 +104,7 @@ EXPORT_SYMBOL(percpu_counter_add_batch);
 /*
  * Add up all the per-cpu counts, return the result.  This is a more accurate
  * but much slower version of percpu_counter_read_positive()
+ * 其实sum值 = count + per_cpu(counters)
  */
 s64 __percpu_counter_sum(struct percpu_counter *fbc)
 {
