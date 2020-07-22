@@ -254,6 +254,7 @@ static void wb_wait_for_completion(struct backing_dev_info *bdi,
 static atomic_t isw_nr_in_flight = ATOMIC_INIT(0);
 static struct workqueue_struct *isw_wq;
 
+/*把inode绑定到一个wb上*/
 void __inode_attach_wb(struct inode *inode, struct page *page)
 {
 	struct backing_dev_info *bdi = inode_to_bdi(inode);
@@ -2214,6 +2215,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 	if ((inode->i_state & flags) != flags) {
 		const int was_dirty = inode->i_state & I_DIRTY;
 
+		/*inode 绑定 wb*/
 		inode_attach_wb(inode, NULL);
 
 		if (flags & I_DIRTY_INODE)

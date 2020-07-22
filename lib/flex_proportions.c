@@ -4,6 +4,8 @@
  *
  *   Copyright (C) 2011, SUSE, Jan Kara <jack@suse.cz>
  *
+ * 计算事件j在过去的时间中,发生的比例 p_{j}
+ *
  * The goal of this code is: Given different types of event, measure proportion
  * of each type of event over time. The proportions are measured with
  * exponentially decaying history to give smooth transitions. A formula
@@ -13,7 +15,9 @@
  *
  * Where x_{i,j} is j's number of events in i-th last time period and x_i is
  * total number of events in i-th last time period.
- *
+ * x_{i,j} 表示事件j在倒数第i次时间窗口中发生的次数
+ * x_i 表示在倒数第i次时间窗口中发生的所有事件发生的总次数
+ * 由于每个时间窗口都有参与p_{j} 的计算,所以曲线是平滑的
  * Note that p_{j}'s are normalised, i.e.
  *
  *   \Sum_{j} p_{j} = 1,
@@ -23,11 +27,12 @@
  * 'n_j'). When an event of type 'j' happens, we simply need to do:
  *   n_j++; d++;
  *
+ * 在某一时刻,p_{j} 可以化简为 n_j/d, 当j发生时, n_j++ d++ 即可
  * When a new period is declared, we could do:
  *   d /= 2
  *   for each j
  *     n_j /= 2
- *
+ * 当进入新的窗口时, d/=2 对于每个j n_j /=2 即可
  * To avoid iteration over all event types, we instead shift numerator of event
  * j lazily when someone asks for a proportion of event j or when event j
  * occurs. This can bit trivially implemented by remembering last period in
@@ -102,7 +107,7 @@ int fprop_local_init_single(struct fprop_local_single *pl)
 void fprop_local_destroy_single(struct fprop_local_single *pl)
 {
 }
-
+/*通过global 更新local 的period*/
 static void fprop_reflect_period_single(struct fprop_global *p,
 					struct fprop_local_single *pl)
 {
@@ -119,6 +124,7 @@ static void fprop_reflect_period_single(struct fprop_global *p,
 		return;
 	}
 	/* Aging zeroed our fraction? */
+	/*local events 老化 右移 period差值*/
 	if (period - pl->period < BITS_PER_LONG)
 		pl->events >>= period - pl->period;
 	else
@@ -130,6 +136,7 @@ static void fprop_reflect_period_single(struct fprop_global *p,
 /* Event of type pl happened */
 void __fprop_inc_single(struct fprop_global *p, struct fprop_local_single *pl)
 {
+	/*先更新该事件的计数 pl,同时考虑period问题*/
 	fprop_reflect_period_single(p, pl);
 	pl->events++;
 	percpu_counter_add(&p->events, 1);
@@ -224,6 +231,7 @@ void __fprop_inc_percpu(struct fprop_global *p, struct fprop_local_percpu *pl)
 	percpu_counter_add(&p->events, 1);
 }
 
+/*n_j / d, 其中pl代表j*/
 void fprop_fraction_percpu(struct fprop_global *p,
 			   struct fprop_local_percpu *pl,
 			   unsigned long *numerator, unsigned long *denominator)
@@ -263,6 +271,8 @@ void __fprop_inc_percpu_max(struct fprop_global *p,
 		unsigned long numerator, denominator;
 
 		fprop_fraction_percpu(p, pl, &numerator, &denominator);
+
+		/*n/d > max_frac 就返回*/
 		if (numerator >
 		    (((u64)denominator) * max_frac) >> FPROP_FRAC_SHIFT)
 			return;

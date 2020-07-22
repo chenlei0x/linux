@@ -24,6 +24,7 @@
 
 /*
  * ---- Global proportion definitions ----
+ * 记录所有事件的发生频率
  */
 struct fprop_global {
 	/* Number of events in the current period */
@@ -40,6 +41,7 @@ bool fprop_new_period(struct fprop_global *p, int periods);
 
 /*
  *  ---- SINGLE ----
+ * 记录某一个事件的发生次数
  */
 struct fprop_local_single {
 	/* the local events counter */
@@ -72,6 +74,7 @@ void fprop_inc_single(struct fprop_global *p, struct fprop_local_single *pl)
 
 /*
  * ---- PERCPU ----
+ * 记录某一个事件的发生次数,为了加速,把统计值分开到每个cpu上了
  */
 struct fprop_local_percpu {
 	/* the local events counter */
