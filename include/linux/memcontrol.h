@@ -1030,6 +1030,7 @@ static inline void dec_lruvec_state(struct lruvec *lruvec,
 	mod_lruvec_state(lruvec, idx, -1);
 }
 
+/*给该page 对应的memcg 的idx stat inc*/
 static inline void inc_lruvec_page_state(struct page *page,
 					 enum node_stat_item idx)
 {

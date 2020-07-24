@@ -70,6 +70,13 @@ static long ratelimit_pages = 32;
 
 /*
  * Start background writeback (via writeback threads) at this percentage
+ * 
+ Contains, as a percentage of total available memory that contains free pages
+and reclaimable pages, the number of pages at which the background kernel
+flusher threads will start writing out dirty data.
+
+The total available memory is not equal to total system memory.
+* 当达到水位线时, 开始唤醒bdi 开始刷新
  */
 int dirty_background_ratio = 10;
 
@@ -87,12 +94,25 @@ int vm_highmem_is_dirtyable;
 
 /*
  * The generator of dirty data starts writeback at this percentage
+ * 脏页相比于 可用内存的比例, 达到时,在当前进程上下文就开始同步刷脏页
+ *
+ * 对应/proc/sys/vm/dirty_ratio
+ * dirty_ratio
+
+Contains, as a percentage of total available memory that contains free pages
+and reclaimable pages, the number of pages at which a process which is
+generating disk writes will itself start writing out dirty data.
  */
 int vm_dirty_ratio = 20;
 
 /*
  * vm_dirty_bytes starts at 0 (disabled) so that it is a function of
  * vm_dirty_ratio * the amount of dirtyable memory
+ *
+ * 当整体内存的脏内存达到这个水平时,产生脏页的进程将会开始发起回写
+ * 默认为0
+ *
+ * 对应/proc/sys/vm/dirty_bytes
  */
 unsigned long vm_dirty_bytes;
 
@@ -134,10 +154,12 @@ struct dirty_throttle_control {
 	struct bdi_writeback	*wb;
 	struct fprop_local_percpu *wb_completions;
 
-	unsigned long		avail;		/* dirtyable */
+	/*global_dirtyable_memory*/
+	unsigned long		avail;		/* dirtyable 单位为页 */
 	unsigned long		dirty;		/* file_dirty + write + nfs */
-	unsigned long		thresh;		/* dirty threshold */
-	unsigned long		bg_thresh;	/* dirty background threshold */
+	unsigned long		thresh;		/* dirty threshold 单位为页*/
+	/*bg_thresh 肯定 小于 thresh*/
+	unsigned long		bg_thresh;	/* dirty background threshold 单位为页*/
 
 	unsigned long		wb_dirty;	/* per-wb counterparts */
 	unsigned long		wb_thresh;
@@ -198,6 +220,8 @@ static void wb_min_max_ratio(struct bdi_writeback *wb,
 	 * @wb may already be clean by the time control reaches here and
 	 * the total may not include its bw.
 	 */
+
+	/*计算公式 min = bdi->min_ratio * (this_bw / tot_bw)*/
 	if (this_bw < tot_bw) {
 		if (min) {
 			min *= this_bw;
@@ -389,14 +413,23 @@ static unsigned long global_dirtyable_memory(void)
  * must ensure that @dtc->avail is set before calling this function.  The
  * dirty limits will be lifted by 1/4 for PF_LESS_THROTTLE (ie. nfsd) and
  * real-time tasks.
+ *
+ * 把 vm_dirty_bytes dirty_background_bytes 或者 vm_dirty_ratio dirty_background_ratio
+ * 转换为这个dtc 得thresh 和 bg_thresh
  */
 static void domain_dirty_limits(struct dirty_throttle_control *dtc)
 {
 	const unsigned long available_memory = dtc->avail;
+	/*gdtc != NULL 说明dtc是一个memcg dtc*/
 	struct dirty_throttle_control *gdtc = mdtc_gdtc(dtc);
+	/*
+	 * vm_dirty_bytes 全局dirty 数据量大于他就开始同步刷盘
+	 * dirty_background_bytes 数据量大于他,开始异步刷盘
+	 */
 	unsigned long bytes = vm_dirty_bytes;
 	unsigned long bg_bytes = dirty_background_bytes;
 	/* convert ratios to per-PAGE_SIZE for higher precision */
+	/* 在没有xxx_bytes 的影响下,ratio都是一样的*/
 	unsigned long ratio = (vm_dirty_ratio * PAGE_SIZE) / 100;
 	unsigned long bg_ratio = (dirty_background_ratio * PAGE_SIZE) / 100;
 	unsigned long thresh;
@@ -405,7 +438,8 @@ static void domain_dirty_limits(struct dirty_throttle_control *dtc)
 
 	/* gdtc is !NULL iff @dtc is for memcg domain */
 	if (gdtc) {
-		unsigned long global_avail = gdtc->avail;
+		/*dtc 是memcg 的dtc,不是global_wb_domain*/
+		unsigned long global_avail = gdtc->avail; /*页*/
 
 		/*
 		 * The byte settings can't be applied directly to memcg
@@ -574,6 +608,8 @@ static unsigned long wp_next_time(unsigned long cur_time)
 	return cur_time;
 }
 
+
+/*dom 是所有event得总和, completions 是每个memcg 完成一个页写出的事件总和*/
 static void wb_domain_writeout_inc(struct wb_domain *dom,
 				   struct fprop_local_percpu *completions,
 				   unsigned int max_prop_frac)
@@ -596,15 +632,19 @@ static void wb_domain_writeout_inc(struct wb_domain *dom,
 /*
  * Increment @wb's writeout completion count and the global writeout
  * completion count. Called from test_clear_page_writeback().
+ *
+ * 
  */
 static inline void __wb_writeout_inc(struct bdi_writeback *wb)
 {
 	struct wb_domain *cgdom;
 
 	inc_wb_stat(wb, WB_WRITTEN);
+	/*global domain 管理每个domain*/
 	wb_domain_writeout_inc(&global_wb_domain, &wb->completions,
 			       wb->bdi->max_prop_frac);
 
+	/*每个domain又管理每个wb*/
 	cgdom = mem_cgroup_wb_domain(wb);
 	if (cgdom)
 		wb_domain_writeout_inc(cgdom, wb_memcg_completions(wb),
@@ -632,8 +672,10 @@ static void writeout_period(unsigned long t)
 						 VM_COMPLETIONS_PERIOD_LEN;
 
 	if (fprop_new_period(&dom->completions, miss_periods + 1)) {
+		/*event 不为0*/
 		dom->period_time = wp_next_time(dom->period_time +
 				miss_periods * VM_COMPLETIONS_PERIOD_LEN);
+		/*dom->period_timer 的function 就是 writeout_period*/
 		mod_timer(&dom->period_timer, dom->period_time);
 	} else {
 		/*
@@ -671,16 +713,20 @@ void wb_domain_exit(struct wb_domain *dom)
  * registered backing devices, which, for obvious reasons, can not
  * exceed 100%.
  */
+ /*bdi_min_ratio 记录所有bdi 设备的ratio 总和*/
 static unsigned int bdi_min_ratio;
 
 int bdi_set_min_ratio(struct backing_dev_info *bdi, unsigned int min_ratio)
 {
 	int ret = 0;
 
+	/*bdi_min_ratio 记录所有bdi 设备的ratio 总和*/
 	spin_lock_bh(&bdi_lock);
 	if (min_ratio > bdi->max_ratio) {
 		ret = -EINVAL;
 	} else {
+	    /*既然bdi_min_ratio 记录素有bdi的综合,那么
+	      如果一个bdei 的ratio变了, bdi_min_ratio页应该跟着改变*/
 		min_ratio -= bdi->min_ratio;
 		if (bdi_min_ratio + min_ratio < 100) {
 			bdi_min_ratio += min_ratio;
@@ -738,6 +784,7 @@ static void mdtc_calc_avail(struct dirty_throttle_control *mdtc,
 	unsigned long global_clean = gdtc->avail - min(gdtc->avail, gdtc->dirty);
 	unsigned long other_clean = global_clean - min(global_clean, clean);
 
+	/*memcg 的 dtc avail 在这里初始化*/
 	mdtc->avail = filepages + min(headroom, other_clean);
 }
 
@@ -773,15 +820,19 @@ static unsigned long __wb_calc_thresh(struct dirty_throttle_control *dtc)
 	/*
 	 * Calculate this BDI's share of the thresh ratio.
 	 */
+								/*global*/			/*local*/
 	fprop_fraction_percpu(&dom->completions, dtc->wb_completions,
 			      &numerator, &denominator);
 
+	/* dirty 是总的 dirty-thresh, 除去bdi—min-ratio，其他的大家分*/
 	wb_thresh = (thresh * (100 - bdi_min_ratio)) / 100;
 	wb_thresh *= numerator;
 	do_div(wb_thresh, denominator);
 
+	/*这个wb 的 min max ratio, bdi 的max min ratio 乘以 (wb_bw / bdi_bw)*/
 	wb_min_max_ratio(dtc->wb, &wb_min_ratio, &wb_max_ratio);
 
+	/*给这个thresh 放宽一些*/
 	wb_thresh += (thresh * wb_min_ratio) / 100;
 	if (wb_thresh > (thresh * wb_max_ratio) / 100)
 		wb_thresh = thresh * wb_max_ratio / 100;
@@ -802,6 +853,7 @@ unsigned long wb_calc_thresh(struct bdi_writeback *wb, unsigned long thresh)
  *                           limit - setpoint
  *
  * it's a 3rd order polynomial that subjects to
+ * 这个公式就是用来算pos_ratio的, dirty 越大, pos ratio 越小
  *
  * (1) f(freerun)  = 2.0 => rampup dirty_ratelimit reasonably fast
  * (2) f(setpoint) = 1.0 => the balance point
@@ -837,6 +889,7 @@ static long long pos_ratio_polynom(unsigned long setpoint,
  * dirty position control ratio (and hence task dirty ratelimit) will be
  * decreased/increased to bring the dirty pages back to the setpoint.
  *
+ * 脏页越多, pos ratio 越小,使得脏页回复到 setpoint
  *     pos_ratio = 1 << RATELIMIT_CALC_SHIFT
  *
  *     if (dirty < setpoint) scale up   pos_ratio
@@ -1563,7 +1616,10 @@ static void balance_dirty_pages(struct address_space *mapping,
 				struct bdi_writeback *wb,
 				unsigned long pages_dirtied)
 {
+	/*global vs memcg*/
+	/*global domain*/
 	struct dirty_throttle_control gdtc_stor = { GDTC_INIT(wb) };
+	/*memcg's domain*/
 	struct dirty_throttle_control mdtc_stor = { MDTC_INIT(wb, &gdtc_stor) };
 	struct dirty_throttle_control * const gdtc = &gdtc_stor;
 	struct dirty_throttle_control * const mdtc = mdtc_valid(&mdtc_stor) ?
@@ -1624,8 +1680,10 @@ static void balance_dirty_pages(struct address_space *mapping,
 			mem_cgroup_wb_stats(wb, &filepages, &headroom,
 					    &mdtc->dirty, &writeback);
 			mdtc->dirty += writeback;
+			/*计算 mdtc->avail*/
 			mdtc_calc_avail(mdtc, filepages, headroom);
 
+			/* 计算mdtc->thresh 	mdtc->bg_thresh  */
 			domain_dirty_limits(mdtc);
 
 			if (unlikely(strictlimit)) {

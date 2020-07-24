@@ -3707,6 +3707,7 @@ struct wb_domain *mem_cgroup_wb_domain(struct bdi_writeback *wb)
  * @pheadroom: out parameter for number of allocatable pages according to memcg
  * @pdirty: out parameter for number of dirty pages
  * @pwriteback: out parameter for number of pages under writeback
+    正在被回写的页的数量
  *
  * Determine the numbers of file, headroom, dirty, and writeback pages in
  * @wb's memcg.  File, dirty and writeback are self-explanatory.  Headroom

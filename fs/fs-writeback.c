@@ -2041,6 +2041,8 @@ void wb_workfn(struct work_struct *work)
 /*
  * Start writeback of `nr_pages' pages.  If `nr_pages' is zero, write back
  * the whole world.
+ *
+ * 唤醒每个bdi
  */
 void wakeup_flusher_threads(long nr_pages, enum wb_reason reason)
 {
@@ -2088,6 +2090,7 @@ void wakeup_flusher_threads(long nr_pages, enum wb_reason reason)
 static void wakeup_dirtytime_writeback(struct work_struct *w);
 static DECLARE_DELAYED_WORK(dirtytime_work, wakeup_dirtytime_writeback);
 
+/*启动每个bdi的每个wb*/
 static void wakeup_dirtytime_writeback(struct work_struct *w)
 {
 	struct backing_dev_info *bdi;
