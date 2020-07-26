@@ -165,6 +165,7 @@ struct dirty_throttle_control {
 	unsigned long		wb_thresh;
 	unsigned long		wb_bg_thresh;
 
+	/*stdc->pos_ratio 中1 = RATELIMIT_CALC_SHIFT*/
 	unsigned long		pos_ratio;
 };
 
@@ -855,7 +856,7 @@ unsigned long wb_calc_thresh(struct bdi_writeback *wb, unsigned long thresh)
  * it's a 3rd order polynomial that subjects to
  * 这个公式就是用来算pos_ratio的, dirty 越大, pos ratio 越小
  *
- * (1) f(freerun)  = 2.0 => rampup dirty_ratelimit reasonably fast
+ * (1) f(freerun)  = 2.0 => rampup dirty_ratelimit reasonably fast 这里2 其实等于 RATELIMIT_CALC_SHIFT * 2
  * (2) f(setpoint) = 1.0 => the balance point
  * (3) f(limit)    = 0   => the hard limit
  * (4) df/dx      <= 0	 => negative feedback control
@@ -1482,6 +1483,8 @@ static unsigned long wb_max_pause(struct bdi_writeback *wb,
 	 * idle.
 	 *
 	 * 8 serves as the safety ratio.
+	 *
+	 * 和 wb_dirty成正比, 和bw成反比 带宽越大睡眠时间越短
 	 */
 	t = wb_dirty / (1 + bw / roundup_pow_of_two(1 + HZ / 8));
 	t++;
@@ -1617,9 +1620,9 @@ static void balance_dirty_pages(struct address_space *mapping,
 				unsigned long pages_dirtied)
 {
 	/*global vs memcg*/
-	/*global domain*/
+	/*dom = global domain*/
 	struct dirty_throttle_control gdtc_stor = { GDTC_INIT(wb) };
-	/*memcg's domain*/
+	/*dom = memcg's domain, 有可能为空, 如果memcg为root memcg*/
 	struct dirty_throttle_control mdtc_stor = { MDTC_INIT(wb, &gdtc_stor) };
 	struct dirty_throttle_control * const gdtc = &gdtc_stor;
 	struct dirty_throttle_control * const mdtc = mdtc_valid(&mdtc_stor) ?
@@ -1656,6 +1659,7 @@ static void balance_dirty_pages(struct address_space *mapping,
 		gdtc->avail = global_dirtyable_memory();
 		gdtc->dirty = nr_reclaimable + global_node_page_state(NR_WRITEBACK);
 
+		/*获得gdtc->thresh 和 gdtc->bg_thresh*/
 		domain_dirty_limits(gdtc);
 
 		if (unlikely(strictlimit)) {
@@ -1670,6 +1674,7 @@ static void balance_dirty_pages(struct address_space *mapping,
 			bg_thresh = gdtc->bg_thresh;
 		}
 
+		/*wb 对应的 memcg不是root*/
 		if (mdtc) {
 			unsigned long filepages, headroom, writeback;
 
@@ -1750,10 +1755,12 @@ static void balance_dirty_pages(struct address_space *mapping,
 			if (!strictlimit)
 				wb_dirty_limits(mdtc);
 
+			/*这里是 或*/
 			dirty_exceeded |= (mdtc->wb_dirty > mdtc->wb_thresh) &&
 				((mdtc->dirty > mdtc->thresh) || strictlimit);
 
 			wb_position_ratio(mdtc);
+			/*sdtc 指向 pos_ratio最小的 dtc*/
 			if (mdtc->pos_ratio < gdtc->pos_ratio)
 				sdtc = mdtc;
 		}
@@ -1769,9 +1776,11 @@ static void balance_dirty_pages(struct address_space *mapping,
 		}
 
 		/* throttle according to the chosen dtc */
+		/*wb->dirty_ratelimit 默认100MB/s*/
 		dirty_ratelimit = wb->dirty_ratelimit;
+		/*pos ratio 作为task ratelimit 和 dirty ratelimit之间的比例系数*/
 		task_ratelimit = ((u64)dirty_ratelimit * sdtc->pos_ratio) >>
-							RATELIMIT_CALC_SHIFT;
+							RATELIMIT_CALC_SHIFT; /*stdc->pos_ratio 中1 = RATELIMIT_CALC_SHIFT*/
 		max_pause = wb_max_pause(wb, sdtc->wb_dirty);
 		min_pause = wb_min_pause(wb, max_pause,
 					 task_ratelimit, dirty_ratelimit,
@@ -1782,6 +1791,8 @@ static void balance_dirty_pages(struct address_space *mapping,
 			pause = max_pause;
 			goto pause;
 		}
+		/* 按照task ratelimit产生脏页的速率限制,
+		产生 pages_dirtied脏页数需要多少jiffie*/
 		period = HZ * pages_dirtied / task_ratelimit;
 		pause = period;
 		if (current->dirty_paused_when)
@@ -1807,6 +1818,7 @@ static void balance_dirty_pages(struct address_space *mapping,
 						  min(pause, 0L),
 						  start_time);
 			if (pause < -HZ) {
+				/*距离时间窗口开始超过1s*/
 				current->dirty_paused_when = now;
 				current->nr_dirtied = 0;
 			} else if (period) {
@@ -1888,6 +1900,7 @@ pause:
 		wb_start_background_writeback(wb);
 }
 
+/*bdp : balance dirty pages*/
 static DEFINE_PER_CPU(int, bdp_ratelimits);
 
 /*
@@ -1935,9 +1948,10 @@ void balance_dirty_pages_ratelimited(struct address_space *mapping)
 	if (!wb)
 		wb = &bdi->wb;
 
+	/*nr_dirtied_pause默认 128K 换算成页数*/
 	ratelimit = current->nr_dirtied_pause;
 	if (wb->dirty_exceeded)
-		ratelimit = min(ratelimit, 32 >> (PAGE_SHIFT - 10));
+		ratelimit = min(ratelimit, 32 >> (PAGE_SHIFT - 10)); /*32K 对应的页数*/
 
 	preempt_disable();
 	/*
@@ -1947,9 +1961,10 @@ void balance_dirty_pages_ratelimited(struct address_space *mapping)
 	 * time, hence all honoured too large initial task->nr_dirtied_pause.
 	 */
 	p =  this_cpu_ptr(&bdp_ratelimits);
+	/*account_page_dirtied 会增加nr_dirtied*/
 	if (unlikely(current->nr_dirtied >= ratelimit))
 		*p = 0;
-	else if (unlikely(*p >= ratelimit_pages)) {
+	else if (unlikely(*p >= ratelimit_pages)) { /*32页*/
 		*p = 0;
 		ratelimit = 0;
 	}

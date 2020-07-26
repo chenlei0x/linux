@@ -3051,6 +3051,7 @@ again:
 			break;
 		}
 
+		/*从page cache中分配页, 并必要时给页中读取内容*/
 		status = a_ops->write_begin(file, mapping, pos, bytes, flags,
 						&page, &fsdata);
 		if (unlikely(status < 0))
@@ -3059,6 +3060,7 @@ again:
 		if (mapping_writably_mapped(mapping))
 			flush_dcache_page(page);
 
+		/*iov 中的内存拷贝到page中*/
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
 		flush_dcache_page(page);
 

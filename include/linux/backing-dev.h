@@ -286,6 +286,7 @@ static inline struct bdi_writeback *wb_find_current(struct backing_dev_info *bdi
  * Equivalent to wb_get_create() on %current's memcg.  This function is
  * called from a relatively hot path and optimizes the common cases using
  * wb_find_current().
+ * 通过该task的memcg id 获得该bdi中的wb
  */
 static inline struct bdi_writeback *
 wb_get_create_current(struct backing_dev_info *bdi, gfp_t gfp)

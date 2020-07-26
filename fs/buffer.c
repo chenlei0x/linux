@@ -1200,6 +1200,8 @@ void mark_buffer_dirty(struct buffer_head *bh)
 				__set_page_dirty(page, mapping, 0);
 		}
 		unlock_page_memcg(page);
+
+		/*inode 现在有脏页了*/
 		if (mapping)
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
@@ -1943,7 +1945,7 @@ void page_zero_new_buffers(struct page *page, unsigned from, unsigned to)
 	block_start = 0;
 	do {
 		block_end = block_start + bh->b_size;
-
+		/*对每个新buffer, 如果处于from to中间, 且没有内容, 清零*/
 		if (buffer_new(bh)) {
 			if (block_end > from && block_start < to) {
 				if (!PageUptodate(page)) {
@@ -2042,7 +2044,7 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 	blocksize = head->b_size;
 	bbits = block_size_bits(blocksize);
 
-	/*block 是该page的第一个块*/
+	/*block 是该page的第一个块, page->index 为文件内页偏移, block 为块偏移*/
 	block = (sector_t)page->index << (PAGE_SHIFT - bbits);
 
 	/*block_start 为 block 在page内的偏移*/
@@ -2092,6 +2094,8 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
 		    !buffer_unwritten(bh) &&
 		     (block_start < from || block_end > to)) {
+		     /*有可能需要写入的一个块的一部分,所以要先读上来, 
+		       通常都是delay 的,所以这里不会发生读取*/
 			ll_rw_block(REQ_OP_READ, 0, 1, &bh);
 			*wait_bh++=bh;
 		}
@@ -2121,9 +2125,10 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 		unsigned from, unsigned to)
 {
 	unsigned block_start, block_end;
-	int partial = 0;
+	int partial = 0; /*有bh 内容不是最新的*/
 	unsigned blocksize;
 	struct buffer_head *bh, *head;
+
 
 	bh = head = page_buffers(page);
 	blocksize = bh->b_size;
@@ -2132,9 +2137,12 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 	do {
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
-			if (!buffer_uptodate(bh))
+			/*这个bh 和  from to 没有任何交叠*/
+			/*如果 from == to, 则每个bh都会走到这里*/
+			if (!buffer_uptodate(bh))/*这个bh中的内容不是最新的*/
 				partial = 1;
 		} else {
+			/**/
 			set_buffer_uptodate(bh);
 			mark_buffer_dirty(bh);
 		}
@@ -2150,6 +2158,7 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 	 * the next read(). Here we 'discover' whether the page went
 	 * uptodate as a result of this (potentially partial) write.
 	 */
+	 /*所有bh的内容都是最新的*/
 	if (!partial)
 		SetPageUptodate(page);
 	return 0;
@@ -2189,7 +2198,7 @@ int block_write_end(struct file *file, struct address_space *mapping,
 			struct page *page, void *fsdata)
 {
 	struct inode *inode = mapping->host;
-	unsigned start;
+	unsigned start; /*页内 起始偏移*/
 
 	start = pos & (PAGE_SIZE - 1);
 

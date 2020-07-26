@@ -1980,6 +1980,7 @@ int ext4_da_get_block_prep(struct inode *inode, sector_t iblock,
 	if (ret <= 0)
 		return ret;
 
+	/*bh 映射到 map.m_pblk*/
 	map_bh(bh, inode->i_sb, map.m_pblk);
 	ext4_update_bh_state(bh, map.m_flags);
 
@@ -3101,6 +3102,7 @@ static int ext4_da_write_credits(struct inode *inode, loff_t pos, unsigned len)
 	return 2;
 }
 
+/*pos 单位为字节, 在文件中的偏移*/
 static int ext4_da_write_begin(struct file *file, struct address_space *mapping,
 			       loff_t pos, unsigned len, unsigned flags,
 			       struct page **pagep, void **fsdata)
@@ -3225,6 +3227,11 @@ static int ext4_da_should_update_i_disksize(struct page *page,
 	return 1;
 }
 
+/* 
+ * @len 想给这个页里面写入多少数据
+ * @copied 实际给这个页中拷贝了多少数据
+ * @pos 文件字节偏移
+ */
 static int ext4_da_write_end(struct file *file,
 			     struct address_space *mapping,
 			     loff_t pos, unsigned len, unsigned copied,

@@ -114,7 +114,7 @@ struct bdi_writeback {
 	 * @dirty_ratelimit tracks the estimated @balanced_dirty_ratelimit
 	 * in small steps and is much more smooth/stable than the latter.
 	 */
-	unsigned long dirty_ratelimit;
+	unsigned long dirty_ratelimit; /*默认100MB/s*/
 	unsigned long balanced_dirty_ratelimit;
 
 	struct fprop_local_percpu completions;

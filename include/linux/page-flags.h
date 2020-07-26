@@ -71,9 +71,12 @@
  * The fields area is reserved for fields mapping zone, node (for NUMA) and
  * SPARSEMEM section (for variants of SPARSEMEM that require section ids like
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
+ *
+ * page 结构体中flags 的定义,不是pte
  */
 enum pageflags {
-	PG_locked,		/* Page is locked. Don't touch. */
+	/* lock_page函数就是通过 test_and_set_bit_lock 操作这个标记 */
+	PG_locked,		/* Page is locked. Don't touch.*/
 	PG_error,
 	PG_referenced,
 	PG_uptodate,
