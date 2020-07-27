@@ -106,7 +106,9 @@ struct cfq_rb_root {
 /*
  * Per process-grouping structure
  */
- /* 每个进程有两个cfq-queue 一个是sync的 一个是非sync*/
+ /* 每个进程有两个cfq-queue 一个是sync的 一个是非sync
+    每个cfqqueue 不光会挂在cfqg的树上, 同时会挂到cfqd 的prio tree上
+  */
 struct cfq_queue {
 	/* reference count */
 	int ref;
@@ -130,12 +132,12 @@ struct cfq_queue {
 	
 	/* 
 	 * prio tree root we belong to, if any
-	 * cfqd->prio_trees[cfqq->org_ioprio]，可能为空
+	 * cfqd->prio_trees[cfqq->org_ioprio]，可能为空,如果不为空,表示我们所在那个prio tree上
 	 */
 	struct rb_root *p_root;  /*指向cfqd->prio_trees[cfqq->org_ioprio]*/
 	/* sorted list of pending requests， 排序的key = blk_rq_pos， anchor rq->rb_node*/
 
-	
+	/*req按照起始sector号挂在这个树上,如果哪个bio的结尾sector 刚好等于这个req的起始,那么就合入进去*/
 	struct rb_root sort_list;
 
 	
@@ -343,7 +345,7 @@ struct cfq_group {
 
 };
 
-/*io_context 通过 q->id 找到这个结构体*/
+/*io_context 通过 q->id 找到这个结构体, 代表某个进程在该queue中的信息*/
 struct cfq_io_cq {
 	struct io_cq		icq;		/* must be the first member */
 	struct cfq_queue	*cfqq[2];  /*sync 和 async cic_set_cfqq中设置, 这两个元素表明当前正在用的cfqq*/
@@ -426,7 +428,7 @@ struct cfq_data {
 	unsigned int cfq_back_max;
 	unsigned int cfq_slice_async_rq;
 	unsigned int cfq_latency;
-	u64 cfq_fifo_expire[2];
+	u64 cfq_fifo_expire[2];/*{ NSEC_PER_SEC / 4, NSEC_PER_SEC / 8 }*/
 	u64 cfq_slice[2]; /* async sync*/
 	u64 cfq_slice_idle;
 	u64 cfq_group_idle; /*再等多久，为了有更多的request进来*/
@@ -940,6 +942,7 @@ static inline struct cfq_io_cq *icq_to_cic(struct io_cq *icq)
 	return container_of(icq, struct cfq_io_cq, icq);
 }
 
+/*找到这个进程的cfq相关信息*/
 static inline struct cfq_io_cq *cfq_cic_lookup(struct cfq_data *cfqd,
 					       struct io_context *ioc)
 {
@@ -1155,9 +1158,11 @@ cfq_choose_req(struct cfq_data *cfqd, struct request *rq1, struct request *rq2, 
 	if (rq2 == NULL)
 		return rq1;
 
+	/*谁sync 谁优先*/
 	if (rq_is_sync(rq1) != rq_is_sync(rq2))
 		return rq_is_sync(rq1) ? rq1 : rq2;
 
+	/*谁带REQ_PRIO 谁优先*/
 	if ((rq1->cmd_flags ^ rq2->cmd_flags) & REQ_PRIO)
 		return rq1->cmd_flags & REQ_PRIO ? rq1 : rq2;
 
@@ -1179,7 +1184,7 @@ cfq_choose_req(struct cfq_data *cfqd, struct request *rq1, struct request *rq2, 
 	else if (s1 + back_max >= last)
 		d1 = (last - s1) * cfqd->cfq_back_penalty;
 	else
-		wrap |= CFQ_RQ1_WRAP;
+		wrap |= CFQ_RQ1_WRAP; /*s 小于last, 且差值大于back max*/
 
 	if (s2 >= last)
 		d2 = s2 - last;
@@ -1218,6 +1223,7 @@ cfq_choose_req(struct cfq_data *cfqd, struct request *rq1, struct request *rq2, 
 		 * start with the one that's further behind head
 		 * (--> only *one* back seek required),
 		 * since back seek takes more time than forward.
+		 * 两个都小于last ,且都距离过大,这样我们选择最小的那个,因为这样只用倒回去磁头一次
 		 */
 		if (s1 <= s2)
 			return rq1;
@@ -1285,7 +1291,7 @@ static u64 cfq_slice_offset(struct cfq_data *cfqd,
 	 * just an approximation, should be ok.
 	 */
 	/*
-	 *(cfqg->nr_cfqq - 1) *{ (sync & 最高优先级的slice) - (该cfqq的sliece)}
+	 *(cfqg->nr_cfqq - 1) *{ (sync & 最高优先级的slice) - (该cfqq的slice)}
 	 */
 	return (cfqq->cfqg->nr_cfqq - 1) * (cfq_prio_slice(cfqd, 1, 0) -
 		       cfq_prio_slice(cfqd, cfq_cfqq_sync(cfqq), cfqq->ioprio));
@@ -1374,6 +1380,7 @@ cfq_group_service_tree_add(struct cfq_rb_root *st, struct cfq_group *cfqg)
 	 */
 	 /*更新 cfqg->new_leaf_weight ----> cfqg->leaf_weight*/
 	cfq_update_group_leaf_weight(cfqg);
+	/*cfqg 加入cfqd 的service tree上, key = cfqg->vdisktime - st->min_vdisktime;*/
 	__cfq_group_service_tree_add(st, cfqg);
 
 	/*
@@ -2299,6 +2306,7 @@ static void cfq_service_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 
 	st = st_for(cfqq->cfqg, cfqq_class(cfqq), cfqq_type(cfqq));
 	if (cfq_class_idle(cfqq)) {
+		/*如果是idle cfqq, 按照时间排序*/
 		rb_key = CFQ_IDLE_DELAY;
 		parent = st->rb_rightmost;
 		if (parent && parent != &cfqq->rb_node) {
@@ -2312,6 +2320,8 @@ static void cfq_service_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		 * value carried from last service. A negative resid
 		 * count indicates slice overrun, and this should position
 		 * the next service time further away in the tree.
+		 *
+		 * 越重要的cfqq key越小
 		 */
 		rb_key = cfq_slice_offset(cfqd, cfqq) + now;
 		rb_key -= cfqq->slice_resid;
@@ -2322,6 +2332,7 @@ static void cfq_service_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		rb_key += __cfqq ? __cfqq->rb_key : now;
 	}
 
+	/*先从service tree上卸载下来*/
 	if (!RB_EMPTY_NODE(&cfqq->rb_node)) {
 		new_cfqq = 0;
 		/*
@@ -2334,6 +2345,7 @@ static void cfq_service_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		cfqq->service_tree = NULL;
 	}
 
+	/*再重新挂上去*/
 	parent = NULL;
 	cfqq->service_tree = st;
 	p = &st->rb.rb_root.rb_node;
@@ -2408,6 +2420,7 @@ static void cfq_prio_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 		cfqq->p_root = NULL;
 	}
 
+	/*如果是idle就不挂到prio tree上了*/
 	if (cfq_class_idle(cfqq))
 		return;
 	if (!cfqq->next_rq)
@@ -2420,6 +2433,7 @@ static void cfq_prio_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 		rb_link_node(&cfqq->p_node, parent, p);
 		rb_insert_color(&cfqq->p_node, cfqq->p_root);
 	} else
+		/*有另外一个cfqq, pos冲突了*/
 		cfqq->p_root = NULL;
 }
 
@@ -2433,6 +2447,7 @@ static void cfq_resort_rr_list(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	 * rr 指cfqd->service tree
 	 */
 	if (cfq_cfqq_on_rr(cfqq)) {
+		/*cfqq 挂到cfqg的service tree上*/
 		cfq_service_tree_add(cfqd, cfqq, 0);
 		cfq_prio_tree_add(cfqd, cfqq);
 	}
@@ -2510,7 +2525,7 @@ static void cfq_del_rq_rb(struct request *rq)
 }
 
 
-/*将rq安装到RQ_CFQQ上*/
+/*将rq挂到cfqq, cfqq 挂到cfqg 以及cfqg 挂到cfqd队列上上*/
 static void cfq_add_rq_rb(struct request *rq)
 {
 	struct cfq_queue *cfqq = RQ_CFQQ(rq);
@@ -2543,8 +2558,10 @@ static void cfq_add_rq_rb(struct request *rq)
 	BUG_ON(!cfqq->next_rq);
 }
 
+/*req的起始sector变了,所以需要更新*/
 static void cfq_reposition_rq_rb(struct cfq_queue *cfqq, struct request *rq)
 {
+	/*先把rq 从队列中摘掉 */
 	elv_rb_del(&cfqq->sort_list, rq);
 	cfqq->queued[rq_is_sync(rq)]--;
 	cfqg_stats_update_io_remove(RQ_CFQG(rq), rq->cmd_flags);
@@ -2565,6 +2582,8 @@ cfq_find_rq_fmerge(struct cfq_data *cfqd, struct bio *bio)
 		return NULL;
 
 	cfqq = cic_to_cfqq(cic, op_is_sync(bio->bi_opf));
+
+	/*看有没有哪个b*/
 	if (cfqq)
 		return elv_rb_find(&cfqq->sort_list, bio_end_sector(bio));
 
@@ -2631,6 +2650,7 @@ static void cfq_merged_request(struct request_queue *q, struct request *req,
 	if (type == ELEVATOR_FRONT_MERGE) {
 		struct cfq_queue *cfqq = RQ_CFQQ(req);
 
+		/*bio 合入到了req的头部,这时候req的起始sector变了,所以需要更新*/
 		cfq_reposition_rq_rb(cfqq, req);
 	}
 }

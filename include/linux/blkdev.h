@@ -133,7 +133,7 @@ typedef __u32 __bitwise req_flags_t;
  * especially blk_mq_rq_ctx_init() to take care of the added fields.
  */
 struct request {
-	struct list_head queuelist;
+	struct list_head queuelist; /*req 链表*/
 	union {
 		struct __call_single_data csd;
 		u64 fifo_time;
