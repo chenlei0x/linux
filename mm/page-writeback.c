@@ -178,12 +178,15 @@ struct dirty_throttle_control {
 
 #ifdef CONFIG_CGROUP_WRITEBACK
 
+/*wb 和 global_wb_domain 之间的关系*/
 #define GDTC_INIT(__wb)		.wb = (__wb),				\
 				.dom = &global_wb_domain,		\
 				.wb_completions = &(__wb)->completions
 
 #define GDTC_INIT_NO_WB		.dom = &global_wb_domain
 
+
+/*wb 和 所属 memcg 之间的关系*/
 #define MDTC_INIT(__wb, __gdtc)	.wb = (__wb),				\
 				.dom = mem_cgroup_wb_domain(__wb),	\
 				.wb_completions = &(__wb)->memcg_completions, \
@@ -825,7 +828,7 @@ static unsigned long __wb_calc_thresh(struct dirty_throttle_control *dtc)
 	fprop_fraction_percpu(&dom->completions, dtc->wb_completions,
 			      &numerator, &denominator);
 
-	/* dirty 是总的 dirty-thresh, 除去bdi—min-ratio，其他的大家分*/
+	/* dirty 是总的 dirty-thresh, 除去bdi—min-ratio，剩下的大家分*/
 	wb_thresh = (thresh * (100 - bdi_min_ratio)) / 100;
 	wb_thresh *= numerator;
 	do_div(wb_thresh, denominator);
@@ -1145,7 +1148,10 @@ static void wb_update_write_bandwidth(struct bdi_writeback *wb,
 	u64 bw;
 
 	/*
+	 * bw 为 period时间窗口内, elapsed 的带宽
 	 * bw = written * HZ / elapsed
+	 *
+	 * period 为统计窗口 (period - elapsed) 剩下的时间
 	 *
 	 *                   bw * elapsed + write_bandwidth * (period - elapsed)
 	 * write_bandwidth = ---------------------------------------------------
@@ -1178,6 +1184,7 @@ out:
 	avg = max(avg, 1LU);
 	if (wb_has_dirty_io(wb)) {
 		long delta = avg - wb->avg_write_bandwidth;
+		/*更新bdi 的总带宽*/
 		WARN_ON_ONCE(atomic_long_add_return(delta,
 					&wb->bdi->tot_write_bandwidth) <= 0);
 	}
@@ -1194,6 +1201,7 @@ static void update_dirty_limit(struct dirty_throttle_control *dtc)
 	/*
 	 * Follow up in one step.
 	 */
+	 /*如果limit 小于thresh, 让dirty_limit = thresh*/
 	if (limit < thresh) {
 		limit = thresh;
 		goto update;
@@ -1205,6 +1213,7 @@ static void update_dirty_limit(struct dirty_throttle_control *dtc)
 	 * dom->dirty_limit which is guaranteed to lie above the dirty pages.
 	 */
 	thresh = max(thresh, dtc->dirty);
+	/*让如果limit 大于thresh 让他慢慢滑落到thresh*/
 	if (limit > thresh) {
 		limit -= (limit - thresh) >> 5;
 		goto update;
@@ -1214,6 +1223,8 @@ update:
 	dom->dirty_limit = limit;
 }
 
+
+/*更新 dom->dirty_limit*/
 static void domain_update_bandwidth(struct dirty_throttle_control *dtc,
 				    unsigned long now)
 {

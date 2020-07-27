@@ -95,7 +95,7 @@ struct cfq_ttime {
 struct cfq_rb_root {
 	struct rb_root_cached rb;
 	struct rb_node *rb_rightmost;
-	unsigned count;
+	unsigned count; /*有多少个cfqq*/
 	u64 min_vdisktime;
 	struct cfq_ttime ttime;
 };
@@ -106,6 +106,7 @@ struct cfq_rb_root {
 /*
  * Per process-grouping structure
  */
+ /* 每个进程有两个cfq-queue 一个是sync的 一个是非sync*/
 struct cfq_queue {
 	/* reference count */
 	int ref;
@@ -189,6 +190,7 @@ struct cfq_queue {
 	unsigned long nr_sectors;
 };
 
+/*一个cfq group 中的*/
 /*
  * First index in the service_trees.
  * IDLE is handled separately, so it has negative index
@@ -260,6 +262,7 @@ struct cfq_group {
 	struct blkg_policy_data pd;
 
 	/* group service_tree member */
+	/*cfq group 存放在这个树中 cfq_rb_root*/
 	struct rb_node rb_node; /*q->cfqgd->grp_service_tree树的anchor*/
 
 	/* group service_tree key */
@@ -340,6 +343,7 @@ struct cfq_group {
 
 };
 
+/*io_context 通过 q->id 找到这个结构体*/
 struct cfq_io_cq {
 	struct io_cq		icq;		/* must be the first member */
 	struct cfq_queue	*cfqq[2];  /*sync 和 async cic_set_cfqq中设置, 这两个元素表明当前正在用的cfqq*/
@@ -407,7 +411,7 @@ struct cfq_data {
 	 * idle window management
 	 */
 	struct hrtimer idle_slice_timer; /*cfq_idle_slice_timer*/
-	struct work_struct unplug_work;
+	struct work_struct unplug_work; /*cfq_kick_queue*/
 
 	struct cfq_queue *active_queue;
 	struct cfq_io_cq *active_cic;
@@ -643,12 +647,13 @@ static inline void cfqg_stats_update_avg_queue_size(struct cfq_group *cfqg) { }
 #endif	/* CONFIG_CFQ_GROUP_IOSCHED && CONFIG_DEBUG_BLK_CGROUP */
 
 #ifdef CONFIG_CFQ_GROUP_IOSCHED
-
+/*pd 是blkg中的数据*/
 static inline struct cfq_group *pd_to_cfqg(struct blkg_policy_data *pd)
 {
 	return pd ? container_of(pd, struct cfq_group, pd) : NULL;
 }
 
+/*cpd 是q中的数据*/
 static struct cfq_group_data
 *cpd_to_cfqgd(struct blkcg_policy_data *cpd)
 {
@@ -743,6 +748,7 @@ static inline void cfqg_stats_update_io_merged(struct cfq_group *cfqg,
 	blkg_rwstat_add(&cfqg->stats.merged, op, 1);
 }
 
+/*io_start_time < start_time */
 static inline void cfqg_stats_update_completion(struct cfq_group *cfqg,
 			uint64_t start_time, uint64_t io_start_time,
 			unsigned int op)
@@ -2391,7 +2397,7 @@ cfq_prio_tree_lookup(struct cfq_data *cfqd, struct rb_root *root,
 	return cfqq;
 }
 
-/*cfqq 放到 prior tree上,key = blk_rq_pos，可能并不放上去，如果key重复的话*/
+/*cfqq 放到 cfq data 的 prior tree上,key = blk_rq_pos，可能并不放上去，如果key重复的话*/
 static void cfq_prio_tree_add(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
 	struct rb_node **p, *parent;
