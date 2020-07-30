@@ -99,6 +99,7 @@ struct io_cq {
  */
 struct io_context {
 	atomic_long_t refcount;
+	/*bio_associate_current +1 */
 	atomic_t active_ref;
 	atomic_t nr_tasks;
 

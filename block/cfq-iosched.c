@@ -178,7 +178,7 @@ struct cfq_queue {
 
 	pid_t pid;
 
-	u32 seek_history;
+	u32 seek_history; /*seek history 中的一个bit 为 1 表明有一次磁头转动超过CFQQ_SEEK_THR*/
 	sector_t last_request_pos;
 
 	/*
@@ -197,10 +197,12 @@ struct cfq_queue {
  * First index in the service_trees.
  * IDLE is handled separately, so it has negative index
  */
+/* cfqq_class*/
+
 enum wl_class_t {
-	BE_WORKLOAD = 0,
-	RT_WORKLOAD = 1,
-	IDLE_WORKLOAD = 2,
+	BE_WORKLOAD = 0,  /*cfqq_class 中如果 ioprio_class  != IOPRIO_CLASS_RT IOPRIO_CLASS_IDLE*/
+	RT_WORKLOAD = 1,  /*ioprio_class == IOPRIO_CLASS_RT*/
+	IDLE_WORKLOAD = 2, /*ioprio_class == IOPRIO_CLASS_IDLE*/
 	CFQ_PRIO_NR,
 };
 
@@ -4002,6 +4004,7 @@ out:
 	return cfqq;
 }
 
+/*thinktime 为累计值,如果有slice idle,那么 elapsed 会比较大,导致ttime mean 比较大,最终超过slice idle*/
 static void
 __cfq_update_io_thinktime(struct cfq_ttime *ttime, u64 slice_idle)
 {
@@ -4034,6 +4037,7 @@ cfq_update_io_seektime(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 {
 	sector_t sdist = 0;
 	sector_t n_sec = blk_rq_sectors(rq);
+	/*sdist 为距离差, 该函数调用时, 驱动无法拿到req, 因为queue lock已经被锁*/
 	if (cfqq->last_request_pos) {
 		if (cfqq->last_request_pos < blk_rq_pos(rq))
 			sdist = blk_rq_pos(rq) - cfqq->last_request_pos;
@@ -4046,6 +4050,7 @@ cfq_update_io_seektime(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		cfqq->seek_history |= (n_sec < CFQQ_SECT_THR_NONROT);
 	else
 		cfqq->seek_history |= (sdist > CFQQ_SEEK_THR);
+	/*seek history 中的一个bit 为 1 表明有一次磁头转动超过CFQQ_SEEK_THR*/
 }
 
 static inline bool req_noidle(struct request *req)
@@ -4077,7 +4082,7 @@ cfq_update_idle_window(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 
 	if (cfqq->next_rq && req_noidle(cfqq->next_rq))
 		enable_idle = 0;
-	else if (!atomic_read(&cic->icq.ioc->active_ref) ||
+	else if (!atomic_read(&cic->icq.ioc->active_ref) || /*没有bio绑定这个ioc了*/
 		 !cfqd->cfq_slice_idle ||
 		 (!cfq_cfqq_deep(cfqq) && CFQQ_SEEKY(cfqq)))
 		enable_idle = 0;
