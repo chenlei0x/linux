@@ -30,28 +30,37 @@ struct deadline_data {
 
 	/*
 	 * requests (deadline_rq s) are present on both sort_list and fifo_list
+	 * 按照 blk_rq_pos 的顺序排序req
 	 */
-	struct rb_root sort_list[2];	
+	struct rb_root sort_list[2];	/*读 / 写*/
 	struct list_head fifo_list[2];
 
 	/*
 	 * next in sort order. read, write or both are NULL
+	 * deadline_latter_request(rq) 中会设置为@rq在sort list中
+	 * 的后一个req
 	 */
 	struct request *next_rq[2];
+	/*dd下发了多少个req*/
 	unsigned int batching;		/* number of sequential requests made */
+	/*在做一次write batch之前，做了多少次read batch*/
 	unsigned int starved;		/* times reads have starved writes */
 
 	/*
 	 * settings that change how the i/o scheduler behaves
 	 */
-	int fifo_expire[2];
-	int fifo_batch;
-	int writes_starved;
+	int fifo_expire[2]; /*读 半秒/写 5秒*/
+	int fifo_batch; /*默认16*/
+	/*This tunable controls how many read batches can be 
+	processed before processing a single write batch. 
+	The higher this is set, the more preference is given to reads.
+	*/
+	int writes_starved; /*默认2*/
 	int front_merges;
 };
 
 static void deadline_move_request(struct deadline_data *, struct request *);
-
+/*通过rq，确定他所在的红黑树*/
 static inline struct rb_root *
 deadline_rb_root(struct deadline_data *dd, struct request *rq)
 {
@@ -85,9 +94,11 @@ deadline_del_rq_rb(struct deadline_data *dd, struct request *rq)
 {
 	const int data_dir = rq_data_dir(rq);
 
+	/*删除了之后next rq 递补一个*/
 	if (dd->next_rq[data_dir] == rq)
 		dd->next_rq[data_dir] = deadline_latter_request(rq);
 
+	/*从红黑树上删除*/
 	elv_rb_del(deadline_rb_root(dd, rq), rq);
 }
 
@@ -120,6 +131,7 @@ static void deadline_remove_request(struct request_queue *q, struct request *rq)
 	deadline_del_rq_rb(dd, rq);
 }
 
+/*bio 合入 dd中的某个req的头部， 该函数只用来找到req*/
 static enum elv_merge
 deadline_merge(struct request_queue *q, struct request **req, struct bio *bio)
 {
@@ -153,6 +165,8 @@ static void deadline_merged_request(struct request_queue *q,
 
 	/*
 	 * if the merge was a front merge, we need to reposition request
+	 *
+	 * bio合入到某个req的头部，需要重新排队，因为start pos 变了
 	 */
 	if (type == ELEVATOR_FRONT_MERGE) {
 		elv_rb_del(deadline_rb_root(dd, req), req);
@@ -160,6 +174,7 @@ static void deadline_merged_request(struct request_queue *q,
 	}
 }
 
+/*合并两个req， req中的数据字段已经被合并，这里处理调度层的相关信息合并*/
 static void
 deadline_merged_requests(struct request_queue *q, struct request *req,
 			 struct request *next)
@@ -167,10 +182,12 @@ deadline_merged_requests(struct request_queue *q, struct request *req,
 	/*
 	 * if next expires before rq, assign its expire time to rq
 	 * and move into next position (next will be deleted) in fifo
+	 * 如果
 	 */
 	if (!list_empty(&req->queuelist) && !list_empty(&next->queuelist)) {
 		if (time_before((unsigned long)next->fifo_time,
 				(unsigned long)req->fifo_time)) {
+				/*把next的req链表合入到req中*/
 			list_move(&req->queuelist, &next->queuelist);
 			req->fifo_time = next->fifo_time;
 		}
@@ -191,6 +208,7 @@ deadline_move_to_dispatch(struct deadline_data *dd, struct request *rq)
 	struct request_queue *q = rq->q;
 
 	deadline_remove_request(q, rq);
+	/*添加到queue head*/
 	elv_dispatch_add_tail(q, rq);
 }
 
@@ -209,6 +227,7 @@ deadline_move_request(struct deadline_data *dd, struct request *rq)
 	/*
 	 * take it off the sort and fifo list, move
 	 * to dispatch queue
+	 * 搬移到queue head
 	 */
 	deadline_move_to_dispatch(dd, rq);
 }
@@ -250,6 +269,7 @@ static int deadline_dispatch_requests(struct request_queue *q, int force)
 	else
 		rq = dd->next_rq[READ];
 
+	/*一个batch表示一连串的读或者写io， 这些io的LBA地址是递增的关系*/
 	if (rq && dd->batching < dd->fifo_batch)
 		/* we have a next request are still entitled to batch */
 		goto dispatch_request;
@@ -261,7 +281,8 @@ static int deadline_dispatch_requests(struct request_queue *q, int force)
 
 	if (reads) {
 		BUG_ON(RB_EMPTY_ROOT(&dd->sort_list[READ]));
-
+		
+		/*把write 饿了太多次了，这次就得派发write*/
 		if (writes && (dd->starved++ >= dd->writes_starved))
 			goto dispatch_writes;
 

@@ -61,12 +61,16 @@ typedef void (elevator_registered_fn) (struct request_queue *);
 
 struct elevator_ops
 {
-	/*找到合适的req，request和bio合并的时候调用*/
+	/* 给定一个bio，找到合适的req可以让bio合入进去，
+	 * request和bio合并的时候调用， return值表明插入到哪里
+	 * @req 为出参，表示找到的req
+	 */
 	/*cfq_merge*/
 	elevator_merge_fn *elevator_merge_fn;
 	
 	/*
-	合并了两个req ***之后***需要的操作    
+	把某个bio合并到某个req ***之后***需要对该req的操作，
+	比如重新排队
 
 	blk_queue_bio
 		attempt_back_merge

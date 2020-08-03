@@ -1940,7 +1940,7 @@ get_rq:
 		/*如果没有plug，那就放掉调度层*/
 		spin_lock_irq(q->queue_lock);
 		add_acct_request(q, req, where); /*这里会调用__elv_add_request*/
-		__blk_run_queue(q);
+		__blk_run_queue(q); /*调用request fn*/
 out_unlock:
 		spin_unlock_irq(q->queue_lock);
 	}

@@ -152,7 +152,7 @@ struct cfq_queue {
 	
 	/*
 	 * fifo list of requests in sort_list 
-	 * cfq_insert_request把 request 连接在这里
+	 * cfq_insert_request 把 request 连接在末尾
 	 */
 	struct list_head fifo; 
 
@@ -395,7 +395,7 @@ struct cfq_data {
 	/*blk_peek_request 中拿出一个req时，会把该值+1*/
 	/*requeue 或者 complete时 -1*/
 	int rq_in_driver;
-	int rq_in_flight[2]; /*async sync 挂到q->queue_head加一，complete 减一*/
+	int rq_in_flight[2]; /*async sync 从elv中挂到q->queue_head加一，complete 减一*/
 
 	/*
 	 * queue-depth detection
@@ -3165,7 +3165,7 @@ static struct request *cfq_check_fifo(struct cfq_queue *cfqq)
 	if (cfq_cfqq_fifo_expire(cfqq))
 		return NULL;
 
-	cfq_mark_cfqq_fifo_expire(cfqq);
+	cfq_mark_cfqq_fifo_expire(cfqq); /*这个slice fifo队列已经被检查过*/
 
 	if (list_empty(&cfqq->fifo))
 		return NULL;
@@ -3268,6 +3268,7 @@ static enum wl_type_t cfq_choose_wl_type(struct cfq_data *cfqd,
 	return cur_best;
 }
 
+/*该函数决定当调度到一个cfqg时， 选择他的哪个 service tree？*/
 static void
 choose_wl_class_and_type(struct cfq_data *cfqd, struct cfq_group *cfqg)
 {
@@ -3527,6 +3528,7 @@ static int __cfq_forced_dispatch_cfqq(struct cfq_queue *cfqq)
 /*
  * Drain our current requests. Used for barriers and when switching
  * io schedulers on-the-fly.
+ * 派发完所有的io
  */
 static int cfq_forced_dispatch(struct cfq_data *cfqd)
 {

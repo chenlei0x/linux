@@ -82,6 +82,7 @@ struct request_list {
 typedef __u32 __bitwise req_flags_t;
 
 /* elevator knows about this request */
+/* 当一个req没有被合并，然后作为单独的一个req放入io 调度层时，就打上这个标记*/
 #define RQF_SORTED		((__force req_flags_t)(1 << 0))
 /* drive already may have started this one */
 #define RQF_STARTED		((__force req_flags_t)(1 << 1))
@@ -133,10 +134,15 @@ typedef __u32 __bitwise req_flags_t;
  * especially blk_mq_rq_ctx_init() to take care of the added fields.
  */
 struct request {
-	struct list_head queuelist; /*req 链表, q->queue_head， 在cfq中 被链接在cfqq->fifo*/
+	/*req 链表, q->queue_head， 在cfq中 被链接在cfqq->fifo*/
+	/*在dd中， 被链接在&dd->fifo_list[data_dir]*/
+	struct list_head queuelist;
 	union {
 		struct __call_single_data csd;
-		u64 fifo_time; /*cfq_insert_request 中初始化*/
+		u64 fifo_time; /*cfq_insert_request 中初始化
+		 同样的dd 调度算法中，这个值是该req的超时时间
+		 jiffies + dd->fifo_expire[data_dir]
+		 */
 	};
 
 	struct request_queue *q;
@@ -151,6 +157,8 @@ struct request {
 	unsigned long atomic_flags;
 
 	/* the following two fields are internal, NEVER access directly */
+	/*每个req(因为req是一个链表)的每个bio(每个req包含一个bio链表) 
+	  的size 之和*/
 	unsigned int __data_len;	/* total data len */
 	int tag;
 	sector_t __sector;		/* sector cursor */
@@ -166,6 +174,10 @@ struct request {
 	 * the dispatch list).
 	 */
 	union {
+	/*
+	 * key = rq_hash_key = 每个req的结尾sector
+	 * 放到 q->elevator->hash
+	 */
 		struct hlist_node hash;	/* merge hash */
 		struct list_head ipi_list;
 	};
@@ -176,7 +188,8 @@ struct request {
 	 * completion_data share space with the rb_node.
 	 */
 	union {
-		/*放到dispatch queue 之前， 用这个排序*/
+		/*放到dispatch queue 之前， 这个域用来在cfqq上 sort list
+		  上按照blk pose排序*/
 		struct rb_node rb_node;	/* sort/lookup */
 		struct bio_vec special_vec;
 		void *completion_data;
@@ -463,8 +476,12 @@ struct request_queue {
 
 	/*
 	 * Dispatch queue sorting
+	 *
+	 * elv_dispatch_add_tail
 	 */
+	 /*queue head 链表得最后一个req的结尾sector*/
 	sector_t		end_sector;
+	/*queue head 链表得最后一个req的结尾sector*/
 	struct request		*boundary_rq;
 
 	/*

@@ -447,7 +447,7 @@ EXPORT_SYMBOL(elv_dispatch_add_tail);
 
 /*
  * 通过bio 的起始sector 从哈希表中找出一个合适的req，哈希表中的
- * key 为req的最终地址
+ * key 为req的末尾sector
  */
 enum elv_merge elv_merge(struct request_queue *q, struct request **req,
 		struct bio *bio)
