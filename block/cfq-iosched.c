@@ -137,7 +137,9 @@ struct cfq_queue {
 	struct rb_root *p_root;  /*指向cfqd->prio_trees[cfqq->org_ioprio]*/
 	/* sorted list of pending requests， 排序的key = blk_rq_pos， anchor rq->rb_node*/
 
-	/*req按照起始sector号挂在这个树上,如果哪个bio的结尾sector 刚好等于这个req的起始,那么就合入进去*/
+	/*req按照起始sector号挂在这个树上,如果哪个bio的结尾sector 
+	  刚好等于这个req的起始,那么就合入进去
+	  */
 	struct rb_root sort_list;
 
 	
@@ -150,7 +152,7 @@ struct cfq_queue {
 	
 	/*
 	 * fifo list of requests in sort_list 
-	 * request 连接在这里
+	 * cfq_insert_request把 request 连接在这里
 	 */
 	struct list_head fifo; 
 
@@ -168,7 +170,7 @@ struct cfq_queue {
 	/* 
 	 * number of requests that are on the dispatch list or inside driver
 	 * dispatch_request时，该值加一，也就是说只要挂到queue上，就加一
-	 * complete 时该值减一
+	 * cfq_completed_request 时该值减一
 	 */
 	int dispatched;
 
@@ -182,8 +184,10 @@ struct cfq_queue {
 	sector_t last_request_pos;
 
 	/*
+	 * 该cfqq 所在的serivce tree
 	 * 指向 st_for(cfqq->cfqg, cfqq_class(cfqq), cfqq_type(cfqq))
 	 * 如果 cfq_cfqq_on_rr返回true，则该字段有效
+	 * 
 	 */
 	struct cfq_rb_root *service_tree; 
 	struct cfq_queue *new_cfqq;
@@ -364,7 +368,8 @@ struct cfq_io_cq {
 struct cfq_data {
 	struct request_queue *queue;
 	/* Root service tree for cfq_groups */
-	struct cfq_rb_root grp_service_tree; /*所有的cfqg 都在这*/
+	/*所有的cfqg ，按照cfqg->vdisktime - st->min_vdisktime排序在*/
+	struct cfq_rb_root grp_service_tree; 
 	struct cfq_group *root_group;
 
 	/*
@@ -383,16 +388,20 @@ struct cfq_data {
 	 /*每个元素都是一个红黑树，连接所有同优先级的cfqq，cfqq中的连接点为cfqq->p_node*/
 	struct rb_root prio_trees[CFQ_PRIO_LISTS]; 
 
+	/*cfq_add_cfqq_rr 会对该值 +1*/
 	unsigned int busy_queues;
 	unsigned int busy_sync_queues;
 
+	/*blk_peek_request 中拿出一个req时，会把该值+1*/
+	/*requeue 或者 complete时 -1*/
 	int rq_in_driver;
 	int rq_in_flight[2]; /*async sync 挂到q->queue_head加一，complete 减一*/
 
 	/*
 	 * queue-depth detection
 	 */
-	int rq_queued; /*自加一 当request (rq) is added*/
+	int rq_queued; /*自加一 当request (rq) 加入到任何一个cfqq上时*/
+	/*估计的队列深度大于一定值时， 该字段为1 */
 	int hw_tag; 
 
 	/*
@@ -408,7 +417,12 @@ struct cfq_data {
 	 *  1 => NCQ is present (hw_tag_est_depth is the estimated max depth)
 	 *  0 => no NCQ
 	 */
+	 /*
+	  * 在cfq_update_hw_tag 中会被更新为 
+	  * cfqd->hw_tag_est_depth = cfqd->rq_in_driver
+	  */
 	int hw_tag_est_depth;
+	/*每调用一次 cfq_update_hw_tag 该值+1*/
 	unsigned int hw_tag_samples;
 
 	/*
@@ -434,7 +448,7 @@ struct cfq_data {
 	u64 cfq_slice[2]; /* async sync*/
 	u64 cfq_slice_idle;
 	u64 cfq_group_idle; /*再等多久，为了有更多的request进来*/
-	u64 cfq_target_latency;
+	u64 cfq_target_latency; /*默认300ms*/
 
 	/*
 	 * Fallback dummy cfqq for extreme OOM conditions
@@ -972,6 +986,8 @@ static inline struct cfq_data *cic_to_cfqd(struct cfq_io_cq *cic)
 /*
  * scheduler run of queue, if there are requests pending and no one in the
  * driver that will restart queueing
+ *
+ *  派发给驱动, 驱动会调用fetch request
  */
 static inline void cfq_schedule_dispatch(struct cfq_data *cfqd)
 {
@@ -1282,7 +1298,7 @@ cfq_find_next_rq(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 		if (rbnext && rbnext != &last->rb_node)
 			next = rb_entry_rq(rbnext);
 	}
-
+	/*next prev 哪个更适合作为下一个req*/
 	return cfq_choose_req(cfqd, next, prev, blk_rq_pos(last));
 }
 
@@ -1428,7 +1444,7 @@ static inline u64 cfq_get_cfqg_vdisktime_delay(struct cfq_data *cfqd)
 		return CFQ_IOPS_MODE_GROUP_DELAY;
 }
 
-/*把cfqg 添加到 cfq_data->grp_service_tree*/
+/*把cfqg 添加到 cfq_data->grp_service_tree, 按照cfqg->vdisktime 顺序*/
 static void
 cfq_group_notify_queue_add(struct cfq_data *cfqd, struct cfq_group *cfqg)
 {
@@ -2805,7 +2821,7 @@ __cfq_slice_expired(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 	cfq_resort_rr_list(cfqd, cfqq);
 
 	if (cfqq == cfqd->active_queue)
-		cfqd->active_queue = NULL;
+		cfqd->active_queue = NULL;/*强制让下次select queue时选择新的队列*/
 
 	if (cfqd->active_cic) {
 		put_io_context(cfqd->active_cic->icq.ioc);
@@ -2843,7 +2859,7 @@ static struct cfq_queue *cfq_get_next_queue(struct cfq_data *cfqd)
 		return NULL;
 	if (RB_EMPTY_ROOT(&st->rb.rb_root))
 		return NULL;
-	/*选cfqg下的cfqq tree(st) 的第一个*/
+	/*选cfqg下的cfqq tree(st) 的第一个(left most)*/
 	return cfq_rb_first(st);
 }
 
@@ -2900,6 +2916,7 @@ static inline int cfq_rq_close(struct cfq_data *cfqd, struct cfq_queue *cfqq,
 static struct cfq_queue *cfqq_close(struct cfq_data *cfqd,
 				    struct cfq_queue *cur_cfqq)
 {
+	/*相同优先级的cfqq*/
 	struct rb_root *root = &cfqd->prio_trees[cur_cfqq->org_ioprio]; /*从这个树里面选一个合适的q*/
 	struct rb_node *parent, *node;
 	struct cfq_queue *__cfqq;
@@ -2911,6 +2928,8 @@ static struct cfq_queue *cfqq_close(struct cfq_data *cfqd,
 	/*
 	 * First, if we find a request starting at the end of the last
 	 * request, choose it.
+	 *
+	 * 有没有一个cfqq 刚好next req 的pos 等于 sector
 	 */
 	__cfqq = cfq_prio_tree_lookup(cfqd, root, sector, &parent, NULL);
 	if (__cfqq)
@@ -2920,6 +2939,7 @@ static struct cfq_queue *cfqq_close(struct cfq_data *cfqd,
 	 * If the exact sector wasn't found, the parent of the NULL leaf
 	 * will contain the closest sector.
 	 */
+	 /*parent 节点是否和 当前cfqq 的last position 足够近*/
 	__cfqq = rb_entry(parent, struct cfq_queue, p_node);
 	if (cfq_rq_close(cfqd, cur_cfqq, __cfqq->next_rq))
 		return __cfqq;
@@ -2970,12 +2990,15 @@ static struct cfq_queue *cfq_close_cooperator(struct cfq_data *cfqd,
 	 * We should notice if some of the queues are cooperating, eg
 	 * working closely on the same area of the disk. In that case,
 	 * we can group them together and don't waste time idling.
+	 *
+	 * 先在同优先级中选择cfqq
 	 */
 	cfqq = cfqq_close(cfqd, cur_cfqq);
 	if (!cfqq)
 		return NULL;
 
 	/* If new queue belongs to different cfq_group, don't choose it */
+	/*必须所属同一个cfqg*/
 	if (cur_cfqq->cfqg != cfqq->cfqg)
 		return NULL;
 
@@ -3103,7 +3126,7 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 	else
 		sl = cfqd->cfq_slice_idle;
 
-	/*cfq_idle_slice_timer slice时间之后执行*/
+	/*cfq_idle_slice_timer slice时间之后执行， 用于集中派发给驱动*/
 	hrtimer_start(&cfqd->idle_slice_timer, ns_to_ktime(sl),
 		      HRTIMER_MODE_REL);
 	cfqg_stats_set_start_idle_time(cfqq->cfqg);
@@ -3125,6 +3148,7 @@ static void cfq_dispatch_insert(struct request_queue *q, struct request *rq)
 	cfq_remove_request(rq);
 	cfqq->dispatched++;
 	(RQ_CFQG(rq))->dispatched++;
+	/*把request 放到 q->queue_head 上*/
 	elv_dispatch_sort(q, rq);
 
 	cfqd->rq_in_flight[cfq_cfqq_sync(cfqq)]++;
@@ -3176,6 +3200,7 @@ static int cfqq_process_refs(struct cfq_queue *cfqq)
 	return process_refs;
 }
 
+/*把@cfqq和 @new_cfqq 连起来*/
 static void cfq_setup_merge(struct cfq_queue *cfqq, struct cfq_queue *new_cfqq)
 {
 	int process_refs, new_process_refs;
@@ -3410,11 +3435,14 @@ static struct cfq_queue *cfq_select_queue(struct cfq_data *cfqd)
 	if (!RB_EMPTY_ROOT(&cfqq->sort_list))
 		goto keep_queue;
 
+	/*目前cfqq 上没有req*/
 	/*
 	 * If another queue has a request waiting within our mean seek
 	 * distance, let it run.  The expire code will check for close
 	 * cooperators and put the close queue at the front of the service
 	 * tree.  If possible, merge the expiring queue with the new cfqq.
+	 *
+	 * 这个cfqq 的slice 还没用完，但是有一个更合适的cfqq，那么让他先跑
 	 */
 	new_cfqq = cfq_close_cooperator(cfqd, cfqq);
 	if (new_cfqq) {
@@ -3427,6 +3455,9 @@ static struct cfq_queue *cfq_select_queue(struct cfq_data *cfqd)
 	 * No requests pending. If the active queue still has requests in
 	 * flight or is idling for a new request, allow either of these
 	 * conditions to happen (or time out) before selecting a new queue.
+	 *
+	 * 在cfq complete 中会设置这个slice timer，如果设置了说明cfqq 为同步队列，
+	 * 且没有req在队列上，处于idle状态
 	 */
 	if (hrtimer_active(&cfqd->idle_slice_timer)) {
 		cfqq = NULL;
@@ -3473,6 +3504,7 @@ new_queue:
 
 	cfqq = cfq_set_active_queue(cfqd, new_cfqq);
 keep_queue:
+	/*cfqq 如果为NULL， 则会造成blk_fetch_request拿不到req*/
 	return cfqq;
 }
 
@@ -3662,6 +3694,8 @@ static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
  * dispatch list
  *
  * 如果不是force 只派发一个request，否则一直派发完
+
+ elevator_dispatch_fn 钩子函数
  */
 static int cfq_dispatch_requests(struct request_queue *q, int force)
 {
@@ -4287,6 +4321,8 @@ static void cfq_insert_request(struct request_queue *q, struct request *rq)
 /*
  * Update hw_tag based on peak queue depth over 50 samples under
  * sufficient load.
+ *
+ * cfq_update_hw_tag 会调用这个函数
  */
 static void cfq_update_hw_tag(struct cfq_data *cfqd)
 {
@@ -4338,6 +4374,7 @@ static bool cfq_should_wait_busy(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	if (cfq_io_thinktime_big(cfqd, &cfqq->cfqg->ttime, true))
 		return false;
 
+	/*slice 用完了？*/
 	if (cfq_slice_used(cfqq))
 		return true;
 
@@ -4415,8 +4452,9 @@ static void cfq_completed_request(struct request_queue *q, struct request *rq)
 	 */
 	if (cfqd->active_queue == cfqq) {
 		const bool cfqq_empty = RB_EMPTY_ROOT(&cfqq->sort_list);
-
+		/*slice new 表示没有io dispatch 过*/
 		if (cfq_cfqq_slice_new(cfqq)) {
+			/*当第一个io 发生完成之后，设置slice_end*/
 			cfq_set_prio_slice(cfqd, cfqq);
 			cfq_clear_cfqq_slice_new(cfqq);
 		}
@@ -4424,6 +4462,7 @@ static void cfq_completed_request(struct request_queue *q, struct request *rq)
 		/*
 		 * Should we wait for next request to come in before we expire
 		 * the queue.
+		 * 忙等，表示有request的时候，对该cfqq继续持续一段时间
 		 */
 		if (cfq_should_wait_busy(cfqd, cfqq)) {
 			u64 extend_sl = cfqd->cfq_slice_idle;
@@ -4443,13 +4482,16 @@ static void cfq_completed_request(struct request_queue *q, struct request *rq)
 		 * - when there is a close cooperator
 		 */
 		if (cfq_slice_used(cfqq) || cfq_class_idle(cfqq))
-			cfq_slice_expired(cfqd, 1);
+			cfq_slice_expired(cfqd, 1); /*1 --- time out*/
 		else if (sync && cfqq_empty &&
-			 !cfq_close_cooperator(cfqd, cfqq)) {
+			!cfq_close_cooperator(cfqd, cfqq)) {
+			/*因为此时已经empty了，再给他slice 的时间
+			  之后就调度下一个cfqq		 专门用来超时*/
+			/*cfq_idle_slice_timer*/
 			cfq_arm_slice_timer(cfqd);
 		}
 	}
-
+	/*驱动没有rq了，立即给他派发*/
 	if (!cfqd->rq_in_driver)
 		cfq_schedule_dispatch(cfqd);
 }
@@ -4684,8 +4726,10 @@ static enum hrtimer_restart cfq_idle_slice_timer(struct hrtimer *timer)
 		cfq_clear_cfqq_deep(cfqq);
 	}
 expire:
+	/*当前有可能cfqq 的slice 还没有用完，让active queue expire*/
 	cfq_slice_expired(cfqd, timed_out);
 out_kick:
+	/*派发给驱动*/
 	cfq_schedule_dispatch(cfqd);
 out_cont:
 	spin_unlock_irqrestore(cfqd->queue->queue_lock, flags);

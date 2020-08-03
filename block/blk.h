@@ -156,6 +156,10 @@ static inline struct request *__elv_next_request(struct request_queue *q)
 
 	WARN_ON_ONCE(q->mq_ops);
 
+	/*queue-head中的第一个rq
+	  flush queue中的
+	  elevator 派发一个，这样queue head就有了
+	 */
 	while (1) {
 		if (!list_empty(&q->queue_head)) {
 			rq = list_entry_rq(q->queue_head.next);

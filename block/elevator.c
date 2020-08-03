@@ -538,7 +538,7 @@ bool elv_attempt_insert_merge(struct request_queue *q, struct request *rq)
 }
 
 /*
- * merge 之后要做一些处理
+ * merge bio 之后要做一些处理
  */
 void elv_merged_request(struct request_queue *q, struct request *rq,
 		enum elv_merge type)

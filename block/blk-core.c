@@ -1870,7 +1870,7 @@ static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 			break;
 		elv_bio_merged(q, req, bio);
 		free = attempt_front_merge(q, req);
-		if (free)
+		if (free)/*成功*/
 			__blk_put_request(q, free);
 		else
 			elv_merged_request(q, req, ELEVATOR_FRONT_MERGE);
@@ -2577,6 +2577,7 @@ struct request *blk_peek_request(struct request_queue *q)
 	lockdep_assert_held(q->queue_lock);
 	WARN_ON_ONCE(q->mq_ops);
 
+	/*这里会让elv 下发到queue head 上*/
 	while ((rq = __elv_next_request(q)) != NULL) {
 
 		rq = blk_pm_peek_request(q, rq);
@@ -3383,6 +3384,7 @@ struct blk_plug_cb *blk_check_plugged(blk_plug_cb_fn unplug, void *data,
 }
 EXPORT_SYMBOL(blk_check_plugged);
 
+/*把进程的plug io 队列下发下去*/
 void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 {
 	struct request_queue *q;

@@ -133,10 +133,10 @@ typedef __u32 __bitwise req_flags_t;
  * especially blk_mq_rq_ctx_init() to take care of the added fields.
  */
 struct request {
-	struct list_head queuelist; /*req 链表*/
+	struct list_head queuelist; /*req 链表, q->queue_head， 在cfq中 被链接在cfqq->fifo*/
 	union {
 		struct __call_single_data csd;
-		u64 fifo_time;
+		u64 fifo_time; /*cfq_insert_request 中初始化*/
 	};
 
 	struct request_queue *q;
@@ -176,6 +176,7 @@ struct request {
 	 * completion_data share space with the rb_node.
 	 */
 	union {
+		/*放到dispatch queue 之前， 用这个排序*/
 		struct rb_node rb_node;	/* sort/lookup */
 		struct bio_vec special_vec;
 		void *completion_data;
@@ -405,7 +406,7 @@ struct request_queue {
 	/*
 	 * Together with queue_head for cacheline sharing
 	 */
-	struct list_head	queue_head;
+	struct list_head	queue_head; /*request->queuelist*/
 	struct request		*last_merge;
 	struct elevator_queue	*elevator;
 	int			nr_rqs[2];	/* # allocated [a]sync rqs */
@@ -445,7 +446,8 @@ struct request_queue {
 	/* Called from inside blk_get_request() */
 	void (*initialize_rq_fn)(struct request *rq);
 
-	const struct blk_mq_ops	*mq_ops; /*标志single queue 还是 multi queue 的标志 非空表示该queue是mq*/
+	/*可以用作 singlee queue 还是 multi queue 的区分标志 非空表示该queue是mq*/
+	const struct blk_mq_ops	*mq_ops;
 
 	unsigned int		*mq_map;
 

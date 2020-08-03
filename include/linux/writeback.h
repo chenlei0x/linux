@@ -39,6 +39,7 @@ struct backing_dev_info;
  */
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
+	/*对于ext4来讲，这个标记会让回写加上REQ_SYNC标记*/
 	WB_SYNC_ALL,	/* Wait on every mapping, write back完了需要等待 */
 };
 
