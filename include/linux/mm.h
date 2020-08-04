@@ -47,7 +47,7 @@ static inline void set_max_mapnr(unsigned long limit)
 static inline void set_max_mapnr(unsigned long limit) { }
 #endif
 
-extern unsigned long totalram_pages;
+extern unsigned long totalram_pages; /*mm/page_alloc.c, 系统总内存*/
 extern void * high_memory;
 extern int page_cluster;
 

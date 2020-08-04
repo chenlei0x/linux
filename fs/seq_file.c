@@ -229,6 +229,7 @@ ssize_t seq_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
 	}
 	/* we need at least one record in buffer */
 	pos = m->index;
+	/*通过pos 返回第一条记录的指针*/
 	p = m->op->start(m, &pos);
 	while (1) {
 		err = PTR_ERR(p);
@@ -244,8 +245,10 @@ ssize_t seq_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
 			m->index = pos;
 			continue;
 		}
+		/*buf 缓冲区没有满*/
 		if (m->count < m->size)
 			goto Fill;
+		/*缓冲区满了，重新申请大内存*/
 		m->op->stop(m, p);
 		kvfree(m->buf);
 		m->count = 0;

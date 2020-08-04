@@ -107,6 +107,7 @@ static inline void vm_events_fold_cpu(int cpu)
 /*
  * Zone and node-based page accounting with per cpu differentials.
  */
+ /*zone1 zong2 ... zone n 发生的每个事件i的总和*/
 extern atomic_long_t vm_zone_stat[NR_VM_ZONE_STAT_ITEMS];
 extern atomic_long_t vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 extern atomic_long_t vm_node_stat[NR_VM_NODE_STAT_ITEMS];

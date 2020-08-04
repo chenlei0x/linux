@@ -718,6 +718,12 @@ void wb_domain_exit(struct wb_domain *dom)
  * exceed 100%.
  */
  /*bdi_min_ratio 记录所有bdi 设备的ratio 总和*/
+/*
+ * The 'min_ratio' parameter allows assigning a minimum
+	percentage of the write-back cache to a particular device.
+	For example, this is useful for providing a minimum QoS.
+	每个bdi->min_ratio 记录自己所分配到的wb cache 的最小比例
+*/
 static unsigned int bdi_min_ratio;
 
 int bdi_set_min_ratio(struct backing_dev_info *bdi, unsigned int min_ratio)
@@ -857,7 +863,8 @@ unsigned long wb_calc_thresh(struct bdi_writeback *wb, unsigned long thresh)
  *                           limit - setpoint
  *
  * it's a 3rd order polynomial that subjects to
- * 这个公式就是用来算pos_ratio的, dirty 越大, pos ratio 越小
+ * 这个公式就是用来算global pos_ratio的, dirty 越大, pos ratio 越小
+ * 三次曲线
  *
  * (1) f(freerun)  = 2.0 => rampup dirty_ratelimit reasonably fast 这里2 其实等于 RATELIMIT_CALC_SHIFT * 2
  * (2) f(setpoint) = 1.0 => the balance point
@@ -958,6 +965,10 @@ static long long pos_ratio_polynom(unsigned long setpoint,
  * - start writing to a slow SD card and a fast disk at the same time. The SD
  *   card's wb_dirty may rush to many times higher than wb_setpoint.
  * - the wb dirty thresh drops quickly due to change of JBOD workload
+ *
+ * pos ratio 是回刷的一个指标，越小表示回刷越紧迫，需要尽快回刷
+ * 该函数先计算一个 global pos ratio，然后再计算出wb pos ratio，
+ * 两者相乘为最终的dtc的pos ratio
  */
 static void wb_position_ratio(struct dirty_throttle_control *dtc)
 {
@@ -984,6 +995,7 @@ static void wb_position_ratio(struct dirty_throttle_control *dtc)
 	 * See comment for pos_ratio_polynom().
 	 */
 	setpoint = (freerun + limit) / 2;
+	/*先计算global 的pos ratio*/
 	pos_ratio = pos_ratio_polynom(setpoint, dtc->dirty, limit);
 
 	/*
@@ -1066,7 +1078,7 @@ static void wb_position_ratio(struct dirty_throttle_control *dtc)
 	/*
 	 * wb setpoint
 	 *
-	 *        f(wb_dirty) := 1.0 + k * (wb_dirty - wb_setpoint)
+	 *       f(wb_dirty) := 1.0 + k * (wb_dirty - wb_setpoint)
 	 *
 	 *                        x_intercept - wb_dirty
 	 *                     := --------------------------
@@ -1126,9 +1138,11 @@ static void wb_position_ratio(struct dirty_throttle_control *dtc)
 	 * It may push the desired control point of global dirty pages higher
 	 * than setpoint.
 	 */
+	 /*wb_thresh 可能很小，这时候适当放大一些pos_ratio*/
 	x_intercept = wb_thresh / 2;
 	if (dtc->wb_dirty < x_intercept) {
 		if (dtc->wb_dirty > x_intercept / 8)
+			/*wb_dirty 处于一个很低的水平，适当放大*/
 			pos_ratio = div_u64(pos_ratio * x_intercept,
 					    dtc->wb_dirty);
 		else

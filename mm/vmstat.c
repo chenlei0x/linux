@@ -1669,9 +1669,11 @@ static void *vmstat_next(struct seq_file *m, void *arg, loff_t *pos)
 
 static int vmstat_show(struct seq_file *m, void *arg)
 {
+	/*vmstat_next 中把pos 依次 +1， 所以这里arg 也逐次 +1， 所以
+		off 也逐次+1*/
 	unsigned long *l = arg;
 	unsigned long off = l - (unsigned long *)m->private;
-
+	/*vmstat_text 代表 第off项stat 的名字*/
 	/* Skip hidden vmstat items. */
 	if (*vmstat_text[off] == '\0')
 		return 0;

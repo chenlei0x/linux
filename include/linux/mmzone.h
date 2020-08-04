@@ -129,6 +129,8 @@ enum numa_stat_item {
 #define NR_VM_NUMA_STAT_ITEMS 0
 #endif
 
+
+/*__mod_zone_page_state函数会计算以下事件*/
 enum zone_stat_item {
 	/* First 128 byte cacheline (assuming 64 bit words) */
 	NR_FREE_PAGES,
@@ -144,12 +146,14 @@ enum zone_stat_item {
 	NR_KERNEL_STACK_KB,	/* measured in KiB */
 	/* Second 128 byte cacheline */
 	NR_BOUNCE,
-#if IS_ENABLED(CONFIG_ZSMALLOC)
+#if IS_ENABLED(CONFIG_ZSMALLOC) /**/
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
 	NR_FREE_CMA_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
 
+
+/*__mod_node_page_state 函数会计算以下事件*/
 enum node_stat_item {
 	NR_LRU_BASE,
 	NR_INACTIVE_ANON = NR_LRU_BASE, /* must match order of LRU_[IN]ACTIVE */
