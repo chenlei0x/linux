@@ -318,6 +318,13 @@ enum jbd_state_bits {
 	BH_JBDDirty,		/* Is dirty but journaled */
 	BH_State,		/* Pins most journal_head state */
 	BH_JournalHead,		/* Pins bh->b_private and jh->b_bh */
+
+	/*
+	 * 该标记的作用是为了让jbd2 和 文件系统并行工作. 对于一个bh, 我们先复制一份
+	 * 然后对于原副本打上该标记
+	 * journal_end_buffer_io_sync 会解除该标记
+     * do_get_write_access
+     */
 	BH_Shadow,		/* IO on shadow buffer is running */
 	BH_Verified,		/* Metadata block has been verified ok */
 	BH_JBDPrivateStart,	/* First bit available for private use by FS */

@@ -4403,7 +4403,7 @@ out_mutex:
 	return ret;
 }
 
-/*给inode 绑定一个jinode*/
+/*给inode 绑定一个jinode, 通常打开文件的时候会走到这个路径*/
 int ext4_inode_attach_jinode(struct inode *inode)
 {
 	struct ext4_inode_info *ei = EXT4_I(inode);

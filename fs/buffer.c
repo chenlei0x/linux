@@ -1185,7 +1185,8 @@ void mark_buffer_dirty(struct buffer_head *bh)
 			return;
 	}
 
-	if (!test_set_buffer_dirty(bh)) {/*成功的把dirty置位*/
+	if (!test_set_buffer_dirty(bh)) {
+		/*成功的把dirty置位*/
 		struct page *page = bh->b_page;
 		struct address_space *mapping = NULL;
 

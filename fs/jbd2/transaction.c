@@ -1943,6 +1943,7 @@ static void __jbd2_journal_temp_unlink_buffer(struct journal_head *jh)
 	if (transaction && is_journal_aborted(transaction->t_journal))
 		clear_buffer_jbddirty(bh);
 	else if (test_clear_buffer_jbddirty(bh))
+		/*成功清除掉 buffer jbddirty*/
 		mark_buffer_dirty(bh);	/* Expose it to the VM */
 }
 
@@ -2616,6 +2617,7 @@ int jbd2_journal_inode_add_wait(handle_t *handle, struct jbd2_inode *jinode)
 			LLONG_MAX);
 }
 
+/*start_byte 为 inode 的文件内偏移*/
 int jbd2_journal_inode_ranged_write(handle_t *handle,
 		struct jbd2_inode *jinode, loff_t start_byte, loff_t length)
 {

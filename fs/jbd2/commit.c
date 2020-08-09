@@ -42,6 +42,7 @@ static void journal_end_buffer_io_sync(struct buffer_head *bh, int uptodate)
 	else
 		clear_buffer_uptodate(bh);
 	if (orig_bh) {
+		/*do_get_write_access 函数会一直等orig bh 的BH_shadow 标记解除*/
 		clear_bit_unlock(BH_Shadow, &orig_bh->b_state);
 		smp_mb__after_atomic();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
@@ -207,6 +208,7 @@ static int journal_submit_inode_data_buffers(struct address_space *mapping,
 }
 
 /*
+ * 这个函数是用来刷脏页的
  * Submit all the data buffers of inode associated with the transaction to
  * disk.
  *
@@ -558,6 +560,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	 * on the transaction lists.  Data blocks go first.
 	 *
 	 * 如果只journal meta data,以下函数不会有任何意义
+	 * 否则,该函数用来刷脏页
 	 */
 	err = journal_submit_data_buffers(journal, commit_transaction);
 	if (err)
@@ -592,6 +595,9 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	err = 0;
 	bufs = 0;
 	descriptor = NULL;
+	/* 把所有的buffer 分成多组, 每组由一个descriptor 打头, 每组的所有buffer放在wbuf中
+	 * iobuf 记录所有的曾经在wbuf中呆过的buf
+	 */
 	while (commit_transaction->t_buffers) {
 
 		/* Find the next buffer to be journaled... */
@@ -693,6 +699,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			jbd2_journal_abort(journal, flags);
 			continue;
 		}
+		/*list_add_tail(&bh->b_assoc_buffers, head);*/
 		jbd2_file_log_bh(&io_bufs, wbuf[bufs]); /*io_bufs*/
 
 		/* Record the new block's tag in the current descriptor
@@ -700,11 +707,12 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 
 		tag_flag = 0;
 		if (flags & 1)
-			tag_flag |= JBD2_FLAG_ESCAPE;
+			tag_flag |= JBD2_FLAG_ESCAPE;/*数据区的前4个字节被清零了*/
 		if (!first_tag)
 			tag_flag |= JBD2_FLAG_SAME_UUID;
 
-		tag = (journal_block_tag_t *) tagp; /*descriptor中填入journal_header_t后跟着journal_block_tag_t*/
+		/*descriptor bh中journal_header_t后跟着一个tag数组,每个tag 的大小 = journal_tag_bytes, 其中包含 journal_block_tag_t*/
+		tag = (journal_block_tag_t *) tagp;
 		write_tag_block(journal, tag, jh2bh(jh)->b_blocknr);
 		tag->t_flags = cpu_to_be16(tag_flag);
 		jbd2_block_tag_csum_set(journal, tag, wbuf[bufs],
@@ -722,7 +730,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 
 		/* If there's no more to do, or if the descriptor is full,
 		   let the IO rip! */
-
+		/*wbuf满了,或者是最后一个buf*/
 		if (bufs == journal->j_wbufsize ||
 		    commit_transaction->t_buffers == NULL ||
 		    space_left < tag_bytes + 16 + csum_size) {
@@ -837,12 +845,13 @@ start_journal_io:
 
 	jbd_debug(3, "JBD2: commit phase 3\n");
 
-	/*io_bufs 包含了之前的descriptor 和 shadow bh*/
+	/*io_bufs 包含了之前所有下发的buffer, 可能有多组*/
 	while (!list_empty(&io_bufs)) {
 		struct buffer_head *bh = list_entry(io_bufs.prev,
 						    struct buffer_head,
 						    b_assoc_buffers);
 
+		/*等待buffer io完成*/
 		wait_on_buffer(bh);
 		cond_resched();
 
@@ -865,6 +874,7 @@ start_journal_io:
 		bh = jh2bh(jh);
 		clear_buffer_jwrite(bh);
 		J_ASSERT_BH(bh, buffer_jbddirty(bh));
+		/*buffer完成io之后,肯定就没有shadow标记了*/
 		J_ASSERT_BH(bh, !buffer_shadow(bh));
 
 		/* The metadata is now released for reuse, but we need

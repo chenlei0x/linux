@@ -422,7 +422,8 @@ repeat:
 	 */
 	if (*((__be32 *)(mapped_data + new_offset)) ==
 				cpu_to_be32(JBD2_MAGIC_NUMBER)) {
-		need_copy_out = 1;
+		/*原本的数据和JBD2_MAGIC_NUMBER 撞车了, 才需要拷贝*/
+		need_copy_out = 1;		
 		do_escape = 1;
 	}
 	kunmap_atomic(mapped_data);
@@ -448,7 +449,7 @@ repeat:
 		}
 
 		jh_in->b_frozen_data = tmp;
-		mapped_data = kmap_atomic(new_page); /*new_page 要么指向frozen data 或者 bh_in->b_data*/
+		mapped_data = kmap_atomic(new_page); 
 		memcpy(tmp, mapped_data + new_offset, bh_in->b_size);
 		kunmap_atomic(mapped_data);
 
@@ -469,14 +470,16 @@ repeat:
 	 * copying, we can finally do so.
 	 */
 	if (do_escape) {
+		/*new_page 要么指向frozen data 或者 bh_in->b_data所在的page*/
 		mapped_data = kmap_atomic(new_page);
-		*((unsigned int *)(mapped_data + new_offset)) = 0;
+		*((unsigned int *)(mapped_data + new_offset)) = 0; /*头部置为0*/
 		kunmap_atomic(mapped_data);
 	}
 
 	/*
 	 * 初始化new_bh, 现在new_bh中的内容是bh_in的,
 	 * 但是blocknr指向的是journal区域的
+	 * new_bh 可能和 bh_in 共享数据内存区,因为可能并没有发生拷贝
 	 */
 	set_bh_page(new_bh, new_page, new_offset);
 	new_bh->b_size = bh_in->b_size;
@@ -496,7 +499,7 @@ repeat:
 	JBUFFER_TRACE(jh_in, "file as BJ_Shadow");
 	spin_lock(&journal->j_list_lock);
 	
-	/*jh_in 已经被拷贝,所以放到shadow队列*/
+	/*jh_in 可能已经被拷贝,所以放到shadow队列*/
 	__jbd2_journal_file_buffer(jh_in, transaction, BJ_Shadow); 
 	spin_unlock(&journal->j_list_lock);
 	set_buffer_shadow(bh_in);

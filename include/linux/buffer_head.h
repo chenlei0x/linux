@@ -66,7 +66,7 @@ struct buffer_head {
 	struct page *b_page;		/* the page this bh is mapped to */
 
 	sector_t b_blocknr;		/* start block number */
-	size_t b_size;			/* size of mapping */
+	size_t b_size;			/* size of mapping , 这个bh 的内容长度, 字节*/
 	char *b_data;			/* pointer to data within the page */
 
 	struct block_device *b_bdev;
