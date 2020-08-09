@@ -653,6 +653,18 @@ struct inode {
 #endif
 	struct list_head	i_lru;		/* inode LRU list */
 	struct list_head	i_sb_list;
+
+/*
+ * Queue all expired dirty inodes for io, eldest first.
+ * Before
+ *         newly dirtied     b_dirty    b_io    b_more_io
+ *         =============>    gf         edc     BA
+ * After
+ *         newly dirtied     b_dirty    b_io    b_more_io
+ *         =============>    g          fBAedc
+ *                                           |
+ *                                           +--> dequeue for IO
+ */
 	/*sb_mark_inode_writeback 函数 把inode 挂在sb->s_inodes_wb*/
 	struct list_head	i_wb_list;	/* backing dev writeback list */
 	union {

@@ -679,6 +679,7 @@ int __set_page_dirty_buffers(struct page *page)
 		return !TestSetPageDirty(page);
 
 	spin_lock(&mapping->private_lock);
+	/*把每个buffer都 置为脏*/
 	if (page_has_buffers(page)) {
 		struct buffer_head *head = page_buffers(page);
 		struct buffer_head *bh = head;
@@ -696,6 +697,7 @@ int __set_page_dirty_buffers(struct page *page)
 	newly_dirty = !TestSetPageDirty(page);
 	spin_unlock(&mapping->private_lock);
 
+	/*page tree中对该page打上tag PAGECACHE_TAG_DIRTY*/
 	if (newly_dirty)
 		__set_page_dirty(page, mapping, 1);
 

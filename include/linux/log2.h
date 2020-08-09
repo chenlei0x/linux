@@ -155,6 +155,11 @@ unsigned long __rounddown_pow_of_two(unsigned long n)
  * round the given value up to the nearest power of two
  * - the result is undefined when n == 0
  * - this can be used to initialise global variables from constant data
+ *
+ * 求最接近的最大2的指数次幂
+ *
+ * 比如数据5，它的二进制形式为101，最高位为1的位置是3，然后左移3位，
+ * 等于1000，即数字8。也就是数字8是5的接近的2的整数次幂。
  */
 #define roundup_pow_of_two(n)			\
 (						\
