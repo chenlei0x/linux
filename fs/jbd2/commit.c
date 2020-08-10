@@ -228,6 +228,7 @@ static int journal_submit_data_buffers(journal_t *journal,
 		loff_t dirty_start = jinode->i_dirty_start;
 		loff_t dirty_end = jinode->i_dirty_end;
 
+		/*没有设置 把文件数据先写进去*/
 		if (!(jinode->i_flags & JI_WRITE_DATA))
 			continue;
 		mapping = jinode->i_vfs_inode->i_mapping;
@@ -647,14 +648,14 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			space_left = descriptor->b_size -
 						sizeof(journal_header_t);
 			first_tag = 1;
-			set_buffer_jwrite(descriptor);
+			set_buffer_jwrite(descriptor);/*正在被jbd 写入 jbd_state_bits*/
 			set_buffer_dirty(descriptor);
 			wbuf[bufs++] = descriptor; /*wbuf 用来记录需要写下去的block*/
 
 			/* Record it so that we can wait for IO
                            completion later */
 			BUFFER_TRACE(descriptor, "ph3: file as descriptor");
-			jbd2_file_log_bh(&log_bufs, descriptor); /*desc 放入 log_bufs*/
+			jbd2_file_log_bh(&log_bufs, descriptor); /*所有的descriptor    bh 放入 log_bufs*/
 		}
 
 		/* Where is the buffer to be written? */
@@ -700,7 +701,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 			continue;
 		}
 		/*list_add_tail(&bh->b_assoc_buffers, head);*/
-		jbd2_file_log_bh(&io_bufs, wbuf[bufs]); /*io_bufs*/
+		jbd2_file_log_bh(&io_bufs, wbuf[bufs]); /*io_bufs 涵盖了所有 非descriptor之外的buf*/
 
 		/* Record the new block's tag in the current descriptor
                    buffer */
@@ -730,7 +731,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 
 		/* If there's no more to do, or if the descriptor is full,
 		   let the IO rip! */
-		/*wbuf满了,或者是最后一个buf*/
+		/*wbuf满了,或者是最后一个buf 或者tag数组不够了*/
 		if (bufs == journal->j_wbufsize ||
 		    commit_transaction->t_buffers == NULL ||
 		    space_left < tag_bytes + 16 + csum_size) {
@@ -797,6 +798,7 @@ start_journal_io:
 
 	write_lock(&journal->j_state_lock);
 	if (update_tail) {
+		/*freed 表示整个log区域还剩多少空间*/
 		long freed = first_block - journal->j_tail;
 
 		if (first_block < journal->j_tail)
@@ -847,6 +849,7 @@ start_journal_io:
 
 	/*io_bufs 包含了之前所有下发的buffer, 可能有多组*/
 	while (!list_empty(&io_bufs)) {
+		/*这里bh是克隆出来的bh*/
 		struct buffer_head *bh = list_entry(io_bufs.prev,
 						    struct buffer_head,
 						    b_assoc_buffers);
@@ -871,7 +874,7 @@ start_journal_io:
 		/* We also have to refile the corresponding shadowed buffer */
 		/*之前原始的bh被拷贝了一份,原始的bh就挂在 shadow list上*/
 		jh = commit_transaction->t_shadow_list->b_tprev;
-		bh = jh2bh(jh);
+		bh = jh2bh(jh);/*原始的bh*/
 		clear_buffer_jwrite(bh);
 		J_ASSERT_BH(bh, buffer_jbddirty(bh));
 		/*buffer完成io之后,肯定就没有shadow标记了*/
@@ -906,7 +909,7 @@ start_journal_io:
 
 		BUFFER_TRACE(bh, "ph5: control buffer writeout done: unfile");
 		clear_buffer_jwrite(bh);
-		jbd2_unfile_log_bh(bh);
+		jbd2_unfile_log_bh(bh);/*解放 b_assoc_buffers 所在链表*/
 		__brelse(bh);		/* One for getblk */
 		/* AKPM: bforget here */
 	}
@@ -942,7 +945,7 @@ start_journal_io:
 	 * superblock.
 	 */
 	/*
-	 * 升级tail, 这个first_block指向transaction->t_log_start, 也就是当时的
+	 * 更新tail, 这个first_block指向transaction->t_log_start, 也就是当时的
 	 * 第一个free block#
 	 */
 	if (update_tail)
@@ -1058,6 +1061,7 @@ restart_loop:
 			}
 		}
 
+		/*bh 脏了但是已经被journal了*/
 		if (buffer_jbddirty(bh)) {
 			JBUFFER_TRACE(jh, "add to new checkpointing trans");
 			/*只有jbddirty才会被checkpoint*/
@@ -1080,8 +1084,8 @@ restart_loop:
 		}
 		JBUFFER_TRACE(jh, "refile or unfile buffer");
 		/*
-		 * jh已经不属于这个transaction了, 可能需要绑定到next transaction
-		 * 如果没有next transaction,就unfile
+		 * jh已经不属于这个transaction了, 可能需要从jh->b_transaction绑定到
+		 * jh->b_next_transaction; 如果没有next transaction,就unfile
 		 */
 		__jbd2_journal_refile_buffer(jh);
 		jbd_unlock_bh_state(bh);

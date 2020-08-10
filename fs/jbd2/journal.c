@@ -903,7 +903,7 @@ void jbd2_descriptor_block_csum_set(journal_t *j, struct buffer_head *bh)
  * The return value is 0 if journal tail cannot be pushed any further, 1 if
  * it can.
  *
- * 获得最老的transaction的 tid 和 起始 block#
+ * 获得最老的transaction的 tid 和 该transaction的起始 block#
  */
 int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 			      unsigned long *block)
@@ -934,8 +934,9 @@ int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 		*block = journal->j_head;
 	}
 	/*
-	 * 按照上面的排序,拿到最老的tid如果大于j_tail_sequence,
-	 * 说明我们确实该更新j_tail_sequence了
+	 * j_tail_sequence 为记录的最老的transaction的 seq 号，
+	 * tid是当前存在的最老的transaction，按照上面的排序,如果tid大于j_tail_sequence,
+	 * 说明我们确实该更新tail了， 那么tid 和 tail seq 之间的log 空间都可以被释放掉了
 	 */
 	ret = tid_gt(*tid, journal->j_tail_sequence);
 	spin_unlock(&journal->j_list_lock);
@@ -973,6 +974,11 @@ int __jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block)
 		goto out;
 
 	write_lock(&journal->j_state_lock);
+	/*
+	 * j tail 记录着之前__jbd2_update_log_tail 时transaction的起始block#，
+	 * 这些transaction因为已经小于 tail seq#了，已经被释放了，说明已经被checkpoint 了， 那么他们所占用的
+	 * log空间就可以被释放了
+	 */
 	freed = block - journal->j_tail;
 	if (block < journal->j_tail)
 		freed += journal->j_last - journal->j_first;
@@ -1342,8 +1348,8 @@ static int journal_reset(journal_t *journal)
 	journal->j_tail = first;
 	journal->j_free = last - first;
 
-	journal->j_tail_sequence = journal->j_transaction_sequence;
-	journal->j_commit_sequence = journal->j_transaction_sequence - 1;
+	journal->j_tail_sequence = journal->j_transaction_sequence; /*初始为 1*/
+	journal->j_commit_sequence = journal->j_transaction_sequence - 1; /*0*/
 	journal->j_commit_request = journal->j_commit_sequence;
 
 	journal->j_max_transaction_buffers = journal->j_maxlen / 4;

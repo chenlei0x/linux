@@ -471,7 +471,7 @@ int jbd2_journal_cancel_revoke(handle_t *handle, struct journal_head *jh)
 		bh2 = __find_get_block(bh->b_bdev, bh->b_blocknr, bh->b_size);
 		if (bh2) {
 			if (bh2 != bh)
-				clear_buffer_revoked(bh2);
+				clear_buffer_revoked(bh2); /* Has been revoked from the log */
 			__brelse(bh2);
 		}
 	}

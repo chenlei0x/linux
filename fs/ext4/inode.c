@@ -744,10 +744,16 @@ out_sem:
 				(loff_t)map->m_lblk << inode->i_blkbits;
 			loff_t length = (loff_t)map->m_len << inode->i_blkbits;
 
+			/* 
+			 * Caller will submit data before dropping transaction handle. This
+	 		 * allows jbd2 to avoid submitting data before commit. 
+	 		 * 调用者已经下发了数据io， 那么在此就wait就好
+	 		 */
 			if (flags & EXT4_GET_BLOCKS_IO_SUBMIT)
 				ret = ext4_jbd2_inode_add_wait(handle, inode,
 						start_byte, length);
 			else
+				/*让jbd2 下发数据并等待*/
 				ret = ext4_jbd2_inode_add_write(handle, inode,
 						start_byte, length);
 			if (ret)

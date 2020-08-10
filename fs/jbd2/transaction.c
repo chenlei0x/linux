@@ -931,7 +931,7 @@ repeat:
 	 * this is the first time this transaction is touching this buffer,
 	 * reset the modified flag
 	 */
-       jh->b_modified = 0;
+       jh->b_modified = 0; /*jbd2_journal_dirty_metadata 会设置为1*/
 
 	/*
 	 * If the buffer is not journaled right now, we need to make sure it
@@ -1222,7 +1222,27 @@ out:
 	return err;
 }
 
-/**
+/*
+这个函数是处理一种特殊的元数据块的----磁盘块位图。
+磁盘块位图是文件系统用于记录磁盘块使用情况的一种结构，块中的每一个位表示相应的磁盘块是否被占用。
+如果空闲，则为0，否则为1。磁盘快位图之所以特殊，在于一个磁盘块不能被两个文件同时占用，他要么
+是空闲的，要么在同一时刻只能被一个文件占用。对这种元数据块的修改，要取得undo权限，为什么呢？
+
+假设handle1中，删除了一个数据块b1，则对应bitmap1中的位被清掉，这个操作属于transaction1.此时，
+再进行磁盘块的分配和释放，则我们必须要知道bitmap1是否已被提交到日志中了。因为，如果bitmap1已经
+被提交到日志中，则表示handle1已经确实完成了，即使现在发生崩溃，删除b1的操作也可以是重现的。但
+是如果bitmap1没有被提交到日志中，则表示handle并没有完成，那么，你说此时数据块b1是已经被删除
+了还是没有被删除？从物理的角度看b1并没有被删除，因为实际上磁盘块位图并没有被改变。
+
+此时，如果重新分配磁盘块b1，我们必须等待，直到t1提交完成，以保证handle1的可恢复性。
+因此，我们从磁盘块位图中分配磁盘块时，只可以分配在缓冲区中和日志中该位都为0的磁盘块。为此jbd在
+取得磁盘块位图缓冲区的写权限是，必须将缓冲区当前的内容考本一份，以备分配磁盘块时使用。
+
+journal_get_undo_access()与journal_get_write_access()函数基本类似，但是注意在调用
+do_get_write_access()函数时最后一个参数是1，表示force_copy为真，表示一定要将缓冲区当前的数据冻
+结起来。
+ */
+/*
  * int jbd2_journal_get_undo_access() -  Notify intent to modify metadata with
  *     non-rewindable consequences
  * @handle: transaction

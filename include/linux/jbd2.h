@@ -238,7 +238,7 @@ typedef struct journal_superblock_s
 
 /* 0x0018 */
 	/* Dynamic information describing the current state of the log */
-	__be32	s_sequence;		/* first commit ID expected in log */
+	__be32	s_sequence;		/* first commit ID expected in log 从1 开始*/
 	__be32	s_start;		/* blocknr of start of log */
 
 /* 0x0020 */
@@ -320,8 +320,7 @@ enum jbd_state_bits {
 	BH_JournalHead,		/* Pins bh->b_private and jh->b_bh */
 
 	/*
-	 * 该标记的作用是为了让jbd2 和 文件系统并行工作. 对于一个bh, 我们先复制一份
-	 * 然后对于原副本打上该标记
+	 * 对于一个bh, 我们先复制一份然后对于原副本打上该标记
 	 * journal_end_buffer_io_sync 会解除该标记
      * do_get_write_access
      */
@@ -420,8 +419,10 @@ static inline void jbd_unlock_bh_journal_head(struct buffer_head *bh)
  */
 #define JI_COMMIT_RUNNING (1 << __JI_COMMIT_RUNNING)
 /* Write allocated dirty buffers in this inode before commit */
+/*没有设置 把文件数据先写进去，注意 写完不等待！！！*/
 #define JI_WRITE_DATA (1 << __JI_WRITE_DATA)
 /* Wait for outstanding data writes for this inode before commit */
+/*上面说了 写完不等待！！！ ，这里就是要等数据写入*/
 #define JI_WAIT_DATA (1 << __JI_WAIT_DATA)
 
 /**
@@ -584,7 +585,11 @@ struct transaction_s
 	/* Pointer to the journal for this transaction. [no locking] */
 	journal_t		*t_journal;
 
-	/* Sequence number for this transaction [no locking] */
+	/*
+	 * Sequence number for this transaction [no locking] 
+	 *
+	 * = journal->j_transaction_sequence++
+	 */
 	tid_t			t_tid;
 
 	/*
@@ -893,6 +898,12 @@ struct journal_s
 	 */
 	struct buffer_head	*j_chkpt_bhs[JBD2_NR_BATCH];
 
+	/*
+	 * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	 * 日志区间：[j_first, j_last)
+	 * 该区间作为一个循环队列， 其中，j_head j_tail分别指向头尾
+	 */
+
 	/**
 	 * @j_head:
 	 *
@@ -919,7 +930,7 @@ struct journal_s
 	 * [j_state_lock]
 	 */
 	unsigned long		j_free;
-
+	
 	/**
 	 * @j_first:
 	 *
@@ -1000,6 +1011,7 @@ struct journal_s
 	 * @j_tail_sequence:
 	 *
 	 * Sequence number of the oldest transaction in the log [j_state_lock]
+	 * 最老的transaction 的seq #
 	 */
 	tid_t			j_tail_sequence;
 
@@ -1009,6 +1021,7 @@ struct journal_s
 	 * Sequence number of the next transaction to grant [j_state_lock]
 	 *
 	 * 用来给新申请的transaction 分配tid, 该值表示下一个应该分配的tid, 分配完后 自加1
+	 * 初始为 1
 	 */
 	tid_t			j_transaction_sequence;
 
@@ -1635,6 +1648,8 @@ static inline unsigned long jbd2_log_space_left(journal_t *journal)
 #define BJ_Metadata	1	/* Normal journaled metadata */
 #define BJ_Forget	2	/* Buffer superseded by this transaction */
 #define BJ_Shadow	3	/* Buffer contents being shadowed to the log */
+
+/*调用get xxx access时，会把jh 放到reserved 队列*/
 #define BJ_Reserved	4	/* Buffer is reserved for access by journal */
 #define BJ_Types	5
 
