@@ -31,7 +31,7 @@ extern kmem_zone_t	*xfs_btree_cur_zone;
  *
  * These are disk format structures, and are converted where necessary
  * by the btree specific code that needs to interpret them.
- * ptr可以转换为具体的地址
+ * ptr可以转换为具体的磁盘地址
  */
 union xfs_btree_ptr {
 	__be32			s;	/* short form ptr */
