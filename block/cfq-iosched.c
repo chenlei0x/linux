@@ -4581,9 +4581,12 @@ cfq_merge_cfqqs(struct cfq_data *cfqd, struct cfq_io_cq *cic,
 		struct cfq_queue *cfqq)
 {
 	cfq_log_cfqq(cfqd, cfqq, "merging with queue %p", cfqq->new_cfqq);
+	/*设置cic 的sync 队列为cfqq->new_cfqq*/
 	cic_set_cfqq(cic, cfqq->new_cfqq, 1);
 	cfq_mark_cfqq_coop(cfqq->new_cfqq);
+	/*释放cfqq*/
 	cfq_put_queue(cfqq);
+	/*这里其实返回的就是cfqq->new_cfqq*/
 	return cic_to_cfqq(cic, 1);
 }
 

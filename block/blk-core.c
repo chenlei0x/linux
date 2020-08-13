@@ -459,13 +459,11 @@ EXPORT_SYMBOL(blk_put_queue);
  * for ensuring that no new requests which need to be drained are queued.
  */
 static void __blk_drain_queue(struct request_queue *q, bool drain_all)
-	__releases(q->queue_lock)
-	__acquires(q->queue_lock)
 {
 	int i;
 
-	lockdep_assert_held(q->queue_lock);
-	WARN_ON_ONCE(q->mq_ops);
+	//lockdep_assert_held(q->queue_lock);
+	//WARN_ON_ONCE(q->mq_ops);
 
 	while (true) {
 		bool drain = false;
@@ -1074,7 +1072,7 @@ static inline int ioc_batching(struct request_queue *q, struct io_context *ioc)
 	 */
 	return ioc->nr_batch_requests == q->nr_batching ||
 		(ioc->nr_batch_requests > 0
-		&& time_before(jiffies, ioc->last_waited + BLK_BATCH_TIME));
+		&& time_before(jiffies, ioc->last_waited + BLK_BATCH_TIME));/*有request 但是超时了*/
 }
 
 /*
@@ -1214,6 +1212,7 @@ static struct request *__get_request(struct request_list *rl, unsigned int op,
 			 * requests, others will be blocked.
 			 */
 			if (!blk_rl_full(rl, is_sync)) {
+				/*这里设置了batching，同时设置了full， 那么后面再从这个blkg中申请req就会走到下面的路径中*/
 				ioc_set_batching(q, ioc);
 				blk_set_rl_full(rl, is_sync);
 			} else {
@@ -1365,6 +1364,7 @@ rq_starved:
  * Returns ERR_PTR on failure, with @q->queue_lock held.
  * Returns request pointer on success, with @q->queue_lock *not held*.
  */
+ /*该函数只用来创建一个request*/
 static struct request *get_request(struct request_queue *q, unsigned int op,
 		struct bio *bio, gfp_t gfp_mask)
 {
@@ -1392,6 +1392,7 @@ retry:
 		return rq;
 	}
 
+	/*申请不到，只能等待*/
 	/* wait on @rl and retry */
 	prepare_to_wait_exclusive(&rl->wait[is_sync], &wait,
 				  TASK_UNINTERRUPTIBLE);
@@ -1808,6 +1809,7 @@ void blk_init_request_from_bio(struct request *req, struct bio *bio)
 	else
 		req->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0);
 	req->write_hint = bio->bi_write_hint;
+	/*插入bio*/
 	blk_rq_bio_prep(req->q, req, bio);
 }
 EXPORT_SYMBOL_GPL(blk_init_request_from_bio);

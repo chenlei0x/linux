@@ -424,7 +424,7 @@ struct request_queue {
 	struct list_head	queue_head; /*request->queuelist*/
 	struct request		*last_merge;
 	struct elevator_queue	*elevator;
-	int			nr_rqs[2];	/* # allocated [a]sync rqs */
+	int			nr_rqs[2];	/* # allocated [a]sync rqs __get_request每申请到一个req，就+1*/
 	int			nr_rqs_elvpriv;	/* # allocated rqs w/ elvpriv */
 
 	atomic_t		shared_hctx_restart;
