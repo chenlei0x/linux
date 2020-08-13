@@ -747,6 +747,7 @@ int blk_init_rl(struct request_list *rl, struct request_queue *q,
 	init_waitqueue_head(&rl->wait[BLK_RW_SYNC]);
 	init_waitqueue_head(&rl->wait[BLK_RW_ASYNC]);
 
+	/*驱动申请的req 需要额外的内存*/
 	if (q->cmd_size) {
 		rl->rq_pool = mempool_create_node(BLKDEV_MIN_RQ,
 				alloc_request_size, free_request_size,
@@ -1216,6 +1217,8 @@ static struct request *__get_request(struct request_list *rl, unsigned int op,
 				ioc_set_batching(q, ioc);
 				blk_set_rl_full(rl, is_sync);
 			} else {
+				/*当前已经超过nr_requests了，如果这个queue不强制要求需要排队的，
+				 * 而且已经不再是一个batcher了， 那么不再给他分配*/
 				if (may_queue != ELV_MQUEUE_MUST
 						&& !ioc_batching(q, ioc)) {
 					/*

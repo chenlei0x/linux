@@ -1000,6 +1000,7 @@ void set_wb_congested(struct bdi_writeback_congested *congested, int sync)
 	enum wb_congested_state bit;
 
 	bit = sync ? WB_sync_congested : WB_async_congested;
+	/*0 ===> 1 才会给nr wb congested +1*/
 	if (!test_and_set_bit(bit, &congested->state))
 		atomic_inc(&nr_wb_congested[sync]);
 }

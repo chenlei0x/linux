@@ -70,8 +70,8 @@ struct request_list {
 	 * count[], starved[], and wait[] are indexed by
 	 * BLK_RW_SYNC/BLK_RW_ASYNC
 	 */
-	int			count[2];
-	int			starved[2];
+	int			count[2]; /*初始化为0*/
+	int			starved[2]; /*初始化为0*/
 	mempool_t		*rq_pool;
 	wait_queue_head_t	wait[2];
 	unsigned int		flags;
@@ -149,7 +149,9 @@ struct request {
 	struct blk_mq_ctx *mq_ctx;
 
 	int cpu;
+	/*REQ_xxxx*/
 	unsigned int cmd_flags;		/* op and common flags */
+	/*RQF_XXXXX*/
 	req_flags_t rq_flags;
 
 	int internal_tag;
@@ -442,11 +444,11 @@ struct request_queue {
 	make_request_fn		*make_request_fn;
 	prep_rq_fn		*prep_rq_fn;
 	unprep_rq_fn		*unprep_rq_fn;
-	
+
 	/*
 	 * 其实就是blk_mq_ops 的complete 函数
 	 * blk_mq_init_allocated_queue
-	 * ====> blk_queue_softirq_done(q, set->ops->complete);	
+	 * ====> blk_queue_softirq_done(q, set->ops->complete);
 	 */
 	softirq_done_fn		*softirq_done_fn;
 	rq_timed_out_fn		*rq_timed_out_fn;
@@ -635,6 +637,7 @@ struct request_queue {
 
 	bool			mq_sysfs_init_done;
 
+	/*申请的req 实际大小为 sizeof(struct request) + q->cmd_size*/
 	size_t			cmd_size;
 	void			*rq_alloc_data;
 

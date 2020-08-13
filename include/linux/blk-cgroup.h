@@ -123,8 +123,9 @@ struct blkcg_gq {
 	/* all non-root blkcg_gq's are guaranteed to have access to parent */
 	struct blkcg_gq			*parent;
 
+	/*blkg_alloc ---> blk_init_rl 函数初始化 rl*/
 	/* request allocation list for this blkcg-q pair */
-	struct request_list		rl;
+	struct request_list		rl; /*request 从这里申请*/
 
 	/* reference count */
 	atomic_t			refcnt;

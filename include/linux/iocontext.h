@@ -110,6 +110,9 @@ struct io_context {
 
 	/*
 	 * For request batching
+	 * 当该blkcg_gq 分配了很多request时，为了保证连续性，尽可能的再多给他
+	 * 分配一些配额(q->nr_batching), 同时这个配额在BLK_BATCH_TIME这段时间
+	 * 内有效。当超过条件或者超过时间后，就不再是一个batcher了。
 	 */
 	int nr_batch_requests;     /* Number of requests left in the batch */
 	unsigned long last_waited; /* Time last woken after wait for request */
