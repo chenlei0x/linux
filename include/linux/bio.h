@@ -717,7 +717,7 @@ struct bio_set {
 	 */
 	spinlock_t		rescue_lock;
 	struct bio_list		rescue_list;
-	struct work_struct	rescue_work;
+	struct work_struct	rescue_work; /*bio_alloc_rescue*/
 	struct workqueue_struct	*rescue_workqueue;
 };
 

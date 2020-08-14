@@ -432,10 +432,11 @@ static int bt_alloc(struct sbitmap_queue *bt, unsigned int depth,
 				       node);
 }
 
+/*申请bitmap*/
 static struct blk_mq_tags *blk_mq_init_bitmap_tags(struct blk_mq_tags *tags,
 						   int node, int alloc_policy)
 {
-	unsigned int depth = tags->nr_tags - tags->nr_reserved_tags;
+	unsigned int depth = tags->nr_tags - tags->nr_reserved_tags;/*!!!*/
 	bool round_robin = alloc_policy == BLK_TAG_ALLOC_RR;
 
 	if (bt_alloc(&tags->bitmap_tags, depth, round_robin, node))
@@ -452,6 +453,7 @@ free_tags:
 	return NULL;
 }
 
+/*新建一个blk_mq_tags，对应一个hw queue*/
 struct blk_mq_tags *blk_mq_init_tags(unsigned int total_tags,
 				     unsigned int reserved_tags,
 				     int node, int alloc_policy)

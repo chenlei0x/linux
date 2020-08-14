@@ -222,7 +222,7 @@ struct backing_dev_info {
 	struct device *dev;
 	struct device *owner;
 
-	struct timer_list laptop_mode_wb_timer;
+	struct timer_list laptop_mode_wb_timer; /*laptop_mode_timer_fn*/
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debug_dir;

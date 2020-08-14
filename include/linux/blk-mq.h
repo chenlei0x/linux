@@ -186,6 +186,7 @@ struct blk_mq_hw_ctx {
  *	set of hardware queues.
  */
 struct blk_mq_queue_map {
+	/*map[cpu] = queue_index(qmap, nr_queues, q++)*/
 	unsigned int *mq_map;
 	unsigned int nr_queues;
 	unsigned int queue_offset;
@@ -236,18 +237,20 @@ enum hctx_type {
  */
 struct blk_mq_tag_set {
 	struct blk_mq_queue_map	map[HCTX_MAX_TYPES];
-	unsigned int		nr_maps;
+	unsigned int		nr_maps;/*map里面有几个是valid的*/
 	const struct blk_mq_ops	*ops;
-	unsigned int		nr_hw_queues;
-	unsigned int		queue_depth;
+	unsigned int		nr_hw_queues;/*有几个hw queue， 用来初始化*/
+	unsigned int		queue_depth;/*blk_mq_tags req队列深度， 用来初始化*/
 	unsigned int		reserved_tags;
+	/*request 实际大小 = sizeof(struct request) + set->cmd_size*/
 	unsigned int		cmd_size;
 	int			numa_node;
 	unsigned int		timeout;
 	unsigned int		flags;
 	void			*driver_data;
 
-	struct blk_mq_tags	**tags;
+	/*每个blk_mq_tags 结构体对应一个硬件队列*/
+	struct blk_mq_tags	**tags; /*元素个数： nr_hw_queues 下表：hctx_idx*/
 
 	struct mutex		tag_list_lock;
 	struct list_head	tag_list;

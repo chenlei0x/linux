@@ -8,16 +8,17 @@
  * Tag address space map.
  */
 struct blk_mq_tags {
-	unsigned int nr_tags;
-	unsigned int nr_reserved_tags;
+	/* depth = tags->nr_tags - tags->nr_reserved_tags;*/
+	unsigned int nr_tags;/*blk_mq_tag_set->queue_depth*/
+	unsigned int nr_reserved_tags;/*blk_mq_tag_set->reserved_tags*/
 
 	atomic_t active_queues;
 
-	struct sbitmap_queue bitmap_tags;
-	struct sbitmap_queue breserved_tags;
+	struct sbitmap_queue bitmap_tags;/*长度为depth*/
+	struct sbitmap_queue breserved_tags; /*长度为nr_reserved_tags*/
 
-	struct request **rqs;
-	struct request **static_rqs;
+	struct request **rqs; /*长度为nr_tags*/
+	struct request **static_rqs; /*长度为nr_tags*/
 	struct list_head page_list;
 };
 

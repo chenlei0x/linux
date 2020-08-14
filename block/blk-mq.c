@@ -1922,6 +1922,12 @@ static void blk_add_rq_to_plug(struct blk_plug *plug, struct request *rq)
 	}
 }
 
+
+/*
+	blk_mq_init_sq_queue
+		blk_mq_init_queue
+			blk_mq_init_allocated_queue
+*/
 static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 {
 	const int is_sync = op_is_sync(bio->bi_opf);
@@ -2077,15 +2083,18 @@ struct blk_mq_tags *blk_mq_alloc_rq_map(struct blk_mq_tag_set *set,
 	struct blk_mq_tags *tags;
 	int node;
 
+	/*hctx_idx 对应的cpu属于哪个node*/
 	node = blk_mq_hw_queue_to_node(&set->map[HCTX_TYPE_DEFAULT], hctx_idx);
 	if (node == NUMA_NO_NODE)
 		node = set->numa_node;
 
+	/*申请一个blk_mq_tags*/
 	tags = blk_mq_init_tags(nr_tags, reserved_tags, node,
 				BLK_MQ_FLAG_TO_ALLOC_POLICY(set->flags));
 	if (!tags)
 		return NULL;
 
+	/*申请req 指针数组，nr tags 包含了reserved 和非reserved*/
 	tags->rqs = kcalloc_node(nr_tags, sizeof(struct request *),
 				 GFP_NOIO | __GFP_NOWARN | __GFP_NORETRY,
 				 node);
@@ -2093,7 +2102,7 @@ struct blk_mq_tags *blk_mq_alloc_rq_map(struct blk_mq_tag_set *set,
 		blk_mq_free_tags(tags);
 		return NULL;
 	}
-
+	/*/*申请req 指针数组*/
 	tags->static_rqs = kcalloc_node(nr_tags, sizeof(struct request *),
 					GFP_NOIO | __GFP_NOWARN | __GFP_NORETRY,
 					node);
@@ -2117,6 +2126,8 @@ static int blk_mq_init_request(struct blk_mq_tag_set *set, struct request *rq,
 	int ret;
 
 	if (set->ops->init_request) {
+		/*request 其实分为两部分，一部分是request 结构体， 一部分是驱动私有数据(Protocol Data Unit)，长度为
+	set->cmd_size, 这里调用驱动的函数初始化PDU*/
 		ret = set->ops->init_request(set, rq, hctx_idx, node);
 		if (ret)
 			return ret;
@@ -2153,6 +2164,9 @@ int blk_mq_alloc_rqs(struct blk_mq_tag_set *set, struct blk_mq_tags *tags,
 		int to_do;
 		void *p;
 
+		/*每次最大申请的页 order = this order*/
+		/*left < order_to_size(this_order - 1) 表明浪费过半，
+		 那么可以缩小一半， order--即可*/ 
 		while (this_order && left < order_to_size(this_order - 1))
 			this_order--;
 
@@ -2417,15 +2431,18 @@ static void blk_mq_init_cpu_queues(struct request_queue *q,
 	}
 }
 
+/**/
 static bool __blk_mq_alloc_rq_map(struct blk_mq_tag_set *set, int hctx_idx)
 {
 	int ret = 0;
 
+	/*先申请req 指针数组*/
 	set->tags[hctx_idx] = blk_mq_alloc_rq_map(set, hctx_idx,
 					set->queue_depth, set->reserved_tags);
 	if (!set->tags[hctx_idx])
 		return false;
 
+	/*申请真正的req结构体*/
 	ret = blk_mq_alloc_rqs(set, set->tags[hctx_idx], hctx_idx,
 				set->queue_depth);
 	if (!ret)
@@ -2696,6 +2713,8 @@ EXPORT_SYMBOL(blk_mq_init_queue);
 /*
  * Helper for setting up a queue with mq ops, given queue depth, and
  * the passed in mq ops flags.
+ *
+ * sq: single queue, 作为mq的一个特例，只有一个hard queue使能
  */
 struct request_queue *blk_mq_init_sq_queue(struct blk_mq_tag_set *set,
 					   const struct blk_mq_ops *ops,
@@ -2924,6 +2943,7 @@ void blk_mq_exit_queue(struct request_queue *q)
 	blk_mq_exit_hw_queues(q, set, set->nr_hw_queues);
 }
 
+/*针对每个hw queue申请req 指针数组，和req 数组*/
 static int __blk_mq_alloc_rq_maps(struct blk_mq_tag_set *set)
 {
 	int i;
@@ -2956,7 +2976,7 @@ static int blk_mq_alloc_rq_maps(struct blk_mq_tag_set *set)
 		err = __blk_mq_alloc_rq_maps(set);
 		if (!err)
 			break;
-
+		/*分配不了，强制压缩一下队列深度*/
 		set->queue_depth >>= 1;
 		if (set->queue_depth < set->reserved_tags + BLK_MQ_TAG_MIN) {
 			err = -ENOMEM;
@@ -3000,6 +3020,7 @@ static int blk_mq_update_queue_map(struct blk_mq_tag_set *set)
 
 		return set->ops->map_queues(set);
 	} else {
+		/*set->nr_maps 只能为1*/
 		BUG_ON(set->nr_maps > 1);
 		return blk_mq_map_queues(&set->map[HCTX_TYPE_DEFAULT]);
 	}
@@ -3098,6 +3119,7 @@ int blk_mq_alloc_tag_set(struct blk_mq_tag_set *set)
 	if (ret)
 		goto out_free_mq_map;
 
+	/*申请每个hw 队列的req 数组 和指针数组*/
 	ret = blk_mq_alloc_rq_maps(set);
 	if (ret)
 		goto out_free_mq_map;

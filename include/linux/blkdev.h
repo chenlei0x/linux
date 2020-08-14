@@ -414,7 +414,7 @@ struct request_queue {
 	struct blk_mq_hw_ctx	**queue_hw_ctx;
 	unsigned int		nr_hw_queues;
 
-	struct backing_dev_info	*backing_dev_info;
+	struct backing_dev_info	*backing_dev_info;/*每个queue都有自己的bdi*/
 
 	/*
 	 * The queue owner gets to use this for whatever they like.
@@ -482,8 +482,8 @@ struct request_queue {
 	struct blk_stat_callback	*poll_cb;
 	struct blk_rq_stat	poll_stat[BLK_MQ_POLL_STATS_BKTS];
 
-	struct timer_list	timeout;
-	struct work_struct	timeout_work;
+	struct timer_list	timeout; /*blk_rq_timed_out_timer*/
+	struct work_struct	timeout_work; /*blk_timeout_work*/
 
 	struct list_head	icq_list;
 #ifdef CONFIG_BLK_CGROUP
