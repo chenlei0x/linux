@@ -96,6 +96,7 @@ xfs_bmap_compute_maxlevels(
 		maxleafents = MAXAEXTNUM;
 		sz = XFS_BMDR_SPACE_CALC(MINABTPTRS);
 	}
+	/*bmap disk root最大rec数量*/
 	maxrootrecs = xfs_bmdr_maxrecs(sz, 0);
 	minleafrecs = mp->m_bmap_dmnr[0];
 	minnoderecs = mp->m_bmap_dmnr[1];

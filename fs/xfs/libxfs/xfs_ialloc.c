@@ -421,7 +421,12 @@ xfs_align_sparse_ino(
 	xfs_agblock_t			mod;
 	int				offset;
 
+	/*inode 转换为对应的ag block*/
 	agbno = XFS_AGINO_TO_AGBNO(mp, *startino);
+	/*
+		  sbp->sb_inoalignmt = XFS_INODES_PER_CHUNK *
+			cfg->inodesize >> cfg->blocklog;  
+	*/
 	mod = agbno % mp->m_sb.sb_inoalignmt;
 	if (!mod)
 		return;

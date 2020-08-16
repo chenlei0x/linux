@@ -753,14 +753,19 @@ typedef struct xfs_agi {
 	 */
 	__be32		agi_magicnum;	/* magic number == XFS_AGI_MAGIC */
 	__be32		agi_versionnum;	/* header version == XFS_AGI_VERSION */
+	/*我所在的ag 序号*/
 	__be32		agi_seqno;	/* sequence # starting from 0 */
-	__be32		agi_length;	/* size in blocks of a.g. ag的长度 */
+	__be32		agi_length;	/* size in blocks of a.g. ag块的总数量 */
 	/*
 	 * Inode information
 	 * Inodes are mapped by interpreting the inode number, so no
 	 * mapping data is needed here.
 	 */
 	__be32		agi_count;	/* count of allocated inodes */
+	/*
+	 * 习惯上按64个inode划分成chunk，用一个B+树来跟踪这些chunk的
+	 * 分配和空闲情况。B+树的根块保存在xfs_agi的agi_root中
+	 */
 	__be32		agi_root;	/* root of inode btree */
 	__be32		agi_level;	/* levels in inode btree */
 	__be32		agi_freecount;	/* number of free inodes */
@@ -781,6 +786,10 @@ typedef struct xfs_agi {
 	__be32		agi_pad32;
 	__be64		agi_lsn;	/* last write sequence */
 
+	/*
+	 * 如果启用了XFS_SB_FEAT_RO_COMPAT_FINOBT功能，则会用另外一个B+树来跟
+	 * 踪包含空闲inode的chunk。这是一个优化，用来提升inode的分配性能
+	 */
 	__be32		agi_free_root; /* root of the free inode btree */
 	__be32		agi_free_level;/* levels in free inode btree */
 
@@ -845,6 +854,7 @@ typedef struct xfs_agfl {
 
 #define XFS_AGFL_CRC_OFF	offsetof(struct xfs_agfl, agfl_crc)
 
+/*AGB 的大小和fsb 相同*/
 #define XFS_AGB_TO_FSB(mp,agno,agbno)	\
 	(((xfs_fsblock_t)(agno) << (mp)->m_sb.sb_agblklog) | (agbno))
 #define	XFS_FSB_TO_AGNO(mp,fsbno)	\
@@ -1305,7 +1315,10 @@ typedef uint64_t	xfs_inofree_t;
 #define	XFS_INOBT_MASK(i)		((xfs_inofree_t)1 << (i))
 
 #define XFS_INOBT_HOLEMASK_FULL		0	/* holemask for full chunk */
-#define XFS_INOBT_HOLEMASK_BITS		(NBBY * sizeof(uint16_t))
+/*每个bit 代表4个inode*/
+#define XFS_INOBT_HOLEMASK_BITS		(NBBY * sizeof(uint16_t)) /*16*/
+
+/*每个BIT代表多少个inode*/
 #define XFS_INODES_PER_HOLEMASK_BIT	\
 	(XFS_INODES_PER_CHUNK / (NBBY * sizeof(uint16_t)))
 
@@ -1336,12 +1349,17 @@ typedef struct xfs_inobt_rec {
 			__u8	ir_freecount;	/* count of free inodes */
 		} sp;
 	} ir_u;
+	/*
+	 * ir_free：64位的bitmap，用来表示chunk中哪些inode是空闲的。
+	 */
 	__be64		ir_free;	/* free inode mask */
 } xfs_inobt_rec_t;
 
 typedef struct xfs_inobt_rec_incore {
 	xfs_agino_t	ir_startino;	/* starting inode number */
 	uint16_t	ir_holemask;	/* hole mask for sparse chunks */
+	
+	/*xfs_inobt_irec_to_allocmask(rec) 有多少个bit 为1*/
 	uint8_t		ir_count;	/* total inode count */
 	uint8_t		ir_freecount;	/* count of free inodes (set bits) */
 	xfs_inofree_t	ir_free;	/* free inode mask */
@@ -1551,6 +1569,8 @@ typedef __be32 xfs_refcount_ptr_t;
 
 /*
  * Bmap root header, on-disk form only.
+ *
+ * bmap disk root
  */
 typedef struct xfs_bmdr_block {
 	__be16		bb_level;	/* 0 is a leaf */
@@ -1569,6 +1589,7 @@ typedef struct xfs_bmdr_block {
 #define BMBT_STARTBLOCK_BITLEN	52
 #define BMBT_BLOCKCOUNT_BITLEN	21
 
+/*bmbt Bmap btree*/
 typedef struct xfs_bmbt_rec {
 	__be64			l0, l1;
 } xfs_bmbt_rec_t;

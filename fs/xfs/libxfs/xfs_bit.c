@@ -44,6 +44,9 @@ xfs_bitmap_empty(uint *map, uint size)
 /*
  * Count the number of contiguous bits set in the bitmap starting with bit
  * start_bit.  Size is the size of the bitmap in words.
+ * @size = map的长度(字节数)/sizeof(uint)
+ *
+ * 用来计算从@start_bit开始连续由多少个bit为1,如果start_bit所在bit为0,则返回0
  */
 int
 xfs_contig_bits(uint *map, uint	size, uint start_bit)
@@ -55,11 +58,19 @@ xfs_contig_bits(uint *map, uint	size, uint start_bit)
 	size <<= BIT_TO_WORD_SHIFT;
 
 	ASSERT(start_bit < size);
+	/*size 为start_bit所在的uint*/
 	size -= start_bit & ~(NBWORD - 1);
 	start_bit &= (NBWORD - 1);
+	/*if内用来算不整齐的部分*/
 	if (start_bit) {
 		tmp = *p++;
 		/* set to one first offset bits prior to start */
+		/*[0 ~ start_bit)之间依然保持为1, [start_bit ~ NBWORD) 为0*/
+		/*
+		 * 这里tmp 进行 或运算为了看[start_bit ~ NBWORD)中间时什么情况,
+		 * 如果全为1, 那么tmp 或运算之后全为1, 
+		 * 如果不是全为1,那么tmp或运算之后肯定不是全为1,那也就是说出现了不连续的状况
+		 */
 		tmp |= (~0U >> (NBWORD-start_bit));
 		if (tmp != ~0U)
 			goto found;
@@ -67,6 +78,7 @@ xfs_contig_bits(uint *map, uint	size, uint start_bit)
 		size -= NBWORD;
 	}
 	while (size) {
+		/*该word内出现了不连续为1的情况,那么ffz的返回值就是连续多少个1的情况*/
 		if ((tmp = *p++) != ~0U)
 			goto found;
 		result += NBWORD;
@@ -84,6 +96,9 @@ found:
  * beyond the end of the bitmap.
  *
  * Size is the number of words, not bytes, in the bitmap.
+ *
+ * 从start_bit开始,计算下一个为1的bit index. 如果start_bit所在
+ * 本身就为1,则返回start_bit
  */
 int xfs_next_bit(uint *map, uint size, uint start_bit)
 {

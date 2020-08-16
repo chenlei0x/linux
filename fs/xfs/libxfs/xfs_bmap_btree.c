@@ -815,6 +815,7 @@ xfs_bmdr_maxrecs(
 {
 	blocklen -= sizeof(xfs_bmdr_block_t);
 
+	/*如果时leaf,那么全是由rec 组成的*/
 	if (leaf)
 		return blocklen / sizeof(xfs_bmdr_rec_t);
 	return blocklen / (sizeof(xfs_bmdr_key_t) + sizeof(xfs_bmdr_ptr_t));

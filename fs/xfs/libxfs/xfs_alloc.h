@@ -64,7 +64,7 @@ typedef unsigned int xfs_alloctype_t;
 typedef struct xfs_alloc_arg {
 	struct xfs_trans *tp;		/* transaction pointer */
 	struct xfs_mount *mp;		/* file system mount point */
-	/*ag buffer 注释错*/
+	/*ag buffer*/
 	struct xfs_buf	*agbp;		/* buffer for a.g. freelist header */
 	struct xfs_perag *pag;		/* per-ag struct for this agno */
 	struct xfs_inode *ip;		/* for userdata zeroing method */
@@ -73,9 +73,12 @@ typedef struct xfs_alloc_arg {
 	 * fsb 的大小在mkfs中可以指定 默认4k
 	 * fsb 也是申请的结果
 	 * fsbno = (agno << ag_shift) | agbno
+	 * 这个参数既是入参也是出参, 作为入参表示分配一个离fsbno比较近的extent
 	 */
 	xfs_fsblock_t	fsbno;		/* file system block number */
-	/*申请的结果放到 agno 和 agbno中*/
+	/*申请的结果放到 agno 和 agbno中
+		xfs_alloc_vextent 在准备申请时,会根据fsbno 填入这个值, 表示从哪个ag申请extent
+	 */
 	xfs_agnumber_t	agno;		/* allocation group number */
 	xfs_agblock_t	agbno;		/* allocation group-relative block # */
 	xfs_extlen_t	minlen;		/* minimum size of extent */

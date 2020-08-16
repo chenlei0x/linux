@@ -174,6 +174,7 @@ xfs_inobt_init_key_from_rec(
 	key->inobt.ir_startino = rec->inobt.ir_startino;
 }
 
+/*这同一个chunk内的ino 作为同一个chunk 的key*/
 STATIC void
 xfs_inobt_init_high_key_from_rec(
 	union xfs_btree_key	*key,
@@ -428,6 +429,8 @@ xfs_inobt_init_cursor(
 
 /*
  * Calculate number of records in an inobt btree block.
+ *
+ * agi inode b+tree中,非叶子节点容量大小
  */
 int
 xfs_inobt_maxrecs(
@@ -464,6 +467,7 @@ xfs_inobt_irec_to_allocmask(
 	 * holemask bit represents multiple inodes. Create a mask of bits to set
 	 * in the allocmask for each holemask bit.
 	 */
+	 /*inodesbit = 1111 (二进制)*/
 	inodespbit = (1 << XFS_INODES_PER_HOLEMASK_BIT) - 1;
 
 	/*
@@ -480,10 +484,12 @@ xfs_inobt_irec_to_allocmask(
 	 * 64-bit (e.g., bit-per-inode), set inodespbit bits in the target
 	 * bitmap for every holemask bit.
 	 */
+	 /*1 表示allocbitmap 为4个字节*/
+	/*此处allocbitmap 为1 表示对应的4个连续的inode都被分配了*/
 	nextbit = xfs_next_bit(&allocbitmap, 1, 0);
 	while (nextbit != -1) {
 		ASSERT(nextbit < (sizeof(rec->ir_holemask) * NBBY));
-
+		/*inodesbit = 1111 (二进制)*/
 		bitmap |= (inodespbit <<
 			   (nextbit * XFS_INODES_PER_HOLEMASK_BIT));
 
