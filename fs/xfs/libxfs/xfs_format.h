@@ -663,7 +663,7 @@ typedef struct xfs_agf {
 	 */
 	__be32		agf_roots[XFS_BTNUM_AGF];	/* root blocks */
 	__be32		agf_levels[XFS_BTNUM_AGF];	/* btree levels */
-
+	/*xfs_agfl agfl_bno数组其实是一个循环队列，下面两个字段表明队列的开头和结尾*/
 	__be32		agf_flfirst;	/* first freelist block's index */
 	__be32		agf_fllast;	/* last freelist block's index */
 	__be32		agf_flcount;	/* count of blocks in freelist */
