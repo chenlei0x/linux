@@ -20,6 +20,7 @@
 
 #include <linux/rwsem.h>
 
+/*实际上就是个读写锁*/
 typedef struct {
 	struct rw_semaphore	mr_lock;
 #if defined(DEBUG) || defined(XFS_WARN)
@@ -38,11 +39,13 @@ typedef struct {
 #define mrlock_init(mrp, t,n,s)	mrinit(mrp, n)
 #define mrfree(mrp)		do { } while (0)
 
+/*上读锁*/
 static inline void mraccess_nested(mrlock_t *mrp, int subclass)
 {
 	down_read_nested(&mrp->mr_lock, subclass);
 }
 
+/*上写锁*/
 static inline void mrupdate_nested(mrlock_t *mrp, int subclass)
 {
 	down_write_nested(&mrp->mr_lock, subclass);
@@ -66,6 +69,7 @@ static inline int mrtryupdate(mrlock_t *mrp)
 	return 1;
 }
 
+/*释放读锁*/
 static inline void mrunlock_excl(mrlock_t *mrp)
 {
 #if defined(DEBUG) || defined(XFS_WARN)

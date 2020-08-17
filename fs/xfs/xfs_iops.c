@@ -146,7 +146,7 @@ STATIC int
 xfs_generic_create(
 	struct inode	*dir,
 	struct dentry	*dentry,
-	umode_t		mode,
+	umode_t		mode, /*文件类型，快设备？普通文件？软连接*/
 	dev_t		rdev,
 	bool		tmpfile)	/* unnamed file */
 {

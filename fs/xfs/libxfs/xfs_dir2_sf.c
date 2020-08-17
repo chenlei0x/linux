@@ -279,6 +279,7 @@ int						/* error */
 xfs_dir2_sf_addname(
 	xfs_da_args_t		*args)		/* operation arguments */
 {
+	/**/
 	xfs_inode_t		*dp;		/* incore directory inode */
 	int			error;		/* error return value */
 	int			incr_isize;	/* total change in size */
@@ -292,7 +293,7 @@ xfs_dir2_sf_addname(
 	trace_xfs_dir2_sf_addname(args);
 
 	ASSERT(xfs_dir2_sf_lookup(args) == -ENOENT);
-	dp = args->dp;
+	dp = args->dp;/*内存中的inode*/
 	ASSERT(dp->i_df.if_flags & XFS_IFINLINE);
 	/*
 	 * Make sure the shortform value has some of its header.

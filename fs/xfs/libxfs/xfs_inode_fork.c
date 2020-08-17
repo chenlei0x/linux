@@ -1714,7 +1714,7 @@ xfs_iext_idx_to_irec(
 	ASSERT(page_idx <= xfs_iext_count(ifp));
 	ASSERT(page_idx < xfs_iext_count(ifp) || realloc);
 
-	nlists = ifp->if_real_bytes / XFS_IEXT_BUFSZ;
+	nlists = ifp->if_real_bytes / XFS_IEXT_BUFSZ; /*4096*/
 	erp_idx = 0;
 	low = 0;
 	high = nlists - 1;
@@ -1722,6 +1722,7 @@ xfs_iext_idx_to_irec(
 	/* Binary search extent irec's */
 	while (low <= high) {
 		erp_idx = (low + high) >> 1;
+		/*extent record pointer*/
 		erp = &ifp->if_u1.if_ext_irec[erp_idx];
 		prev = erp_idx > 0 ? erp - 1 : NULL;
 		if (page_idx < erp->er_extoff || (page_idx == erp->er_extoff &&

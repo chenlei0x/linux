@@ -30,6 +30,7 @@ struct xfs_trans_res {
 				 * a reservation request is permanent or not */
 };
 
+/* 提前计算好的这些不同的事务需要多少block */
 struct xfs_trans_resv {
 	struct xfs_trans_res	tr_write;	/* extent alloc trans */
 	struct xfs_trans_res	tr_itruncate;	/* truncate trans */

@@ -970,6 +970,8 @@ static inline uint xfs_dinode_size(int version)
 
 /*
  * Values for di_format
+ *
+ * 数据的组织方式， local？ extent 数组 还是 btree？
  */
 typedef enum xfs_dinode_fmt {
 	XFS_DINODE_FMT_DEV,		/* xfs_dev_t */
@@ -989,6 +991,9 @@ typedef enum xfs_dinode_fmt {
 
 /*
  * Inode size for given fs.
+ *
+ * inodesize = 512实际里面是一个xfs_dinode 结构体，后面的空间可以利用
+ * 这个宏是用来计算后面的空间有多大
  */
 #define XFS_LITINO(mp, version) \
 	((int)(((mp)->m_sb.sb_inodesize) - xfs_dinode_size(version)))

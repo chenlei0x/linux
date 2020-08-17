@@ -29,6 +29,7 @@ struct xfs_dinode;
  */
 struct xfs_icdinode {
 	int8_t		di_version;	/* inode version */
+	/*xfs_dinode_fmt*/
 	int8_t		di_format;	/* format of di_c data */
 	uint16_t	di_flushiter;	/* incremented on flush */
 	uint32_t	di_uid;		/* owner's user id */

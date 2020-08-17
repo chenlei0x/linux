@@ -52,6 +52,7 @@ struct xfs_dir_ops {
 				uint8_t ftype);
 	xfs_ino_t (*sf_get_ino)(struct xfs_dir2_sf_hdr *hdr,
 				struct xfs_dir2_sf_entry *sfep);
+	/*这里put是写入的意思*/
 	void	(*sf_put_ino)(struct xfs_dir2_sf_hdr *hdr,
 			      struct xfs_dir2_sf_entry *sfep,
 			      xfs_ino_t ino);
