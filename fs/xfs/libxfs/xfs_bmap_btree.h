@@ -24,6 +24,7 @@ struct xfs_mount;
 struct xfs_inode;
 struct xfs_trans;
 
+/*BMDR 和 BMBT的区别在于没有head 长度为 XFS_BMBT_BLOCK_LEN*/
 /*
  * Btree block header size depends on a superblock flag.
  */
@@ -36,7 +37,7 @@ struct xfs_trans;
 		((char *)(block) + \
 		 XFS_BMBT_BLOCK_LEN(mp) + \
 		 ((index) - 1) * sizeof(xfs_bmbt_rec_t)))
-
+/*BMBT 内存中的 bmap b+tree block*/
 #define XFS_BMBT_KEY_ADDR(mp, block, index) \
 	((xfs_bmbt_key_t *) \
 		((char *)(block) + \
@@ -56,6 +57,7 @@ struct xfs_trans;
 		 sizeof(struct xfs_bmdr_block) + \
 	         ((index) - 1) * sizeof(xfs_bmdr_rec_t)))
 
+/*index 从1 开始*/
 #define XFS_BMDR_KEY_ADDR(block, index) \
 	((xfs_bmdr_key_t *) \
 		((char *)(block) + \
@@ -72,14 +74,21 @@ struct xfs_trans;
 /*
  * These are to be used when we know the size of the block and
  * we don't have a cursor.
+ *
+ * 针对内存中的btree block，获取弟@i 个 ptr
  */
 #define XFS_BMAP_BROOT_PTR_ADDR(mp, bb, i, sz) \
 	XFS_BMBT_PTR_ADDR(mp, bb, i, xfs_bmbt_maxrecs(mp, sz, 0))
+
 
 #define XFS_BMAP_BROOT_SPACE_CALC(mp, nrecs) \
 	(int)(XFS_BMBT_BLOCK_LEN(mp) + \
 	       ((nrecs) * (sizeof(xfs_bmbt_key_t) + sizeof(xfs_bmbt_ptr_t))))
 
+/*
+ *  bb ： xfs_bmdr_block_t
+ * 计算内存中的bmap root block 大小
+ */
 #define XFS_BMAP_BROOT_SPACE(mp, bb) \
 	(XFS_BMAP_BROOT_SPACE_CALC(mp, be16_to_cpu((bb)->bb_numrecs)))
 #define XFS_BMDR_SPACE_CALC(nrecs) \

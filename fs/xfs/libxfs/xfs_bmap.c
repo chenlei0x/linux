@@ -1211,6 +1211,7 @@ trans_cancel:
  * All inode fields are set up by caller, we just traverse the btree
  * and copy the records in. If the file system cannot contain unwritten
  * extents, the records are checked for no "state" flags.
+ * 
  */
 int					/* error */
 xfs_bmap_read_extents(
@@ -1244,8 +1245,11 @@ xfs_bmap_read_extents(
 	/*
 	 * Go down the tree until leaf level is reached, following the first
 	 * pointer (leftmost) at each level.
+	 *
+	 * 一直往左
 	 */
 	while (level-- > 0) {
+		/*bno ===读取===> bp*/
 		error = xfs_btree_read_bufl(mp, tp, bno, 0, &bp,
 				XFS_BMAP_BTREE_REF, &xfs_bmbt_buf_ops);
 		if (error)
@@ -1261,11 +1265,15 @@ xfs_bmap_read_extents(
 	}
 	/*
 	 * Here with bp and block set to the leftmost leaf node in the tree.
+	 * room = 内存中可以容纳多少个extent
 	 */
 	room = xfs_iext_count(ifp);
 	i = 0;
 	/*
 	 * Loop over all leaf nodes.  Copy information to the extent records.
+	 *
+	 * 现在block指向整个树的最左边的leaf block, leaf block之间是通过bb_rightsib 和 
+	 * leftsib 链接在一起的
 	 */
 	for (;;) {
 		xfs_bmbt_rec_t	*frp;
@@ -1294,7 +1302,9 @@ xfs_bmap_read_extents(
 		 */
 		frp = XFS_BMBT_REC_ADDR(mp, block, 1);
 		for (j = 0; j < num_recs; j++, i++, frp++) {
+			/*内存第i个ext 指针*/
 			xfs_bmbt_rec_host_t *trp = xfs_iext_get_ext(ifp, i);
+			/*做大小端转换*/
 			trp->l0 = be64_to_cpu(frp->l0);
 			trp->l1 = be64_to_cpu(frp->l1);
 			if (!xfs_bmbt_validate_extent(mp, whichfork, trp)) {
@@ -1332,6 +1342,8 @@ error0:
  * This is the lowest-address hole if the file has holes, else the first block
  * past the end of file.
  * Return 0 if the file is currently local (in-inode).
+ * 获取 从@first_unused 开始,第一个长度>= @len block 的hole的起始block
+ * @first_unused 应该本身就是一个hole block
  */
 int						/* error */
 xfs_bmap_first_unused(
@@ -1357,7 +1369,9 @@ xfs_bmap_first_unused(
 		return 0;
 	}
 	ifp = XFS_IFORK_PTR(ip, whichfork);
+	/*没有把所有的extent 读进来*/
 	if (!(ifp->if_flags & XFS_IFEXTENTS) &&
+		/*走到这里说明既不是LOCAL 又不是EXTENT ARRAY, 那么只能是btree了*/
 	    (error = xfs_iread_extents(tp, ip, whichfork)))
 		return error;
 	lowest = *first_unused;
@@ -1365,16 +1379,21 @@ xfs_bmap_first_unused(
 	for (idx = 0, lastaddr = 0, max = lowest; idx < nextents; idx++) {
 		struct xfs_bmbt_irec got;
 
+		/*idx 对应的extent, 放到got中*/
 		xfs_iext_get_extent(ifp, idx, &got);
 
 		/*
 		 * See if the hole before this extent will work.
+		 * max 记录上个extent 结束block#
+		 * startoff - max 就是当前ext 和上一个ext之间的hole
 		 */
 		if (got.br_startoff >= lowest + len &&
 		    got.br_startoff - max >= len) {
+		    /*hole 长度够长*/
 			*first_unused = max;
 			return 0;
 		}
+			/*这个ext 结束的offset*/
 		lastaddr = got.br_startoff + got.br_blockcount;
 		max = XFS_FILEOFF_MAX(lastaddr, lowest);
 	}
@@ -1383,10 +1402,21 @@ xfs_bmap_first_unused(
 }
 
 /*
+* 这个注释 注意断句
+Returns the file-relative block number of the last block - 1 before
+ * last_block (input value) in the file.
+ "-" 后面是解释说明
+
+
+ 
  * Returns the file-relative block number of the last block - 1 before
  * last_block (input value) in the file.
  * This is not based on i_size, it is based on the extent records.
  * Returns 0 for local files, as they do not have extent records.
+ *
+ * 找到@last_block所在的ext 的前面一个ext的最后最后一个block的bno +1
+ *
+ 
  */
 int						/* error */
 xfs_bmap_last_before(
@@ -1416,13 +1446,16 @@ xfs_bmap_last_before(
 		if (error)
 			return error;
 	}
-
+	/*找到文件的 @last_block - 1 对应的extent, 
+	注意这个extent 可能就是@last_block所在的ext*/
 	if (xfs_iext_lookup_extent(ip, ifp, *last_block - 1, &idx, &got)) {
 		if (got.br_startoff <= *last_block - 1)
 			return 0;
 	}
 
+	/*再找到这个extent的前一个extent*/
 	if (xfs_iext_get_extent(ifp, idx - 1, &got)) {
+		/*赋值extent 结尾bno*/
 		*last_block = got.br_startoff + got.br_blockcount;
 		return 0;
 	}
@@ -1431,6 +1464,7 @@ xfs_bmap_last_before(
 	return 0;
 }
 
+/*获取最后一个ext, 解压到rec中*/
 int
 xfs_bmap_last_extent(
 	struct xfs_trans	*tp,
@@ -1492,6 +1526,8 @@ xfs_bmap_isaeof(
 	/*
 	 * Check if we are allocation or past the last extent, or at least into
 	 * the last delayed allocated extent.
+	 *
+	 * offset 超过了最后一个ext的范围
 	 */
 	bma->aeof = bma->offset >= rec.br_startoff + rec.br_blockcount ||
 		(bma->offset >= rec.br_startoff &&
@@ -1504,6 +1540,7 @@ xfs_bmap_isaeof(
  * the file.  This is not based on i_size, it is based on the extent records.
  * Returns 0 for local files, as they do not have extent records.
  */
+ /*最后一个extent 最后一个文件块 +1*/
 int
 xfs_bmap_last_offset(
 	struct xfs_inode	*ip,
@@ -1527,6 +1564,7 @@ xfs_bmap_last_offset(
 	if (error || is_empty)
 		return error;
 
+	/*文件内块偏移 + count*/
 	*last_block = rec.br_startoff + rec.br_blockcount;
 	return 0;
 }
@@ -1535,6 +1573,7 @@ xfs_bmap_last_offset(
  * Returns whether the selected fork of the inode has exactly one
  * block or not.  For the data fork we check this matches di_size,
  * implying the file's range is 0..bsize-1.
+ * 这个fork 是否有且只有一个block
  */
 int					/* 1=>1 block, 0=>otherwise */
 xfs_bmap_one_block(
@@ -1609,9 +1648,9 @@ xfs_bmap_add_extent_delay_real(
 
 	XFS_STATS_INC(mp, xs_add_exlist);
 
-#define	LEFT		r[0]
-#define	RIGHT		r[1]
-#define	PREV		r[2]
+#define	LEFT		r[0] /*代表bma->idx-1   ext*/
+#define	RIGHT		r[1]/*代表bma->idx+1   ext*/
+#define	PREV		r[2]/*代表bma->idx ext*/
 
 	if (whichfork == XFS_COW_FORK)
 		state |= BMAP_COWFORK;
@@ -1633,9 +1672,9 @@ xfs_bmap_add_extent_delay_real(
 	 * extent is being replaced by a real allocation.
 	 */
 	if (PREV.br_startoff == new->br_startoff)
-		state |= BMAP_LEFT_FILLING;
+		state |= BMAP_LEFT_FILLING;/*new 和 prev 左侧重叠*/
 	if (PREV.br_startoff + PREV.br_blockcount == new_endoff)
-		state |= BMAP_RIGHT_FILLING;
+		state |= BMAP_RIGHT_FILLING;/*new prev 右侧重叠*/
 
 	/*
 	 * Check and set flags if this segment has a left neighbor.
@@ -3435,6 +3474,7 @@ xfs_bmap_longest_free_extent(
 		}
 	}
 
+	/*ag中可用的最长ext长度*/
 	longest = xfs_alloc_longest_free_extent(mp, pag,
 				xfs_alloc_min_freelist(mp, pag),
 				xfs_ag_resv_needed(pag, XFS_AG_RESV_NONE));
@@ -3474,6 +3514,7 @@ xfs_bmap_select_minlen(
 	}
 }
 
+/*nullfb  NULLFSBLOCK*/
 STATIC int
 xfs_bmap_btalloc_nullfb(
 	struct xfs_bmalloca	*ap,

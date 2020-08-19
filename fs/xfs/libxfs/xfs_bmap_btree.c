@@ -55,13 +55,14 @@ xfs_extent_state(
 
 /*
  * Convert on-disk form of btree root to in-memory form.
+ * 只初始化root block
  */
 void
 xfs_bmdr_to_bmbt(
 	struct xfs_inode	*ip,
 	xfs_bmdr_block_t	*dblock,
 	int			dblocklen,
-	struct xfs_btree_block	*rblock,
+	struct xfs_btree_block	*rblock, /*root block*/
 	int			rblocklen)
 {
 	struct xfs_mount	*mp = ip->i_mount;
@@ -818,6 +819,7 @@ xfs_bmdr_maxrecs(
 	/*如果时leaf,那么全是由rec 组成的*/
 	if (leaf)
 		return blocklen / sizeof(xfs_bmdr_rec_t);
+	/*不是leaf的话，由key和ptr 对组成*/
 	return blocklen / (sizeof(xfs_bmdr_key_t) + sizeof(xfs_bmdr_ptr_t));
 }
 

@@ -244,6 +244,8 @@ xfs_iformat_fork(
 	return error;
 }
 
+
+/*这个fork 直接涵盖了他所代表的数据*/
 void
 xfs_init_local_fork(
 	struct xfs_inode	*ip,
@@ -274,6 +276,7 @@ xfs_init_local_fork(
 		ifp->if_u1.if_data = kmem_alloc(real_size, KM_SLEEP | KM_NOFS);
 	}
 
+	/*拷贝真正的数据*/
 	if (size) {
 		memcpy(ifp->if_u1.if_data, data, size);
 		if (zero_terminate)
@@ -361,11 +364,20 @@ xfs_iformat_extents(
 	else
 		xfs_iext_add(ifp, 0, nex);
 
+	/*xfs_iext_add 已经设置了size,这里重复设置了*/
 	ifp->if_bytes = size;
 	if (size) {
+		/*dp = dinode + 100B*/
 		dp = (xfs_bmbt_rec_t *) XFS_DFORK_PTR(dip, whichfork);
+		/*
+		 * 硬盘中如果以XFS_IFEXTENTS的形式就是连续的存放着
+		 * 实际上extent 数组的容量是受到大小的限制的,过多就得转为树了
+		 * xfs_bmap_needs_btree
+		 * 
+		 */
 		for (i = 0; i < nex; i++, dp++) {
 			xfs_bmbt_rec_host_t *ep = xfs_iext_get_ext(ifp, i);
+			/*做大小端转换*/
 			ep->l0 = get_unaligned_be64(&dp->l0);
 			ep->l1 = get_unaligned_be64(&dp->l1);
 			if (!xfs_bmbt_validate_extent(mp, whichfork, ep)) {
@@ -387,6 +399,10 @@ xfs_iformat_extents(
  * and copy the root into it.  The i_extents
  * field will remain NULL until all of the
  * extents are read in (when they are needed).
+ *
+ * 此时dip中的data fork 一定由key + ptr 对结构组成，
+ * 不会把extent直接放再data fork中，否则就是EXTENT结构了，
+ * 不是btree结构了
  */
 STATIC int
 xfs_iformat_btree(
@@ -395,7 +411,8 @@ xfs_iformat_btree(
 	int			whichfork)
 {
 	struct xfs_mount	*mp = ip->i_mount;
-	xfs_bmdr_block_t	*dfp;
+	/*btree disk root*/
+	xfs_bmdr_block_t	*dfp; /*disk fork pointer*/
 	xfs_ifork_t		*ifp;
 	/* REFERENCED */
 	int			nrecs;
@@ -403,6 +420,7 @@ xfs_iformat_btree(
 	int			level;
 
 	ifp = XFS_IFORK_PTR(ip, whichfork);
+	/*fork 处实际是一个xfs_bmdr_block_t 结构体*/
 	dfp = (xfs_bmdr_block_t *)XFS_DFORK_PTR(dip, whichfork);
 	size = XFS_BMAP_BROOT_SPACE(mp, dfp);
 	nrecs = be16_to_cpu(dfp->bb_numrecs);
@@ -915,6 +933,7 @@ xfs_iflush_fork(
 
 /*
  * Return a pointer to the extent record at file index idx.
+ * file ext idx ===> 对应的extent
  */
 xfs_bmbt_rec_host_t *
 xfs_iext_get_ext(
@@ -1008,6 +1027,7 @@ xfs_iext_add(
 	 * extent buffer.
 	 */
 	if (nextents + ext_diff <= XFS_INLINE_EXTS) {
+		/*放到inline里面空间足够*/
 		if (idx < nextents) {
 			memmove(&ifp->if_u2.if_inline_ext[idx + ext_diff],
 				&ifp->if_u2.if_inline_ext[idx],
@@ -1024,8 +1044,10 @@ xfs_iext_add(
 	 * inline to direct extent allocation mode.
 	 */
 	else if (nextents + ext_diff <= XFS_LINEAR_EXTS) {
+		/*直接的extent数组*/
 		xfs_iext_realloc_direct(ifp, new_size);
 		if (idx < nextents) {
+			/*迁移,从插入的地方向后迁移ext_diff个*/
 			memmove(&ifp->if_u1.if_extents[idx + ext_diff],
 				&ifp->if_u1.if_extents[idx],
 				(nextents - idx) * sizeof(xfs_bmbt_rec_t));
@@ -1047,6 +1069,7 @@ xfs_iext_add(
 			erp = ifp->if_u1.if_ext_irec;
 		}
 		/* Extents fit in target extent page */
+		/*新增的可以装到这个erp中*/
 		if (erp && erp->er_extcount + ext_diff <= XFS_LINEAR_EXTS) {
 			if (page_idx < erp->er_extcount) {
 				memmove(&erp->er_extbuf[page_idx + ext_diff],
@@ -1081,6 +1104,7 @@ xfs_iext_add(
 			}
 		}
 	}
+	/*if_bytes = extent 元素的个数 * count*/
 	ifp->if_bytes = new_size;
 }
 
@@ -1099,10 +1123,14 @@ xfs_iext_add(
  *    |-------|   |-------|
  *    | count |   | nex2  |    nex2 - number of extents after idx + count
  *    |-------|   |-------|
+ *
+ * 在指定位置插入count个extent记录
+
  */
 void
 xfs_iext_add_indirect_multi(
 	xfs_ifork_t	*ifp,			/* inode fork pointer */
+	/*以下两个参数表明插入的位置*/
 	int		erp_idx,		/* target extent irec index */
 	xfs_extnum_t	idx,			/* index within target list */
 	int		count)			/* new extents being added */
@@ -1119,10 +1147,11 @@ xfs_iext_add_indirect_multi(
 	erp = &ifp->if_u1.if_ext_irec[erp_idx];
 	nex2 = erp->er_extcount - idx;
 	nlists = ifp->if_real_bytes / XFS_IEXT_BUFSZ;
-
+	/* * 相当于插入两次, 第一个次插入count 个 ,第二次插入next2个*/
 	/*
 	 * Save second part of target extent list
 	 * (all extents past */
+	 /*把[idx, er_extcount)之间的extent全部暂存到next2_ep中*/
 	if (nex2) {
 		byte_diff = nex2 * sizeof(xfs_bmbt_rec_t);
 		nex2_ep = (xfs_bmbt_rec_t *) kmem_alloc(byte_diff, KM_NOFS);
@@ -1139,13 +1168,15 @@ xfs_iext_add_indirect_multi(
 	 * of the new extents.
 	 */
 	ext_cnt = count;
+	/*容纳量 和 插入量*/
 	ext_diff = MIN(ext_cnt, (int)XFS_LINEAR_EXTS - erp->er_extcount);
 	if (ext_diff) {
-		erp->er_extcount += ext_diff;
+		erp->er_extcount += ext_diff;/*扩大了*/
 		xfs_iext_irec_update_extoffs(ifp, erp_idx + 1, ext_diff);
 		ext_cnt -= ext_diff;
 	}
 	while (ext_cnt) {
+		/*不断的创建extent page*/
 		erp_idx++;
 		erp = xfs_iext_irec_new(ifp, erp_idx);
 		ext_diff = MIN(ext_cnt, (int)XFS_LINEAR_EXTS);
@@ -1153,13 +1184,15 @@ xfs_iext_add_indirect_multi(
 		xfs_iext_irec_update_extoffs(ifp, erp_idx + 1, ext_diff);
 		ext_cnt -= ext_diff;
 	}
-
+	/*此时erp指向刚才为了插入@count个extent的而常见的extent page中的最后一个page,
+	 这个page可能没有填充满*/
 	/* Add nex2 extents back to indirection array */
 	if (nex2) {
 		xfs_extnum_t	ext_avail;
 		int		i;
 
 		byte_diff = nex2 * sizeof(xfs_bmbt_rec_t);
+		/*这个page没有填充满*/
 		ext_avail = XFS_LINEAR_EXTS - erp->er_extcount;
 		i = 0;
 		/*
@@ -1172,6 +1205,7 @@ xfs_iext_add_indirect_multi(
 		/*
 		 * Otherwise, check if space is available in the
 		 * next page.
+		 * 能不能把nex2放入下一个page中?
 		 */
 		else if ((erp_idx < nlists - 1) &&
 			 (nex2 <= (ext_avail = XFS_LINEAR_EXTS -
@@ -1397,6 +1431,7 @@ xfs_iext_remove_indirect(
 void
 xfs_iext_realloc_direct(
 	xfs_ifork_t	*ifp,		/* inode fork pointer */
+	/*nextents * sizeof(xfs_bmbt_rec_t)*/
 	int		new_size)	/* new size of extents after adding */
 {
 	int		rnew_size;	/* real new size of extents */
@@ -1483,6 +1518,7 @@ xfs_iext_inline_to_direct(
 	ifp->if_u1.if_extents = kmem_alloc(new_size, KM_NOFS);
 	memset(ifp->if_u1.if_extents, 0, new_size);
 	if (ifp->if_bytes) {
+		/*从inline 拷贝到direct extent数组*/
 		memcpy(ifp->if_u1.if_extents, ifp->if_u2.if_inline_ext,
 			ifp->if_bytes);
 		memset(ifp->if_u2.if_inline_ext, 0, XFS_INLINE_EXTS *
@@ -1497,7 +1533,7 @@ xfs_iext_inline_to_direct(
 STATIC void
 xfs_iext_realloc_indirect(
 	xfs_ifork_t	*ifp,		/* inode fork pointer */
-	int		new_size)	/* new indirection array size */
+	int		new_size)	/* new indirection array size, bytes */
 {
 	ASSERT(ifp->if_flags & XFS_IFEXTIREC);
 	ASSERT(ifp->if_real_bytes);
@@ -1524,11 +1560,14 @@ xfs_iext_indirect_to_direct(
 	int		size;		/* size of file extents */
 
 	ASSERT(ifp->if_flags & XFS_IFEXTIREC);
+	/*当前还处于indirect状态, if_bytes 值direct extent数组的内存长度*/
 	nextents = xfs_iext_count(ifp);
 	ASSERT(nextents <= XFS_LINEAR_EXTS);
 	size = nextents * sizeof(xfs_bmbt_rec_t);
 
+	/*先去压缩所有的extent到一个rec中*/
 	xfs_iext_irec_compact_pages(ifp);
+	/*刚好所有的ext*/
 	ASSERT(ifp->if_real_bytes == XFS_IEXT_BUFSZ);
 
 	ep = ifp->if_u1.if_ext_irec->er_extbuf;
@@ -1581,6 +1620,7 @@ xfs_iext_destroy(
 
 /*
  * Return a pointer to the extent record for file system block bno.
+ * 给定文件的bno 返回他对应的extent
  */
 xfs_bmbt_rec_host_t *			/* pointer to found extent record */
 xfs_iext_bno_to_ext(
@@ -1604,9 +1644,10 @@ xfs_iext_bno_to_ext(
 		return NULL;
 	}
 	low = 0;
-	if (ifp->if_flags & XFS_IFEXTIREC) {
+	if (ifp->if_flags & XFS_IFEXTIREC) {/*间接模式*/
 		/* Find target extent list */
 		int	erp_idx = 0;
+		/*要找到xfs_ext_irec*/
 		erp = xfs_iext_bno_to_irec(ifp, bno, &erp_idx);
 		base = erp->er_extbuf;
 		high = erp->er_extcount - 1;
@@ -1615,6 +1656,7 @@ xfs_iext_bno_to_ext(
 		high = nextents - 1;
 	}
 	/* Binary search extent records */
+	/*在irec 对应的ext page 中继续二分查找*/
 	while (low <= high) {
 		idx = (low + high) >> 1;
 		ep = base + idx;
@@ -1634,9 +1676,13 @@ xfs_iext_bno_to_ext(
 		}
 	}
 	/* Convert back to file-based extent index */
+	/*bno 没有对应的ext, 当前的idx是 ext page内的idx 先转成文件级别的*/
 	if (ifp->if_flags & XFS_IFEXTIREC) {
 		idx += erp->er_extoff;
 	}
+	/*如果bno处于两个ext之间, 那么startoff一定是较小的ext 的startoff
+	  
+	  那么返回idx比较大的ext*/
 	if (bno >= startoff + blockcount) {
 		if (++idx == nextents) {
 			ep = NULL;
@@ -1652,6 +1698,8 @@ xfs_iext_bno_to_ext(
  * Return a pointer to the indirection array entry containing the
  * extent record for filesystem block bno. Store the index of the
  * target irec in *erp_idxp.
+ *
+ * 给定bno 找到对应的ext_irec结构体
  */
 xfs_ext_irec_t *			/* pointer to found extent record */
 xfs_iext_bno_to_irec(
@@ -1671,8 +1719,10 @@ xfs_iext_bno_to_irec(
 	erp_idx = 0;
 	low = 0;
 	high = nlists - 1;
+	/*二分查找*/
 	while (low <= high) {
 		erp_idx = (low + high) >> 1;
+		/*irec 结构体数组*/
 		erp = &ifp->if_u1.if_ext_irec[erp_idx];
 		erp_next = erp_idx < nlists - 1 ? erp + 1 : NULL;
 		if (bno < xfs_bmbt_get_startoff(erp->er_extbuf)) {
@@ -1693,6 +1743,11 @@ xfs_iext_bno_to_irec(
  * extent record at file extent index *idxp. Store the index of the
  * target irec in *erp_idxp and store the page index of the target
  * extent record in *idxp.
+ *
+ * idxp 作为出参和入参
+ * 入参: 整个文件范围第几个extent
+ * 出参: record内第几个extent
+ * erp idxp: 第几个record
  */
 xfs_ext_irec_t *
 xfs_iext_idx_to_irec(
@@ -1744,6 +1799,7 @@ xfs_iext_idx_to_irec(
 			break;
 		}
 	}
+	/*idxp 页内偏移*/
 	*idxp = page_idx;
 	*erp_idxp = erp_idx;
 	return erp;
@@ -1752,6 +1808,7 @@ xfs_iext_idx_to_irec(
 /*
  * Allocate and initialize an indirection array once the space needed
  * for incore extents increases above XFS_IEXT_BUFSZ.
+ * 初始化一个indirect extent 数组
  */
 void
 xfs_iext_irec_init(
@@ -1769,6 +1826,7 @@ xfs_iext_irec_init(
 	if (nextents == 0) {
 		ifp->if_u1.if_extents = kmem_alloc(XFS_IEXT_BUFSZ, KM_NOFS);
 	} else if (!ifp->if_real_bytes) {
+		/*说明肯定在inline extent数组中*/
 		xfs_iext_inline_to_direct(ifp, XFS_IEXT_BUFSZ);
 	} else if (ifp->if_real_bytes < XFS_IEXT_BUFSZ) {
 		xfs_iext_realloc_direct(ifp, XFS_IEXT_BUFSZ);
@@ -1800,7 +1858,7 @@ xfs_iext_irec_new(
 	ASSERT(ifp->if_flags & XFS_IFEXTIREC);
 	nlists = ifp->if_real_bytes / XFS_IEXT_BUFSZ;
 
-	/* Resize indirection array */
+	/* Resize indirection array , 扩充一级数组长度*/
 	xfs_iext_realloc_indirect(ifp, ++nlists *
 				  sizeof(xfs_ext_irec_t));
 	/*
@@ -1917,6 +1975,7 @@ xfs_iext_irec_compact_pages(
 		erp_next = erp + 1;
 		if (erp_next->er_extcount <=
 		    (XFS_LINEAR_EXTS - erp->er_extcount)) {
+		    /*前一个剩余的空间能够容纳后一个erp空间*/
 			memcpy(&erp->er_extbuf[erp->er_extcount],
 				erp_next->er_extbuf, erp_next->er_extcount *
 				sizeof(xfs_bmbt_rec_t));
@@ -1942,6 +2001,8 @@ xfs_iext_irec_compact_pages(
  * extent lists. erp_idx contains the irec index to begin updating
  * at and ext_diff contains the number of extents that were added
  * or removed.
+ *
+ * 更新每个rec 的extoff
  */
 void
 xfs_iext_irec_update_extoffs(
@@ -1955,6 +2016,10 @@ xfs_iext_irec_update_extoffs(
 	ASSERT(ifp->if_flags & XFS_IFEXTIREC);
 	nlists = ifp->if_real_bytes / XFS_IEXT_BUFSZ;
 	for (i = erp_idx; i < nlists; i++) {
+		/*
+		 * 增删的时候,extoff会改动,比如当前extoff=10, 但是第9个被删除了,
+		 * 那么当前extoff 应该修改为9
+		 */
 		ifp->if_u1.if_ext_irec[i].er_extoff += ext_diff;
 	}
 }
@@ -1986,6 +2051,8 @@ xfs_ifork_init_cow(
  * instead.
  * If bno is beyond the last extent return false, and return the index after
  * the last valid index in *idxp.
+ *
+ * 找到bno对应的ext, 其idx 放到 @idxp中, 把ext 解压之后放到gotp中
  */
 bool
 xfs_iext_lookup_extent(
@@ -1998,10 +2065,11 @@ xfs_iext_lookup_extent(
 	struct xfs_bmbt_rec_host *ep;
 
 	XFS_STATS_INC(ip->i_mount, xs_look_exlist);
-
+	/*返回的ext 可能cover bno 也可能是bno后面的ext*/
 	ep = xfs_iext_bno_to_ext(ifp, bno, idxp);
 	if (!ep)
 		return false;
+	/*解压到gotp中*/
 	xfs_bmbt_get_all(ep, gotp);
 	return true;
 }
@@ -2016,8 +2084,10 @@ xfs_iext_get_extent(
 	xfs_extnum_t		idx,
 	struct xfs_bmbt_irec	*gotp)
 {
+	/*越界检测*/
 	if (idx < 0 || idx >= xfs_iext_count(ifp))
 		return false;
+	/*先拿到xfs_bmbt_rec_host_t 结构体指针, 再把他展开为 xfs_bmbt_irec*/
 	xfs_bmbt_get_all(xfs_iext_get_ext(ifp, idx), gotp);
 	return true;
 }

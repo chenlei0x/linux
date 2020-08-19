@@ -1996,6 +1996,7 @@ xfs_alloc_compute_maxlevels(
 }
 
 /*
+ * 最长的ext的可用长度
  * Find the length of the longest extent in an AG.  The 'need' parameter
  * specifies how much space we're going to need for the AGFL and the
  * 'reserved' parameter tells us how many blocks in this AG are reserved for

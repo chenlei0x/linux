@@ -904,6 +904,7 @@ typedef struct xfs_dinode {
 	__be16		di_magic;	/* inode magic # = XFS_DINODE_MAGIC */
 	__be16		di_mode;	/* mode and type of file */
 	__u8		di_version;	/* inode version */
+	/*XFS_DINODE_FMT_XXX, 表明fork的数据组织方式*/
 	__u8		di_format;	/* format of di_c data */
 	__be16		di_onlink;	/* old number of links to file */
 	__be32		di_uid;		/* owner's user id */
@@ -919,6 +920,9 @@ typedef struct xfs_dinode {
 	__be64		di_size;	/* number of bytes in file */
 	__be64		di_nblocks;	/* # of direct & btree blocks used */
 	__be32		di_extsize;	/* basic/minimum extent size for file */
+	/*初始为0 
+	插入一个ext 之后 +1, 也就是说, 如果把所有ext看作是一个数组, 这个域表明
+	数组的长度*/
 	__be32		di_nextents;	/* number of extents in data fork */
 	__be16		di_anextents;	/* number of extents in attribute fork*/
 	__u8		di_forkoff;	/* attr fork offs, <<3 for 64b align */
@@ -930,7 +934,7 @@ typedef struct xfs_dinode {
 
 	/* di_next_unlinked is the only non-core field in the old dinode */
 	__be32		di_next_unlinked;/* agi unlinked list ptr */
-
+	/*offset = 100*/
 	/* start of the extended dinode, writable fields */
 	__le32		di_crc;		/* CRC of the inode */
 	__be64		di_changecount;	/* number of attribute changes */
@@ -959,6 +963,7 @@ static inline uint xfs_dinode_size(int version)
 {
 	if (version == 3)
 		return sizeof(struct xfs_dinode);
+	/*dinode offset 100*/
 	return offsetof(struct xfs_dinode, di_crc);
 }
 
@@ -1602,6 +1607,9 @@ typedef struct xfs_bmbt_rec {
 typedef uint64_t	xfs_bmbt_rec_base_t;	/* use this for casts */
 typedef xfs_bmbt_rec_t xfs_bmdr_rec_t;
 
+/*对应的extent, 这其实是一个xfs_bmbt_irec 压缩的数据, 解压缩看
+ __xfs_bmbt_get_all
+ */
 typedef struct xfs_bmbt_rec_host {
 	uint64_t		l0, l1;
 } xfs_bmbt_rec_host_t;
@@ -1640,7 +1648,7 @@ typedef enum {
 /*
  * Incore version of above.
  *
- * 文件 tree的 leaf节点的一个record
+ * 文件 tree的 leaf节点的一个 extent
  */
 typedef struct xfs_bmbt_irec
 {
@@ -1713,7 +1721,7 @@ struct xfs_btree_block_lhdr {
 };
 
 /*btree 的一个block 结构
-xfs_btree_block 应该就是磁盘中的镜像了
+xfs_btree_block 应该就是磁盘中的镜像了,用来表示leaf 和 non-leaf节点
 
 */
 struct xfs_btree_block {

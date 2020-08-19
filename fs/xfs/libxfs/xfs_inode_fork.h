@@ -39,10 +39,13 @@ struct xfs_dinode;
  * and should not cause problems in the foreseeable future. However,
  * if the memory needed for the contiguous array ever becomes a problem,
  * it is possible that a third level of indirection may be required.
+ *
+ * irec ---- indirect rec
  */
 typedef struct xfs_ext_irec {
 	xfs_bmbt_rec_host_t *er_extbuf;	/* block of extent records */
 	xfs_extnum_t	er_extoff;	/* extent offset in file */
+	/*最大XFS_LINEAR_EXTS*/
 	xfs_extnum_t	er_extcount;	/* number of extents in page/block */
 } xfs_ext_irec_t;
 
@@ -50,18 +53,54 @@ typedef struct xfs_ext_irec {
  * File incore extent information, present for each of data & attr forks.
  */
 #define	XFS_IEXT_BUFSZ		4096
+/*当inode 以 linear (direct) extent list 形式组织extent时,
+extent 数量限制*/
 #define	XFS_LINEAR_EXTS		(XFS_IEXT_BUFSZ / (uint)sizeof(xfs_bmbt_rec_t))
 #define	XFS_INLINE_EXTS		2
 #define	XFS_INLINE_DATA		32
 typedef struct xfs_ifork {
+	/*xfs_iext_irec_init 可以看以下两个字段的初始化*/
+	/*
+	1) XFS_IFINLINE:
+		if bytes: = di_size
+		if real bytes = 申请内存的长度 >= di size
+	2) XFS_IFEXTENTS （分inline 和 non-inline两种）
+		if_bytes = nex * sizeof(xfs_bmbt_rec_t);
+		         = inode extent 总数量 * sizeof(xfs_bmbt_rec_t);
+		if real bytes = 申请内存的长度
+	*/
 	int			if_bytes;	/* bytes in if_u1 */
+	/*
+	如果 ifp->if_flags   有 XFS_IFEXTIREC ////indirect
+		if_ext_irec 长度 = ifp->if_real_bytes / XFS_IEXT_BUFSZ;
+	否则
+		if_bytes = fp->if_u1.if_extents 数组所在内存的长度 ////direct
+		if_real_bytes = fp->if_u1.if_extents 数组实际使用长度(申请的内存长度可能较长)
+		如果 f_read_bytes == 0: ////inline
+			所有的extent都在if_u2.if_inline_ext 数组中	
+
+	*/
 	int			if_real_bytes;	/* bytes allocated in if_u1 */
 	struct xfs_btree_block	*if_broot;	/* file's incore btree root */
 	short			if_broot_bytes;	/* bytes allocated for root */
 	unsigned char		if_flags;	/* per-fork flags */
+	/*这个分级应该是 
+	 * inline data
+	 * inline ext
+	 * if extents (一级) ext数量最多 XFS_LINEAR_EXTS
+	 * if ext irec数组 (二级数组)
+	 */
 	union {
 		xfs_bmbt_rec_host_t *if_extents;/* linear map file exts */
+		/*
+		 * rec数组 一个rec 有一个buf(长度为4K), 里面包含的都是extent,
+		 * xfs_iext_realloc_indirect 会根据长度重新分配
+		 *
+		 * if_real_bytes = 数组长度 * 4K
+		 */
 		xfs_ext_irec_t	*if_ext_irec;	/* irec map file exts */
+		/*用来便捷的取数据的指针,可能等于 ifp->if_u2.if_inline_data, 
+		也可能指向新申请的内存*/
 		char		*if_data;	/* inline file data */
 	} if_u1;
 	union {
@@ -84,21 +123,27 @@ typedef struct xfs_ifork {
 
 /*
  * Fork handling.
+ * di_forkoff 表明data fork 和 xattr fork的分界线
  */
 
 #define XFS_IFORK_Q(ip)			((ip)->i_d.di_forkoff != 0)
 #define XFS_IFORK_BOFF(ip)		((int)((ip)->i_d.di_forkoff << 3))
 
+/*ip ： xfs_inode_t 内存中的inode节点*/
 #define XFS_IFORK_PTR(ip,w)		\
 	((w) == XFS_DATA_FORK ? \
 		&(ip)->i_df : \
 		((w) == XFS_ATTR_FORK ? \
 			(ip)->i_afp : \
 			(ip)->i_cowfp))
+/*如果不存在分界线,那么literal area 都是data fork的*/
 #define XFS_IFORK_DSIZE(ip) \
 	(XFS_IFORK_Q(ip) ? \
 		XFS_IFORK_BOFF(ip) : \
 		XFS_LITINO((ip)->i_mount, (ip)->i_d.di_version))
+
+/*如果attr fork存在,则分界线肯定存在,
+literal area - data fork size的*/
 #define XFS_IFORK_ASIZE(ip) \
 	(XFS_IFORK_Q(ip) ? \
 		XFS_LITINO((ip)->i_mount, (ip)->i_d.di_version) - \

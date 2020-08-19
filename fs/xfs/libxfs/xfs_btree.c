@@ -824,6 +824,9 @@ xfs_btree_offsets(
 /*
  * Get a buffer for the block, return it read in.
  * Long-form addressing.
+ *
+ * 读取fsbno 所在的block， 存放到bpp中
+ * XFS_BUF_TO_BLOCK 用来把bp转成xfs_btree_block
  */
 int
 xfs_btree_read_bufl(
