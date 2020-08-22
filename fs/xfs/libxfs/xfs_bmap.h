@@ -66,6 +66,7 @@ struct xfs_bmalloca {
  */
 struct xfs_extent_free_item
 {
+	/*磁盘块*/
 	xfs_fsblock_t		xefi_startblock;/* starting fs block number */
 	xfs_extlen_t		xefi_blockcount;/* number of blocks in extent */
 	struct list_head	xefi_list;

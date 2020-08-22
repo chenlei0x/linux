@@ -573,6 +573,7 @@ xfs_btree_ptr_offset(
 /*
  * Return a pointer to the n-th record in the btree block.
  * offset 计算偏移， addr 计算实际的地址
+ * 计算内存中 block中第n个rec的内存地址
  */
 union xfs_btree_rec *
 xfs_btree_rec_addr(
@@ -658,7 +659,7 @@ xfs_btree_get_block(
 		*bpp = NULL;
 		return xfs_btree_get_iroot(cur);
 	}
-
+	/*bc bufs 每一个元素都是一个block*/
 	*bpp = cur->bc_bufs[level];
 	return XFS_BUF_TO_BLOCK(*bpp);
 }
@@ -1208,7 +1209,7 @@ xfs_btree_init_block_cur(
  * we need to track updates to this record.  The decision
  * will be further refined in the update_lastrec method.
  *
- * 判断@block是不是整个树最右边的block
+ * 判断@block是不是整个树最右边的 leaf block
  */
 STATIC int
 xfs_btree_is_lastrec(
@@ -2321,6 +2322,7 @@ xfs_btree_update(
 	XFS_BTREE_TRACE_ARGR(cur, rec);
 
 	/* Pick up the current block. */
+	/*leaf 节点依然为一个block，其中包含着多个extent*/
 	block = xfs_btree_get_block(cur, 0, &bp);
 
 #ifdef DEBUG
@@ -2330,6 +2332,7 @@ xfs_btree_update(
 #endif
 	/* Get the address of the rec to be updated. */
 	ptr = cur->bc_ptrs[0];
+	/*record 内存地址*/
 	rp = xfs_btree_rec_addr(cur, ptr, block);
 
 	/* Fill in the new contents and log them. */

@@ -24,7 +24,10 @@ struct xfs_mount;
 struct xfs_inode;
 struct xfs_trans;
 
-/*BMDR 和 BMBT的区别在于没有head 长度为 XFS_BMBT_BLOCK_LEN*/
+/*磁盘上 root (BMDR) 的头为 sizeof xfs_bmdr_block
+磁盘上非root block (BMBT) 的头为 XFS_BMBT_BLOCK_LEN
+
+*/
 /*
  * Btree block header size depends on a superblock flag.
  */

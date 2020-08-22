@@ -140,6 +140,7 @@ xfs_bmbt_lookup_ge(
 
 /*
  * Check if the inode needs to be converted to btree format.
+ * ext 数量大于 fork 数据区可以容纳多少个ext， 需要将bmap转为btree 格式
  */
 static inline bool xfs_bmap_needs_btree(struct xfs_inode *ip, int whichfork)
 {
@@ -151,6 +152,7 @@ static inline bool xfs_bmap_needs_btree(struct xfs_inode *ip, int whichfork)
 
 /*
  * Check if the inode should be converted to extent format.
+ * extent tree 转为直接extent 数组吗？
  */
 static inline bool xfs_bmap_wants_extents(struct xfs_inode *ip, int whichfork)
 {
@@ -175,6 +177,7 @@ xfs_bmbt_update(
 {
 	union xfs_btree_rec	rec;
 
+	/*off, bno, len, state ===转换===> 磁盘上的extent 镜像*/
 	xfs_bmbt_disk_set_allf(&rec.bmbt, off, bno, len, state);
 	return xfs_btree_update(cur, &rec);
 }
@@ -660,6 +663,7 @@ xfs_bmap_btree_to_extents(
 	ASSERT(be16_to_cpu(rblock->bb_level) == 1);
 	ASSERT(be16_to_cpu(rblock->bb_numrecs) == 1);
 	ASSERT(xfs_bmbt_maxrecs(mp, ifp->if_broot_bytes, 0) == 1);
+	/*root 第一个ptr*/
 	pp = XFS_BMAP_BROOT_PTR_ADDR(mp, rblock, 1, ifp->if_broot_bytes);
 	cbno = be64_to_cpu(*pp);
 	*logflagsp = 0;
@@ -667,6 +671,7 @@ xfs_bmap_btree_to_extents(
 	if ((error = xfs_btree_check_lptr(cur, cbno, 1)))
 		return error;
 #endif
+	/*root 第一个ptr 对应的block读取到cbp中*/
 	error = xfs_btree_read_bufl(mp, tp, cbno, 0, &cbp, XFS_BMAP_BTREE_REF,
 				&xfs_bmbt_buf_ops);
 	if (error)

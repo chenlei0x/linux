@@ -1280,8 +1280,10 @@ struct xfs_dsymlink_hdr {
  * by blockcount and blockno.  All blocks look the same to make the code
  * simpler; if we have time later, we'll make the optimizations.
  */
-#define	XFS_ABTB_MAGIC		0x41425442	/* 'ABTB' for bno tree */
+/*xfs agf 中 bno tree*/
+#define	XFS_ABTB_MAGIC		0x41425442	/* 'ABTB' for bno tree*/ 
 #define	XFS_ABTB_CRC_MAGIC	0x41423342	/* 'AB3B' */
+/*xfs agf中 cno tree*/
 #define	XFS_ABTC_MAGIC		0x41425443	/* 'ABTC' for cnt tree */
 #define	XFS_ABTC_CRC_MAGIC	0x41423343	/* 'AB3C' */
 
@@ -1313,13 +1315,18 @@ typedef __be32 xfs_alloc_ptr_t;
  * Inode Allocation Btree format definitions
  *
  * There is a btree for the inode map per allocation group.
+ *
+ * AGI中有两棵树，一颗agi 一颗 agi_root agi_free_root
  */
+/*agi_root*/
 #define	XFS_IBT_MAGIC		0x49414254	/* 'IABT' */
 #define	XFS_IBT_CRC_MAGIC	0x49414233	/* 'IAB3' */
 #define	XFS_FIBT_MAGIC		0x46494254	/* 'FIBT' */
+/*agi_free_root*/
 #define	XFS_FIBT_CRC_MAGIC	0x46494233	/* 'FIB3' */
 
 typedef uint64_t	xfs_inofree_t;
+
 #define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t)) /*64*/
 #define	XFS_INODES_PER_CHUNK_LOG	(XFS_NBBYLOG + 3)
 #define	XFS_INOBT_ALL_FREE		((xfs_inofree_t)-1)
@@ -1600,7 +1607,16 @@ typedef struct xfs_bmdr_block {
 #define BMBT_STARTBLOCK_BITLEN	52
 #define BMBT_BLOCKCOUNT_BITLEN	21
 
-/*bmbt Bmap btree*/
+/*bmbt: Bmap btree*/
+/*
+XFS_DINODE_FMT_EXTENTS: The extent data is fully contained within 
+the inode which contains an array of extents to the filesystem 
+blocks for the file’s data. To access the extents, cast the return 
+value from XFS_DFORK_DPTR
+to xfs_bmbt_rec_t*.
+
+extent在磁盘上的镜像
+*/
 typedef struct xfs_bmbt_rec {
 	__be64			l0, l1;
 } xfs_bmbt_rec_t;
@@ -1608,8 +1624,10 @@ typedef struct xfs_bmbt_rec {
 typedef uint64_t	xfs_bmbt_rec_base_t;	/* use this for casts */
 typedef xfs_bmbt_rec_t xfs_bmdr_rec_t;
 
-/*对应的extent, 这其实是一个xfs_bmbt_irec 压缩的数据, 解压缩看
- __xfs_bmbt_get_all
+/*
+ * xfs_bmbt_rec 为磁盘上的镜像，大端的，转为cpu序列后用该结构体表示
+ * , 这其实是一个 xfs_bmbt_irec 压缩的数据, 解压缩看
+ * __xfs_bmbt_get_all
  */
 typedef struct xfs_bmbt_rec_host {
 	uint64_t		l0, l1;

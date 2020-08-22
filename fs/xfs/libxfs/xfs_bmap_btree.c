@@ -55,7 +55,7 @@ xfs_extent_state(
 
 /*
  * Convert on-disk form of btree root to in-memory form.
- * 只初始化root block
+ * 只初始化root block， 肯定是有k-p对组成，这里拷贝构造
  */
 void
 xfs_bmdr_to_bmbt(

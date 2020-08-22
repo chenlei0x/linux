@@ -179,6 +179,8 @@ literal area - data fork size的*/
 		((w) == XFS_ATTR_FORK ? \
 			((ip)->i_d.di_anextents = (n)) : \
 			((ip)->i_cnextents = (n))))
+
+/*fork 数据区可以容纳多少个ext*/
 #define XFS_IFORK_MAXEXT(ip, w) \
 	(XFS_IFORK_SIZE(ip, w) / sizeof(xfs_bmbt_rec_t))
 

@@ -420,7 +420,8 @@ xfs_iformat_btree(
 	int			level;
 
 	ifp = XFS_IFORK_PTR(ip, whichfork);
-	/*fork 处实际是一个xfs_bmdr_block_t 结构体*/
+	/*如果是btree结构的话， 
+	fork 处实际是一个xfs_bmdr_block_t 结构体*/
 	dfp = (xfs_bmdr_block_t *)XFS_DFORK_PTR(dip, whichfork);
 	size = XFS_BMAP_BROOT_SPACE(mp, dfp);
 	nrecs = be16_to_cpu(dfp->bb_numrecs);
@@ -517,6 +518,8 @@ xfs_iread_extents(
  * ip -- the inode whose if_broot area is changing
  * ext_diff -- the change in the number of records, positive or negative,
  *	 requested for the if_broot array.
+ *
+ * 因为新加或者减少rec，所以重新构建btree root，包括申请内存与拷贝数据
  */
 void
 xfs_iroot_realloc(
@@ -547,6 +550,8 @@ xfs_iroot_realloc(
 		 * allocate it now and get out.
 		 */
 		if (ifp->if_broot_bytes == 0) {
+			/*如果之前没有分配内存，那么 通过 rec_diff 就可以
+			计算出需要的内存总长度*/
 			new_size = XFS_BMAP_BROOT_SPACE_CALC(mp, rec_diff);
 			ifp->if_broot = kmem_alloc(new_size, KM_SLEEP | KM_NOFS);
 			ifp->if_broot_bytes = (int)new_size;
@@ -559,18 +564,27 @@ xfs_iroot_realloc(
 		 * location.  The records don't change location because
 		 * they are kept butted up against the btree block header.
 		 */
+		 /*当前最多能容纳多少个key - ptr 对*/
 		cur_max = xfs_bmbt_maxrecs(mp, ifp->if_broot_bytes, 0);
 		new_max = cur_max + rec_diff;
 		new_size = XFS_BMAP_BROOT_SPACE_CALC(mp, new_max);
+		/*
+		 * kmem_realloc 会帮你拷贝内存， 这里由于rec diff 大于0， 所以
+		 * 肯定是扩充内存，由于内容会保留，所以在新旧内存中，头部的地方不需要移动，
+		 * 但是对于ptr，由于可容纳的k-p对变多了，所以需要移动，后移
+		 */
 		ifp->if_broot = kmem_realloc(ifp->if_broot, new_size,
 				KM_SLEEP | KM_NOFS);
+		/*计算第一个ptr在原内存的位置*/
 		op = (char *)XFS_BMAP_BROOT_PTR_ADDR(mp, ifp->if_broot, 1,
 						     ifp->if_broot_bytes);
+				/*计算第一个ptr在 新 内存的位置*/
 		np = (char *)XFS_BMAP_BROOT_PTR_ADDR(mp, ifp->if_broot, 1,
 						     (int)new_size);
 		ifp->if_broot_bytes = (int)new_size;
 		ASSERT(XFS_BMAP_BMDR_SPACE(ifp->if_broot) <=
 			XFS_IFORK_SIZE(ip, whichfork));
+		/*注意这里一定是memove，否则会有覆盖问题*/
 		memmove(np, op, cur_max * (uint)sizeof(xfs_fsblock_t));
 		return;
 	}
@@ -580,6 +594,7 @@ xfs_iroot_realloc(
 	 * if_broot buffer.  It must already exist.  If we go to zero
 	 * records, just get rid of the root and clear the status bit.
 	 */
+	 /*缩小的情况*/
 	ASSERT((ifp->if_broot != NULL) && (ifp->if_broot_bytes > 0));
 	cur_max = xfs_bmbt_maxrecs(mp, ifp->if_broot_bytes, 0);
 	new_max = cur_max + rec_diff;
@@ -604,6 +619,10 @@ xfs_iroot_realloc(
 	 * Only copy the records and pointers if there are any.
 	 */
 	if (new_max > 0) {
+		/*这里写的比较鸡贼，其实可以优化，由于不清楚当前root
+		里面到底是recs 还是kp对		所以干脆都拷贝，因为就算重复
+		拷贝了也没关系，重复拷贝n次和重复拷贝一次的结果是一样的
+		*/
 		/*
 		 * First copy the records.
 		 */
