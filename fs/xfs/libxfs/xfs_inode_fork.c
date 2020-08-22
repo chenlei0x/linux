@@ -619,9 +619,16 @@ xfs_iroot_realloc(
 	 * Only copy the records and pointers if there are any.
 	 */
 	if (new_max > 0) {
-		/*这里写的比较鸡贼，其实可以优化，由于不清楚当前root
+		
+
+		/*
+		
+		这里写的比较鸡贼，其实可以优化，由于不清楚当前root
 		里面到底是recs 还是kp对		所以干脆都拷贝，因为就算重复
 		拷贝了也没关系，重复拷贝n次和重复拷贝一次的结果是一样的
+
+		注意： 这里一定要先拷贝rec 再拷贝ptr， 否则会弄脏数据！！！
+		
 		*/
 		/*
 		 * First copy the records.
