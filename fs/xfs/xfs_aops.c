@@ -1094,8 +1094,13 @@ xfs_do_writepage(
 	 * ---------------------------------^------------------|
 	 */
 	offset = i_size_read(inode);
+	/*end_index = offset 向下 按PAGE对齐*/
 	end_index = offset >> PAGE_SHIFT;
+	/*end_offset 始终表示要写入的数据量的界限,如果page完全在isize内,
+	那么整个页都需要刷下去, 那么end offset = (page->index + 1) << PAGE_SHIFT
+	如果page 包含了isize, 那么end offset = i_size, 也就是说只刷写isize以内的数据*/
 	if (page->index < end_index)
+		/*下一页的开始*/
 		end_offset = (xfs_off_t)(page->index + 1) << PAGE_SHIFT;
 	else {
 		/*
@@ -1130,6 +1135,7 @@ xfs_do_writepage(
 		 */
 		if (page->index > end_index ||
 		    (page->index == end_index && offset_into_page == 0))
+		    /*page 完全在 i_size 外面了*/
 			goto redirty;
 
 		/*
@@ -1143,7 +1149,8 @@ xfs_do_writepage(
 		zero_user_segment(page, offset_into_page, PAGE_SIZE);
 
 		/* Adjust the end_offset to the end of file */
-		end_offset = offset;
+		/*这时候end_offset 就不会按页对齐了,表明要从page中刷下去的数据界限*/
+		end_offset = offset; 
 	}
 
 	return xfs_writepage_map(wpc, wbc, inode, page, offset, end_offset);

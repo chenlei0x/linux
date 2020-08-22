@@ -97,8 +97,8 @@ typedef int64_t		xfs_sfiloff_t;	/* signed block number in a file */
 /*
  * Min numbers of data/attr fork btree root pointers.
  */
-#define MINDBTPTRS	3
-#define MINABTPTRS	2
+#define MINDBTPTRS	3 /*min data btree ptrs*/
+#define MINABTPTRS	2 /*min attr btree ptrs*/
 
 /*
  * MAXNAMELEN is the length (including the terminating null) of

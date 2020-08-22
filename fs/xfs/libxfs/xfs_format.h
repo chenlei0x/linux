@@ -656,8 +656,9 @@ typedef struct xfs_agf {
 	 */
 	/*
 	 * XFS_BTNUM_RMAPi
-	 * 第一棵B+树是基于block的偏移(offset XFS_BTNUM_BNOi)构建的，
-	 * 而第二颗树则是基于block的size(XFS_BTNUM_CNTi)构建的，
+	 *
+	 * 第一棵B+树是基于free space 的 block的偏移(offset XFS_BTNUM_BNOi)构建的，
+	 * 而第二颗树则是基于free space 的size(XFS_BTNUM_CNTi)构建的，
 	 * 第三颗树可能并没有启用，待探查
 	 * 这样XFS可以快速的通过offset或者size进行空閒空间的分配。
 	 */
@@ -1655,6 +1656,8 @@ typedef struct xfs_bmbt_irec
 	xfs_fileoff_t	br_startoff;	/* starting file offset */
 	xfs_fsblock_t	br_startblock;	/* starting block number */
 	xfs_filblks_t	br_blockcount;	/* number of blocks */
+	/*XFS_EXT_NORM
+	XFS_EXT_UNWRITTEN*/
 	xfs_exntst_t	br_state;	/* extent state */
 } xfs_bmbt_irec_t;
 

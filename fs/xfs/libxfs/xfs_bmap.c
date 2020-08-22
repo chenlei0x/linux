@@ -194,17 +194,23 @@ xfs_bmap_worst_indlen(
 	xfs_filblks_t	rval;		/* return value */
 
 	mp = ip->i_mount;
-	maxrecs = mp->m_bmap_dmxr[0];
+	maxrecs = mp->m_bmap_dmxr[0]; /*leaf*/
 	for (level = 0, rval = 0;
 	     level < XFS_BM_MAXLEVELS(mp, XFS_DATA_FORK);
 	     level++) {
+	    /*
+	     * 最坏的情况,每个block都是一个extent, 
+	     * 并且有一个ext落单了,刚好需要占满一个leaf block
+	     */
 		len += maxrecs - 1;
+		/*为了容纳len个rec,需要多少个block*/
 		do_div(len, maxrecs);
 		rval += len;
+		/*只剩下一个rec了, 直接减去级数*/
 		if (len == 1)
 			return rval + XFS_BM_MAXLEVELS(mp, XFS_DATA_FORK) -
 				level - 1;
-		if (level == 0)
+		if (level == 0)/*none leaf*/
 			maxrecs = mp->m_bmap_dmxr[1];
 	}
 	return rval;
@@ -1211,6 +1217,8 @@ trans_cancel:
  * All inode fields are set up by caller, we just traverse the btree
  * and copy the records in. If the file system cannot contain unwritten
  * extents, the records are checked for no "state" flags.
+ *
+ * 把所有的extent装载到内存中
  * 
  */
 int					/* error */
@@ -1273,7 +1281,7 @@ xfs_bmap_read_extents(
 	 * Loop over all leaf nodes.  Copy information to the extent records.
 	 *
 	 * 现在block指向整个树的最左边的leaf block, leaf block之间是通过bb_rightsib 和 
-	 * leftsib 链接在一起的
+	 * leftsib 链接在一起的, 所以遍历每个block即可获得所有的extent
 	 */
 	for (;;) {
 		xfs_bmbt_rec_t	*frp;
@@ -3862,6 +3870,7 @@ xfs_bmap_alloc(
 }
 
 /* Trim extent to fit a logical block range. */
+	/*把@irec 这个extent 修建到 [bno, len] 之内*/
 void
 xfs_trim_extent(
 	struct xfs_bmbt_irec	*irec,
@@ -3870,13 +3879,14 @@ xfs_trim_extent(
 {
 	xfs_fileoff_t		distance;
 	xfs_fileoff_t		end = bno + len;
-
+	/*完全落在[bno, len] 之外*/
 	if (irec->br_startoff + irec->br_blockcount <= bno ||
 	    irec->br_startoff >= end) {
 		irec->br_blockcount = 0;
 		return;
 	}
 
+	/*尾部部分重叠*/
 	if (irec->br_startoff < bno) {
 		distance = bno - irec->br_startoff;
 		if (isnullstartblock(irec->br_startblock))
@@ -3887,7 +3897,7 @@ xfs_trim_extent(
 		irec->br_startoff += distance;
 		irec->br_blockcount -= distance;
 	}
-
+	/*头部部分重叠*/
 	if (end < irec->br_startoff + irec->br_blockcount) {
 		distance = irec->br_startoff + irec->br_blockcount - end;
 		irec->br_blockcount -= distance;
@@ -3907,11 +3917,16 @@ xfs_trim_extent_eof(
 
 /*
  * Trim the returned map to the required bounds
+ *
+ * bmap 就是ext 数组 @mval
+ * @got是[obno, end]之间得一个ext,
+ * 找到得ext, 通过got 组成一个mval,可能发生截取
  */
 STATIC void
 xfs_bmapi_trim_map(
 	struct xfs_bmbt_irec	*mval,
 	struct xfs_bmbt_irec	*got,
+	/*[bno, bno + len - 1]*/
 	xfs_fileoff_t		*bno,
 	xfs_filblks_t		len,
 	xfs_fileoff_t		obno,
@@ -3927,6 +3942,7 @@ xfs_bmapi_trim_map(
 		return;
 	}
 
+	/*! XFS_BMAPI_ENTIRE, 发生截取*/
 	if (obno > *bno)
 		*bno = obno;
 	ASSERT((*bno >= obno) || (n == 0));
@@ -3934,7 +3950,7 @@ xfs_bmapi_trim_map(
 	mval->br_startoff = *bno;
 	if (isnullstartblock(got->br_startblock))
 		mval->br_startblock = DELAYSTARTBLOCK;
-	else
+	else/*确定物理块开始*/
 		mval->br_startblock = got->br_startblock +
 					(*bno - got->br_startoff);
 	/*
@@ -3944,6 +3960,8 @@ xfs_bmapi_trim_map(
 	 * here if the first part of the allocation didn't overlap what
 	 * was asked for.
 	 */
+	 /*确定长度, bno 肯定是在 @got 内部, 
+	  end 可能超过这个got extent*/
 	mval->br_blockcount = XFS_FILBLKS_MIN(end - *bno,
 			got->br_blockcount - (*bno - got->br_startoff));
 	mval->br_state = got->br_state;
@@ -3953,6 +3971,8 @@ xfs_bmapi_trim_map(
 
 /*
  * Update and validate the extent map to return
+ *
+ * 
  */
 STATIC void
 xfs_bmapi_update_map(
@@ -3974,6 +3994,7 @@ xfs_bmapi_update_map(
 	*bno = mval->br_startoff + mval->br_blockcount;
 	*len = end - *bno;
 	if (*n > 0 && mval->br_startoff == mval[-1].br_startoff) {
+		/*重复合并*/
 		/* update previous map with new information */
 		ASSERT(mval->br_startblock == mval[-1].br_startblock);
 		ASSERT(mval->br_blockcount > mval[-1].br_blockcount);
@@ -3989,17 +4010,20 @@ xfs_bmapi_update_map(
 			mval[-1].br_state == mval->br_state)) {
 		ASSERT(mval->br_startoff ==
 		       mval[-1].br_startoff + mval[-1].br_blockcount);
+		/*物理相邻合并*/
 		mval[-1].br_blockcount += mval->br_blockcount;
 	} else if (*n > 0 &&
 		   mval->br_startblock == DELAYSTARTBLOCK &&
 		   mval[-1].br_startblock == DELAYSTARTBLOCK &&
 		   mval->br_startoff ==
 		   mval[-1].br_startoff + mval[-1].br_blockcount) {
+		   /*文件内偏移相连,合并*/
 		mval[-1].br_blockcount += mval->br_blockcount;
 		mval[-1].br_state = mval->br_state;
 	} else if (!((*n == 0) &&
 		     ((mval->br_startoff + mval->br_blockcount) <=
 		      obno))) {
+		      /*无法合并*/
 		mval++;
 		(*n)++;
 	}
@@ -4008,6 +4032,9 @@ xfs_bmapi_update_map(
 
 /*
  * Map file blocks to filesystem blocks without allocation.
+ *
+ *读取inode的空间映射信息, 范围file off: [bno, +len)
+ * 读取到@mval 所指向得ext 中
  */
 int
 xfs_bmapi_read(
@@ -4072,25 +4099,30 @@ xfs_bmapi_read(
 		return -EFSCORRUPTED;
 	}
 
+	/*把所有extent 载入到内存中*/
 	if (!(ifp->if_flags & XFS_IFEXTENTS)) {
 		error = xfs_iread_extents(NULL, ip, whichfork);
 		if (error)
 			return error;
 	}
 
+	/*查找bno所在的ext, 如果bno所处一个hole,那么got返回的是他后面的ext*/
 	if (!xfs_iext_lookup_extent(ip, ifp, bno, &idx, &got))
 		eof = true;
 	end = bno + len;
 	obno = bno;
 
+	/*记录所有startoff > bno的ext, 放到mval数组中*/
 	while (bno < end && n < *nmap) {
 		/* Reading past eof, act as though there's a hole up to end. */
 		if (eof)
 			got.br_startoff = end;
 		if (got.br_startoff > bno) {
 			/* Reading in a hole.  */
+			/*真的是一个hole ext, 那么在内存中也构造一个hole ext*/
 			mval->br_startoff = bno;
 			mval->br_startblock = HOLESTARTBLOCK;
+			/*这里可能把这个hole ext 切分成好几个xfs_bmbt_irec*/
 			mval->br_blockcount =
 				XFS_FILBLKS_MIN(len, got.br_startoff - bno);
 			mval->br_state = XFS_EXT_NORM;
@@ -4102,7 +4134,11 @@ xfs_bmapi_read(
 		}
 
 		/* set up the extent map to return. */
+		/*bno len 表明要读取的剩余范围, 文件内偏移*/
+		/*通过@got 组成一个mval,可能发生截取*/
 		xfs_bmapi_trim_map(mval, &got, &bno, len, obno, end, n, flags);
+		/*mval数组   向回看可以合并? 这里mval 得值会改变,使得下一次while
+		循环时,用到新的bmap*/
 		xfs_bmapi_update_map(&mval, &bno, &len, obno, end, &n, flags);
 
 		/* If we're done, stop now. */
@@ -4129,6 +4165,10 @@ xfs_bmapi_read(
  * during insertion into the inode fork. Thus, got does not reflect the current
  * state of the inode fork on return. If necessary, the caller can use lastx to
  * look up the updated record in the inode fork.
+ *
+ * @got 作为入参指向要申请的extent紧邻的右边的extent
+ * @got 作为出参指向被插入的extent
+ * 新的extent在插入的过程中可能合并, 通过@lastx 可以查看是否真的有合并发生
  */
 int
 xfs_bmapi_reserve_delalloc(

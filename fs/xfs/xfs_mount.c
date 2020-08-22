@@ -1240,6 +1240,7 @@ xfs_mod_ifree(
  * we get near to ENOSPC and we have to be very accurate with our updates.
  */
 #define XFS_FDBLOCKS_BATCH	1024
+/*修改整个文件系统的 free block 数量*/
 int
 xfs_mod_fdblocks(
 	struct xfs_mount	*mp,

@@ -464,6 +464,8 @@ xfs_iformat_btree(
 /*
  * Read in extents from a btree-format inode.
  * Allocate and fill in if_extents.  Real work is done in xfs_bmap.c.
+ *
+ * 把所有extent 载入到内存中
  */
 int
 xfs_iread_extents(
@@ -1006,6 +1008,8 @@ xfs_iext_insert(
  * is required to make room for the new extents to be inserted. The
  * caller is responsible for filling in the new extent entries upon
  * return.
+ *
+ * 给ifp 内存镜像添加 ext_diff个extent
  */
 void
 xfs_iext_add(
@@ -2053,6 +2057,7 @@ xfs_ifork_init_cow(
  * the last valid index in *idxp.
  *
  * 找到bno对应的ext, 其idx 放到 @idxp中, 把ext 解压之后放到gotp中
+ return false 表明 bno已经在 eof后了
  */
 bool
 xfs_iext_lookup_extent(
@@ -2068,7 +2073,7 @@ xfs_iext_lookup_extent(
 	/*返回的ext 可能cover bno 也可能是bno后面的ext*/
 	ep = xfs_iext_bno_to_ext(ifp, bno, idxp);
 	if (!ep)
-		return false;
+		return false; /*eof了*/
 	/*解压到gotp中*/
 	xfs_bmbt_get_all(ep, gotp);
 	return true;

@@ -146,6 +146,8 @@ static inline int xfs_bmapi_whichfork(int bmapi_flags)
 
 /*
  * Special values for xfs_bmbt_irec_t br_startblock field.
+ * 物理块地址得两个定义,用于区分delay 和 hole
+ * 针对这两个值, isnullstartblock 都返回true
  */
 #define	DELAYSTARTBLOCK		((xfs_fsblock_t)-1LL)
 #define	HOLESTARTBLOCK		((xfs_fsblock_t)-2LL)

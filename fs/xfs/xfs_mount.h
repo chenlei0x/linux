@@ -133,12 +133,14 @@ typedef struct xfs_mount {
 	uint			m_blockwmask;	/* blockwsize-1 */
 	uint			m_alloc_mxr[2];	/* max alloc btree records */
 	uint			m_alloc_mnr[2];	/* min alloc btree records */
+	/*0 - leaf 1 - none leaf*/
+	/*以下字段的初始化 参考xfs_sb_mount_common*/
 	uint			m_bmap_dmxr[2];	/* max bmap btree records */
 
 	/*min leaf recs / min node recs*/
 	uint			m_bmap_dmnr[2];	/* min bmap btree records */
 	uint			m_inobt_mxr[2];	/* max inobt btree records */
-	/*0: non-leaf 1: leaf*/
+	/*0 - leaf 1 - none leaf*/
 	uint			m_inobt_mnr[2];	/* min inobt btree records */
 	uint			m_rmap_mxr[2];	/* max rmap btree records */
 	uint			m_rmap_mnr[2];	/* min rmap btree records */

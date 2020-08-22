@@ -69,6 +69,7 @@ union xfs_btree_rec {
 #define	XFS_LOOKUP_LE	((xfs_lookup_t)XFS_LOOKUP_LEi)
 #define	XFS_LOOKUP_GE	((xfs_lookup_t)XFS_LOOKUP_GEi)
 
+/**/
 #define	XFS_BTNUM_BNO	((xfs_btnum_t)XFS_BTNUM_BNOi)
 #define	XFS_BTNUM_CNT	((xfs_btnum_t)XFS_BTNUM_CNTi)
 #define	XFS_BTNUM_BMAP	((xfs_btnum_t)XFS_BTNUM_BMAPi)
@@ -230,7 +231,7 @@ typedef struct xfs_btree_cur
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */
 
-/* cur->bc_nlevels - 1 表明是第一层, leaf 为0层*/
+/* cur->bc_nlevels - 1 表明是第一层index, leaf 为0层*/
 	uint8_t		bc_nlevels;	/* number of levels in the tree */
 	uint8_t		bc_blocklog;	/* log2(blocksize) of btree blocks */
 	/*btree 类型, 会根据他生成ptr*/

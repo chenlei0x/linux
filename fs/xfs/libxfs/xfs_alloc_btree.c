@@ -32,7 +32,7 @@
 #include "xfs_cksum.h"
 #include "xfs_trans.h"
 
-
+/*以下代码用来操作 ag 中管理free space 的两棵树的代码*/
 STATIC struct xfs_btree_cur *
 xfs_allocbt_dup_cursor(
 	struct xfs_btree_cur	*cur)
@@ -480,11 +480,14 @@ static const struct xfs_btree_ops xfs_cntbt_ops = {
 	.get_minrecs		= xfs_allocbt_get_minrecs,
 	.get_maxrecs		= xfs_allocbt_get_maxrecs,
 	.init_key_from_rec	= xfs_allocbt_init_key_from_rec,
+	/*这里两个ops不一样*/
 	.init_high_key_from_rec	= xfs_cntbt_init_high_key_from_rec,
 	.init_rec_from_cur	= xfs_allocbt_init_rec_from_cur,
 	.init_ptr_from_cur	= xfs_allocbt_init_ptr_from_cur,
+	/*这里两个ops不一样*/
 	.key_diff		= xfs_cntbt_key_diff,
 	.buf_ops		= &xfs_allocbt_buf_ops,
+	/*以下三个字段两个ops不一样*/
 	.diff_two_keys		= xfs_cntbt_diff_two_keys,
 	.keys_inorder		= xfs_cntbt_keys_inorder,
 	.recs_inorder		= xfs_cntbt_recs_inorder,
@@ -510,7 +513,8 @@ xfs_allocbt_init_cursor(
 
 	cur->bc_tp = tp;
 	cur->bc_mp = mp;
-	cur->bc_btnum = btnum; /*xfs_allocbt_init_ptr_from_cur 函数会根据这个值决定root节点*/
+	/*xfs_allocbt_init_ptr_from_cur 函数会根据这个值决定root节点*/
+	cur->bc_btnum = btnum; 
 	cur->bc_blocklog = mp->m_sb.sb_blocklog;
 
 	if (btnum == XFS_BTNUM_CNT) {
