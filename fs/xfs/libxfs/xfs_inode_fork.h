@@ -59,6 +59,8 @@ extent 数量限制*/
 #define	XFS_INLINE_EXTS		2
 #define	XFS_INLINE_DATA		32
 typedef struct xfs_ifork {
+
+	/*if_bytese 和 if_real_bytes 可以看 	xfs_idata_realloc函数*/
 	/*xfs_iext_irec_init 可以看以下两个字段的初始化*/
 	/*
 	1) XFS_IFINLINE:
@@ -78,6 +80,7 @@ typedef struct xfs_ifork {
 		if_real_bytes = fp->if_u1.if_extents 数组实际使用长度(申请的内存长度可能较长)
 		如果 f_read_bytes == 0: ////inline
 			所有的extent都在if_u2.if_inline_ext 数组中	
+
 
 	*/
 	int			if_real_bytes;	/* bytes allocated in if_u1 */

@@ -116,7 +116,7 @@ xfs_bmbt_lookup_eq(
 	xfs_fileoff_t		off,
 	xfs_fsblock_t		bno,
 	xfs_filblks_t		len,
-	int			*stat)	/* success/failure */
+	int			*stat)	/* 1 --- success/0 --- failure */
 {
 	cur->bc_rec.b.br_startoff = off;
 	cur->bc_rec.b.br_startblock = bno;
@@ -1685,9 +1685,9 @@ xfs_bmap_add_extent_delay_real(
 	 * extent is being replaced by a real allocation.
 	 */
 	if (PREV.br_startoff == new->br_startoff)
-		state |= BMAP_LEFT_FILLING;/*new 和 prev 左侧重叠*/
+		state |= BMAP_LEFT_FILLING;/*new 和 prev 左侧文件内重叠*/
 	if (PREV.br_startoff + PREV.br_blockcount == new_endoff)
-		state |= BMAP_RIGHT_FILLING;/*new prev 右侧重叠*/
+		state |= BMAP_RIGHT_FILLING;/*new 和 prev 右侧文件内重叠*/
 
 	/*
 	 * Check and set flags if this segment has a left neighbor.
@@ -1695,6 +1695,7 @@ xfs_bmap_add_extent_delay_real(
 	 */
 	if (bma->idx > 0) {
 		state |= BMAP_LEFT_VALID;
+		/*idx - 1 对应的extent 解码*/
 		xfs_bmbt_get_all(xfs_iext_get_ext(ifp, bma->idx - 1), &LEFT);
 
 		if (isnullstartblock(LEFT.br_startblock))
@@ -2169,6 +2170,7 @@ xfs_bmap_add_extent_delay_real(
 		if (bma->cur)
 			temp += bma->cur->bc_private.b.allocated;
 		if (temp < da_old)
+			/*修改整个文件系统的 free block 数量*/
 			xfs_mod_fdblocks(bma->ip->i_mount,
 					(int64_t)(da_old - temp), false);
 	}
@@ -2177,6 +2179,7 @@ xfs_bmap_add_extent_delay_real(
 	if (bma->cur)
 		bma->cur->bc_private.b.allocated = 0;
 
+	/*空*/
 	xfs_bmap_check_leaf_extents(bma->cur, bma->ip, whichfork);
 done:
 	if (whichfork != XFS_COW_FORK)
@@ -2319,6 +2322,7 @@ xfs_bmap_add_extent_unwritten_real(
 			RIGHT.br_blockcount);
 		trace_xfs_bmap_post_update(ip, *idx, state, _THIS_IP_);
 
+		/*这里释放掉了ext 结构体,但是他们的解压的信息还保留在LEFT RIGHT PREV中*/
 		xfs_iext_remove(ip, *idx + 1, 2, state);
 		XFS_IFORK_NEXT_SET(ip, whichfork,
 				XFS_IFORK_NEXTENTS(ip, whichfork) - 2);
@@ -2941,6 +2945,7 @@ xfs_bmap_add_extent_hole_real(
 	 * Set the contiguity flags.  Don't let extents get too large.
 	 */
 	if ((state & BMAP_LEFT_VALID) && !(state & BMAP_LEFT_DELAY) &&
+		/*left 物理逻辑都连续*/
 	    left.br_startoff + left.br_blockcount == new->br_startoff &&
 	    left.br_startblock + left.br_blockcount == new->br_startblock &&
 	    left.br_state == new->br_state &&
@@ -2948,6 +2953,7 @@ xfs_bmap_add_extent_hole_real(
 		state |= BMAP_LEFT_CONTIG;
 
 	if ((state & BMAP_RIGHT_VALID) && !(state & BMAP_RIGHT_DELAY) &&
+		/*right 物理逻辑都连续*/
 	    new->br_startoff + new->br_blockcount == right.br_startoff &&
 	    new->br_startblock + new->br_blockcount == right.br_startblock &&
 	    new->br_state == right.br_state &&
@@ -2968,6 +2974,7 @@ xfs_bmap_add_extent_hole_real(
 		 * left and on the right.
 		 * Merge all three into a single extent record.
 		 */
+		 /*左右逢源啊 三合一走起*/
 		--*idx;
 		trace_xfs_bmap_pre_update(ip, *idx, state, _THIS_IP_);
 		xfs_bmbt_set_blockcount(xfs_iext_get_ext(ifp, *idx),
@@ -3463,6 +3470,8 @@ xfs_bmap_adjacent(
 #undef ISVALID
 }
 
+
+/*ag中可用的最长ext长度*/
 static int
 xfs_bmap_longest_free_extent(
 	struct xfs_trans	*tp,

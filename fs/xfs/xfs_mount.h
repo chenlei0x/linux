@@ -91,7 +91,7 @@ typedef struct xfs_mount {
 	char			*m_rtname;	/* realtime device name */
 	char			*m_logname;	/* external log device name */
 
-	/*mp->m_bsize = XFS_FSB_TO_BB(mp, 1); 一个fs block = 多少个 sector*/
+	/*mp->m_bsize = XFS_FSB_TO_BB(mp, 1); 一个fs block = 多少个 BB(sector)*/
 	int			m_bsize;	/* fs logical block size */
 	xfs_agnumber_t		m_agfrotor;	/* last ag where space found */
 	xfs_agnumber_t		m_agirotor;	/* last ag dir inode alloced */
@@ -117,7 +117,10 @@ typedef struct xfs_mount {
 	xfs_buftarg_t		*m_rtdev_targp;	/* ptr to rt device */
 	uint8_t			m_blkbit_log;	/* blocklog + NBBY */
 	
-	/*BBSHIFT = 9,其实就是sector， 该字段表示一个block含有多少个bb 取2的对数*/
+	/*
+	该字段表示一个block含有多少个bb 取2的对数
+	 BBSHIFT = 9,其实就是sector 大小的对数
+	*/
 	uint8_t			m_blkbb_log;	/* blocklog - BBSHIFT */
 	
 	uint8_t			m_agno_log;	/* log #ag's */

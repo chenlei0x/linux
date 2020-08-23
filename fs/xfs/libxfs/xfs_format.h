@@ -589,6 +589,8 @@ xfs_is_quota_inode(struct xfs_sb *sbp, xfs_ino_t ino)
 #define	XFS_HDR_BLOCK(mp,d)	((xfs_agblock_t)XFS_BB_TO_FSBT(mp,d))
 #define	XFS_DADDR_TO_FSB(mp,d)	XFS_AGB_TO_FSB(mp, \
 			xfs_daddr_to_agno(mp,d), xfs_daddr_to_agbno(mp,d))
+
+/*DADDR 为 sector*/
 #define	XFS_FSB_TO_DADDR(mp,fsbno)	XFS_AGB_TO_DADDR(mp, \
 			XFS_FSB_TO_AGNO(mp,fsbno), XFS_FSB_TO_AGBNO(mp,fsbno))
 
@@ -1638,6 +1640,9 @@ typedef struct xfs_bmbt_rec_host {
  */
 #define STARTBLOCKVALBITS	17
 #define STARTBLOCKMASKBITS	(15 + 20)
+/*FFFFFFFFE0000
+1111111111111111111111111111111111100000000000000000
+*/
 #define STARTBLOCKMASK		\
 	(((((xfs_fsblock_t)1) << STARTBLOCKMASKBITS) - 1) << STARTBLOCKVALBITS)
 
@@ -1652,6 +1657,7 @@ static inline xfs_fsblock_t nullstartblock(int k)
 	return STARTBLOCKMASK | (k);
 }
 
+/*取得 nullstartblock 中的 @k*/
 static inline xfs_filblks_t startblockval(xfs_fsblock_t x)
 {
 	return (xfs_filblks_t)((x) & ~STARTBLOCKMASK);

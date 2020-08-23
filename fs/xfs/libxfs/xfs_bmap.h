@@ -158,14 +158,50 @@ static inline int xfs_bmapi_whichfork(int bmapi_flags)
  */
 #define BMAP_LEFT_CONTIG	(1 << 0)
 #define BMAP_RIGHT_CONTIG	(1 << 1)
+
+/*
+PREV  和 new 头部重合
+PREV 和new 尾部重叠
+if (PREV.br_startoff == new->br_startoff)
+	state |= BMAP_LEFT_FILLING;
+if (PREV.br_startoff + PREV.br_blockcount == new_endoff)
+	state |= BMAP_RIGHT_FILLING;
+*/
 #define BMAP_LEFT_FILLING	(1 << 2)
 #define BMAP_RIGHT_FILLING	(1 << 3)
+
+
+/*
+startblock为空 就判定delay
+if (isnullstartblock(right.br_startblock))
+	state |= BMAP_RIGHT_DELAY;
+*/
 #define BMAP_LEFT_DELAY		(1 << 4)
 #define BMAP_RIGHT_DELAY	(1 << 5)
+/*idx > 0 
+if (*idx > 0) {
+	state |= BMAP_LEFT_VALID;
+	xfs_bmbt_get_all(xfs_iext_get_ext(ifp, *idx - 1), &left);
+}
+*/
 #define BMAP_LEFT_VALID		(1 << 6)
+/*
+	if (*idx < xfs_iext_count(ifp)) {
+		state |= BMAP_RIGHT_VALID;
+		xfs_bmbt_get_all(xfs_iext_get_ext(ifp, *idx), &right);
+	}
+*/
+
 #define BMAP_RIGHT_VALID	(1 << 7)
 #define BMAP_ATTRFORK		(1 << 8)
 #define BMAP_COWFORK		(1 << 9)
+/*
+ * END of  ---- Flags for xfs_bmap_add_extent*.
+ */
+
+
+
+
 
 #define XFS_BMAP_EXT_FLAGS \
 	{ BMAP_LEFT_CONTIG,	"LC" }, \

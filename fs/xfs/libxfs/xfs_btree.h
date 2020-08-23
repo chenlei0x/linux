@@ -118,10 +118,13 @@ struct xfs_btree_ops {
 				 struct xfs_btree_cur *dst);
 
 	/* update btree root pointer */
+	/*root 变了, 变为@ptr了 层级新增@inc*/
 	void	(*set_root)(struct xfs_btree_cur *cur,
 			    union xfs_btree_ptr *nptr, int level_change);
 
 	/* block allocation / freeing */
+				/*申请block, 申请到的block放到@new_bno中,
+	@start_bno 相当于一个提示, 表明离@new_bno 较近*/
 	int	(*alloc_block)(struct xfs_btree_cur *cur,
 			       union xfs_btree_ptr *start_bno,
 			       union xfs_btree_ptr *new_bno,
@@ -146,6 +149,7 @@ struct xfs_btree_ops {
 				     union xfs_btree_rec *rec);
 	void	(*init_rec_from_cur)(struct xfs_btree_cur *cur,
 				     union xfs_btree_rec *rec);
+	/*用来初始化ptr, 使得ptr 为 tree root daddr*/
 	void	(*init_ptr_from_cur)(struct xfs_btree_cur *cur,
 				     union xfs_btree_ptr *ptr);
 	void	(*init_high_key_from_rec)(union xfs_btree_key *key,
@@ -216,6 +220,7 @@ typedef struct xfs_btree_cur
 	const struct xfs_btree_ops *bc_ops;
 	uint			bc_flags; /* btree features - below */
 	union xfs_btree_irec	bc_rec;	/* current insert/search record value */
+	/*cur->bc_nlevels - 1 表示root*/
 	struct xfs_buf	*bc_bufs[XFS_BTREE_MAXLEVELS];	/* buf ptr per level */
 
 	/*
@@ -231,7 +236,9 @@ typedef struct xfs_btree_cur
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */
 
-/* cur->bc_nlevels - 1 表明是第一层index, leaf 为0层*/
+	/* cur->bc_nlevels - 1 表明是root, leaf 为0层
+	也就是说 bc_nlevels 是 bc_bufs 的长度
+	*/
 	uint8_t		bc_nlevels;	/* number of levels in the tree */
 	uint8_t		bc_blocklog;	/* log2(blocksize) of btree blocks */
 	/*btree 类型, 会根据他生成ptr*/

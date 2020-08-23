@@ -633,6 +633,8 @@ xfs_btree_ptr_addr(
  *
  * For now this btree implementation assumes the btree root is always
  * stored in the if_broot field of an inode fork.
+ *
+ * root 在inode里面
  */
 STATIC struct xfs_btree_block *
 xfs_btree_get_iroot(
@@ -648,6 +650,7 @@ xfs_btree_get_iroot(
  * Retrieve the block pointer from the cursor at the given level.
  * This may be an inode btree root or from a buffer.
  */
+/*从cur bc_bufs中拿到对应的block 指针*/
 struct xfs_btree_block *		/* generic btree block pointer */
 xfs_btree_get_block(
 	struct xfs_btree_cur	*cur,	/* btree cursor */
@@ -1178,7 +1181,9 @@ xfs_btree_init_block(
 				 btnum, level, numrecs, owner, flags);
 }
 
-/*owner 有区别*/
+/*owner 有区别
+初始化bp对应的block
+*/
 STATIC void
 xfs_btree_init_block_cur(
 	struct xfs_btree_cur	*cur,
@@ -1311,6 +1316,8 @@ xfs_btree_get_buf_block(
 /*
  * Read in the buffer at the given ptr and return the buffer and
  * the block pointer within the buffer.
+ *
+ * 读取@ptr指向的大小为一个fsb磁盘空间
  */
 STATIC int
 xfs_btree_read_buf_block(
@@ -1335,7 +1342,7 @@ xfs_btree_read_buf_block(
 		return error;
 
 	xfs_btree_set_refs(cur, *bpp);
-	/*xfs_btree_block 应该就是磁盘中的镜像了*/
+	/*xfs_btree_block 就是磁盘中的镜像了*/
 	*block = XFS_BUF_TO_BLOCK(*bpp);
 	return 0;
 }
@@ -1370,6 +1377,7 @@ xfs_btree_copy_recs(
 
 /*
  * Copy block pointers from one btree block to another.
+ * 拷贝@numptrs 个 ptr
  */
 STATIC void
 xfs_btree_copy_ptrs(
@@ -2146,6 +2154,7 @@ xfs_btree_get_node_keys(
 		high = xfs_btree_high_key_from_key(cur, key);
 		memcpy(high, max_hkey, cur->bc_ops->key_len / 2);
 	} else {
+		/* @block 中的第一个key 拷贝到@key中*/
 		memcpy(key, xfs_btree_key_addr(cur, 1, block),
 				cur->bc_ops->key_len);
 	}
@@ -3172,6 +3181,7 @@ xfs_btree_new_root(
 	cur->bc_ops->init_ptr_from_cur(cur, &rptr);
 
 	/* Allocate the new block. If we can't do it, we're toast. Give up. */
+	/*申请一个新的block, 放到@lptr中*/
 	error = cur->bc_ops->alloc_block(cur, &rptr, &lptr, stat);
 	if (error)
 		goto error0;
@@ -3180,6 +3190,7 @@ xfs_btree_new_root(
 	XFS_BTREE_STATS_INC(cur, alloc);
 
 	/* Set up the new block. */
+	/*new nbp 都指向新的root block*/
 	error = xfs_btree_get_buf_block(cur, &lptr, 0, &new, &nbp);
 	if (error)
 		goto error0;
@@ -3200,11 +3211,18 @@ xfs_btree_new_root(
 	if (error)
 		goto error0;
 #endif
-
+	/*
+	 * cur->bc_nlevels - 1 这一层现在只有两个block, cur不知道指向
+	 * 的是谁, 我需要确定他们的左右关系, 这里不管怎样都找cur 指向
+	 * 的block的右边的block, 如果右边的block存在, @block为左边的
+	 * 否则 @block为右边的block
+	 */
 	xfs_btree_get_sibling(cur, block, &rptr, XFS_BB_RIGHTSIB);
 	if (!xfs_btree_ptr_is_null(cur, &rptr)) {
+		/*rptr 真的是右边的block, 说明@block @bp 都是左边的block*/
 		/* Our block is left, pick up the right block. */
 		lbp = bp;
+		/*buf 对应的磁盘 block addr 转为 ptr, */
 		xfs_btree_buf_to_ptr(cur, lbp, &lptr);
 		left = block;
 		error = xfs_btree_read_buf_block(cur, &rptr, 0, &right, &rbp);
@@ -3213,8 +3231,10 @@ xfs_btree_new_root(
 		bp = rbp;
 		nptr = 1;
 	} else {
+		/*rptr 是空, 说明@block @bp 都是右边的block*/
 		/* Our block is right, pick up the left block. */
 		rbp = bp;
+		/*更正rptr*/
 		xfs_btree_buf_to_ptr(cur, rbp, &rptr);
 		right = block;
 		xfs_btree_get_sibling(cur, right, &lptr, XFS_BB_LEFTSIB);
@@ -3237,8 +3257,10 @@ xfs_btree_new_root(
 		 * Get the keys for the left block's keys and put them directly
 		 * in the parent block.  Do the same for the right block.
 		 */
+		/*@left 中的第一个key 拷贝到@new的第1个key的位置*/
 		xfs_btree_get_node_keys(cur, left,
 				xfs_btree_key_addr(cur, 1, new));
+		/*@right 中的第二个key 拷贝到@new的第 2 个key 的位置*/
 		xfs_btree_get_node_keys(cur, right,
 				xfs_btree_key_addr(cur, 2, new));
 	} else {
@@ -3247,6 +3269,9 @@ xfs_btree_new_root(
 		 * directly in the parent block.  Do the same for the right
 		 * block.
 		 */
+		 /*left 和 right 是两个 leaf block, 那么通过他们生成key 放到 new 的
+		前两个key 的地方*/
+		/*之前的root level = 0??? 是否和 XFS_BTREE_ROOT_IN_INODE有关?????*/
 		xfs_btree_get_leaf_keys(cur, left,
 			xfs_btree_key_addr(cur, 1, new));
 		xfs_btree_get_leaf_keys(cur, right,
@@ -3255,6 +3280,7 @@ xfs_btree_new_root(
 	xfs_btree_log_keys(cur, nbp, 1, 2);
 
 	/* Fill in the pointer data in the new root. */
+	/*lptr 和 rptr 分别作为 @new的前两个ptr*/
 	xfs_btree_copy_ptrs(cur,
 		xfs_btree_ptr_addr(cur, 1, new), &lptr, 1);
 	xfs_btree_copy_ptrs(cur,
@@ -3262,6 +3288,7 @@ xfs_btree_new_root(
 	xfs_btree_log_ptrs(cur, nbp, 1, 2);
 
 	/* Fix up the cursor. */
+	/*nbp 作为一个新的root*/
 	xfs_btree_setbuf(cur, cur->bc_nlevels, nbp);
 	cur->bc_ptrs[cur->bc_nlevels] = nptr;
 	cur->bc_nlevels++;

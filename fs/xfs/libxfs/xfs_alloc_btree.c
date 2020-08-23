@@ -42,6 +42,8 @@ xfs_allocbt_dup_cursor(
 			cur->bc_btnum);
 }
 
+
+/*root 变了, 变为@ptr了 层级新增@inc*/
 STATIC void
 xfs_allocbt_set_root(
 	struct xfs_btree_cur	*cur,

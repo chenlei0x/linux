@@ -622,13 +622,7 @@ xfs_iroot_realloc(
 		
 
 		/*
-		
-		这里写的比较鸡贼，其实可以优化，由于不清楚当前root
-		里面到底是recs 还是kp对		所以干脆都拷贝，因为就算重复
-		拷贝了也没关系，重复拷贝n次和重复拷贝一次的结果是一样的
-
-		注意： 这里一定要先拷贝rec 再拷贝ptr， 否则会弄脏数据！！！
-		
+			这里写的是不是有问题??? 会不会有数据覆盖的问题??
 		*/
 		/*
 		 * First copy the records.
@@ -647,6 +641,7 @@ xfs_iroot_realloc(
 		memcpy(np, op, new_max * (uint)sizeof(xfs_fsblock_t));
 	}
 	kmem_free(ifp->if_broot);
+	/*设置新的root 和 root size*/
 	ifp->if_broot = new_broot;
 	ifp->if_broot_bytes = (int)new_size;
 	if (ifp->if_broot)
@@ -670,6 +665,9 @@ xfs_iroot_realloc(
  * ip -- the inode whose if_data area is changing
  * byte_diff -- the change in the number of bytes, positive or negative,
  *	 requested for the if_data array.
+ *
+ *
+ * if_bytes 变了,所以需要重新申请内存
  */
 void
 xfs_idata_realloc(
@@ -699,6 +697,8 @@ xfs_idata_realloc(
 		/*
 		 * If the valid extents/data can fit in if_inline_ext/data,
 		 * copy them from the malloc'd vector and free it.
+		 *
+		 * 新的size 可以容纳在inline data中
 		 */
 		if (ifp->if_u1.if_data == NULL) {
 			ifp->if_u1.if_data = ifp->if_u2.if_inline_data;
@@ -727,6 +727,8 @@ xfs_idata_realloc(
 			/*
 			 * Only do the realloc if the underlying size
 			 * is really changing.
+			 *
+			 * 需要的内存确实变了, 需要重新申请, realloc 会帮助复制内存
 			 */
 			if (ifp->if_real_bytes != real_size) {
 				ifp->if_u1.if_data =
@@ -735,6 +737,7 @@ xfs_idata_realloc(
 							KM_SLEEP | KM_NOFS);
 			}
 		} else {
+			/*ifp->if_u1.if_data == ifp->if_u2.if_inline_data*/
 			ASSERT(ifp->if_real_bytes == 0);
 			ifp->if_u1.if_data = kmem_alloc(real_size,
 							KM_SLEEP | KM_NOFS);
@@ -1271,6 +1274,9 @@ xfs_iext_add_indirect_multi(
  * limit, XFS_IEXT_BUFSZ, then switch to using the contiguous
  * extent array.  Otherwise, use kmem_realloc() to adjust the
  * size to what is needed.
+ *
+ *
+ * 用来删除内存中的ext镜像if_ext_irec
  */
 void
 xfs_iext_remove(
