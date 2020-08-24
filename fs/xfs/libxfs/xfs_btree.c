@@ -531,6 +531,7 @@ xfs_btree_rec_offset(
 
 /*
  * Calculate offset of the n-th key in a btree block.
+ * 第n个key在块中的偏移量
  */
 STATIC size_t
 xfs_btree_key_offset(
@@ -758,6 +759,7 @@ xfs_btree_firstrec(
 /*
  * Change the cursor to point to the last record in the current block
  * at the given level.  Other levels are unaffected.
+ * 使得 cur 在level层的ptr 指向 level层的block中的最后一个kp对或者rec
  */
 STATIC int				/* success=1, failure=0 */
 xfs_btree_lastrec(
@@ -780,7 +782,7 @@ xfs_btree_lastrec(
 		return 0;
 	/*
 	 * Set the ptr value to numrecs, that's the last record/key.
-	 * 因为index 从1 开始，这样指向最后一个 numrecs
+	 * 因为index 从1 开始，这样指向最后一个 rec 或者kp
 	 */
 	cur->bc_ptrs[level] = be16_to_cpu(block->bb_numrecs);
 	return 1;
@@ -1392,7 +1394,7 @@ xfs_btree_copy_ptrs(
 
 /*
  * Shift keys one index left/right inside a single btree block.
- * 在非leaf 节点中,把key 左移或者右移一个身位
+ * 在非leaf 节点中,把key 左移或者右移@dir个身位
  */
 STATIC void
 xfs_btree_shift_keys(
@@ -1412,7 +1414,7 @@ xfs_btree_shift_keys(
 
 /*
  * Shift records one index left/right inside a single btree block.
- * 左右移动
+ * 叶子节点移动@dir个身位
  */
 STATIC void
 xfs_btree_shift_recs(
@@ -1604,7 +1606,7 @@ xfs_btree_log_block(
  * Increment cursor by one record at the level.
  * For nonzero levels the leaf-ward information is untouched.
  *
- * 将cursor 在level层的ptr 指向下一个
+ * 将cursor 在level层的ptr 指向下一个kp对或者rec
  *
  * 能调用这个函数说明cursor指向的已经是一个没有右边sibling的btree block
  * keyno > xfs_btree_get_numrecs(block)
@@ -1639,6 +1641,7 @@ xfs_btree_increment(
 #endif
 
 	/* We're done if we remain in the block after the increment. */
+	/*比较幸运, block内部就移动成功了*/
 	if (++cur->bc_ptrs[level] <= xfs_btree_get_numrecs(block))
 		goto out1;
 
@@ -2294,7 +2297,7 @@ xfs_btree_update_keys(
 	 */
 	 /*拿到这个child     block在父节点中应该呈现的key*/
 	xfs_btree_get_keys(cur, block, &key);
-	/*往root方向, 每个节点都赋值 key*/
+	/*往root方向, 当子block 在父block中是第一个 ptr时, 每个节点都更新 key*/
 	for (level++, ptr = 1; ptr == 1 && level < cur->bc_nlevels; level++) {
 
 		block = xfs_btree_get_block(cur, level, &bp);
@@ -2609,6 +2612,7 @@ xfs_btree_rshift(
 		goto out0;
 
 	/* Set up variables for this block as "left". */
+	/*从cur bc_bufs中拿到level层的block 指针*/
 	left = xfs_btree_get_block(cur, level, &lbp);
 
 #ifdef DEBUG
@@ -2625,6 +2629,8 @@ xfs_btree_rshift(
 	/*
 	 * If the cursor entry is the one that would be moved, don't
 	 * do it... it's too complicated.
+	 *
+	 * cursor 指向的ptr 会被移动, 太复杂跳过
 	 */
 	lrecs = xfs_btree_get_numrecs(left);
 	if (cur->bc_ptrs[level] >= lrecs)
@@ -2636,6 +2642,7 @@ xfs_btree_rshift(
 		goto error0;
 
 	/* If it's full, it can't take another entry. */
+	/*右边满了 rshift别想了*/
 	rrecs = xfs_btree_get_numrecs(right);
 	if (rrecs == cur->bc_ops->get_maxrecs(cur, level))
 		goto out0;
@@ -2652,9 +2659,10 @@ xfs_btree_rshift(
 		union xfs_btree_key	*lkp;
 		union xfs_btree_ptr	*lpp;
 		union xfs_btree_ptr	*rpp;
-
+		/*lkp lpp 左侧的最后一个kp 对*/
 		lkp = xfs_btree_key_addr(cur, lrecs, left);
 		lpp = xfs_btree_ptr_addr(cur, lrecs, left);
+		/*rkp rpp 右侧的第一个kp对*/
 		rkp = xfs_btree_key_addr(cur, 1, right);
 		rpp = xfs_btree_ptr_addr(cur, 1, right);
 
@@ -2665,7 +2673,7 @@ xfs_btree_rshift(
 				goto error0;
 		}
 #endif
-
+		/*右侧block把第一个位置让出来*/
 		xfs_btree_shift_keys(cur, rkp, 1, rrecs);
 		xfs_btree_shift_ptrs(cur, rpp, 1, rrecs);
 
@@ -2676,6 +2684,7 @@ xfs_btree_rshift(
 #endif
 
 		/* Now put the new data in, and log it. */
+		/*lkp lpp 移动到右侧block的第一个位置*/
 		xfs_btree_copy_keys(cur, rkp, lkp, 1);
 		xfs_btree_copy_ptrs(cur, rpp, lpp, 1);
 
@@ -2688,7 +2697,7 @@ xfs_btree_rshift(
 		/* It's a leaf. make a hole in the records */
 		union xfs_btree_rec	*lrp;
 		union xfs_btree_rec	*rrp;
-
+		/*leaf 节点, 更简单一些*/
 		lrp = xfs_btree_rec_addr(cur, lrecs, left);
 		rrp = xfs_btree_rec_addr(cur, 1, right);
 
@@ -2701,6 +2710,7 @@ xfs_btree_rshift(
 
 	/*
 	 * Decrement and log left's numrecs, bump and log right's numrecs.
+	 * 更新rec数量
 	 */
 	xfs_btree_set_numrecs(left, --lrecs);
 	xfs_btree_log_block(cur, lbp, XFS_BB_NUMRECS);
@@ -2733,7 +2743,7 @@ xfs_btree_rshift(
 	error = xfs_btree_update_keys(tcur, level);
 	if (error)
 		goto error1;
-
+	/*彻底释放tcur, 起始tcur就是用来更新每个节点的block中的key的*/
 	xfs_btree_del_cursor(tcur, XFS_BTREE_NOERROR);
 
 	XFS_BTREE_TRACE_CURSOR(cur, XBT_EXIT);
@@ -3045,6 +3055,7 @@ xfs_btree_split(
 /*
  * Copy the old inode root contents into a real block and make the
  * broot point to it.
+ * 生成一个新的in-inode btree root
  */
 int						/* error */
 xfs_btree_new_iroot(
@@ -3077,6 +3088,7 @@ xfs_btree_new_iroot(
 	pp = xfs_btree_ptr_addr(cur, 1, block);
 
 	/* Allocate the new block. If we can't do it, we're toast. Give up. */
+	/*@pp 只是作为一个hint, 新的block # 放在nptr中*/
 	error = cur->bc_ops->alloc_block(cur, pp, &nptr, stat);
 	if (error)
 		goto error0;
@@ -3094,6 +3106,8 @@ xfs_btree_new_iroot(
 	/*
 	 * we can't just memcpy() the root in for CRC enabled btree blocks.
 	 * In that case have to also ensure the blkno remains correct
+	 *
+	 * 这里只拷贝block头
 	 */
 	memcpy(cblock, block, xfs_btree_block_len(cur));
 	if (cur->bc_flags & XFS_BTREE_CRC_BLOCKS) {
@@ -3105,13 +3119,20 @@ xfs_btree_new_iroot(
 
 	be16_add_cpu(&block->bb_level, 1);
 	xfs_btree_set_numrecs(block, 1);
+	/*层级增大*/
 	cur->bc_nlevels++;
 	cur->bc_ptrs[level + 1] = 1;
 
+	/*
+	 * 因为@block 是在inode中的, 所以需要把@block的内容拷贝到@cblock
+	 * @block 才能作为新的root
+	 */
 	kp = xfs_btree_key_addr(cur, 1, block);
 	ckp = xfs_btree_key_addr(cur, 1, cblock);
+	/*kp == 拷贝所有rkeys=> ckp*/
 	xfs_btree_copy_keys(cur, ckp, kp, xfs_btree_get_numrecs(cblock));
 
+	/*cpp : cblock 第一个ptr*/
 	cpp = xfs_btree_ptr_addr(cur, 1, cblock);
 #ifdef DEBUG
 	for (i = 0; i < be16_to_cpu(cblock->bb_numrecs); i++) {
@@ -3120,6 +3141,7 @@ xfs_btree_new_iroot(
 			goto error0;
 	}
 #endif
+/*拷贝所有的ptr*/
 	xfs_btree_copy_ptrs(cur, cpp, pp, xfs_btree_get_numrecs(cblock));
 
 #ifdef DEBUG
@@ -3127,12 +3149,17 @@ xfs_btree_new_iroot(
 	if (error)
 		goto error0;
 #endif
+	/*@pp 指向 @block 的第一个ptr, @nptr指向新的cblock*/
 	xfs_btree_copy_ptrs(cur, pp, &nptr, 1);
 
+	/*由于产生了新的根, 所以缩减以前的kp 对,新的根中只有一个记录, 所以缩减
+	xfs_btree_get_numrecs(cblock) - 1 个, 也就是增加1 - xfs_btree_get_numrecs(cblock)
+	个kp对*/
 	xfs_iroot_realloc(cur->bc_private.b.ip,
 			  1 - xfs_btree_get_numrecs(cblock),
 			  cur->bc_private.b.whichfork);
 
+	/*level 为旧的root层级, 现在设为cbp*/
 	xfs_btree_setbuf(cur, level, cbp);
 
 	/*
@@ -3324,6 +3351,7 @@ xfs_btree_make_block_unfull(
 
 		if (numrecs < cur->bc_ops->get_dmaxrecs(cur, level)) {
 			/* A root block that can be made bigger. */
+			/*root 在inode中的情况, 这里新增一条记录*/
 			xfs_iroot_realloc(ip, 1, cur->bc_private.b.whichfork);
 			*stat = 1;
 		} else {
@@ -3342,7 +3370,7 @@ xfs_btree_make_block_unfull(
 
 	/* First, try shifting an entry to the right neighbor. */
 	error = xfs_btree_rshift(cur, level, stat);
-	if (error || *stat)
+	if (error || *stat)/* *stat == 1 表明成功了*/
 		return error;
 
 	/* Next, try shifting an entry to the left neighbor. */
@@ -3351,6 +3379,7 @@ xfs_btree_make_block_unfull(
 		return error;
 
 	if (*stat) {
+		/*左移成功了*/
 		*oindex = *index = cur->bc_ptrs[level];
 		return 0;
 	}

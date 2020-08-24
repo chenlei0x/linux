@@ -145,6 +145,7 @@ struct xfs_btree_ops {
 	int	(*get_dmaxrecs)(struct xfs_btree_cur *cur, int level);
 
 	/* init values of btree structures */
+	/*通过一个rec 推出他的@key*/
 	void	(*init_key_from_rec)(union xfs_btree_key *key,
 				     union xfs_btree_rec *rec);
 	void	(*init_rec_from_cur)(struct xfs_btree_cur *cur,
