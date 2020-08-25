@@ -113,6 +113,7 @@ typedef struct xfs_sb {
 	xfs_ino_t	sb_rootino;	/* root inode number */
 	xfs_ino_t	sb_rbmino;	/* bitmap inode for realtime extents */
 	xfs_ino_t	sb_rsumino;	/* summary inode for rt bitmap */
+	/*ext 长度， 按block算*/
 	xfs_agblock_t	sb_rextsize;	/* realtime extent size, blocks */
 	/*每个ag含有多少个block*/
 	xfs_agblock_t	sb_agblocks;	/* size of an allocation group*/
@@ -1646,6 +1647,7 @@ typedef struct xfs_bmbt_rec_host {
 #define STARTBLOCKMASK		\
 	(((((xfs_fsblock_t)1) << STARTBLOCKMASKBITS) - 1) << STARTBLOCKVALBITS)
 
+/*表明是一个delay ext？  xfs_bmap_isaeof*/
 static inline int isnullstartblock(xfs_fsblock_t x)
 {
 	return ((x) & STARTBLOCKMASK) == STARTBLOCKMASK;
@@ -1678,6 +1680,10 @@ typedef enum {
 typedef struct xfs_bmbt_irec
 {
 	xfs_fileoff_t	br_startoff;	/* starting file offset */
+	/*
+	 * 如果这是一个delay ext的化
+	 * br_startblock= nullstartblock(indlen);
+	 */
 	xfs_fsblock_t	br_startblock;	/* starting block number */
 	xfs_filblks_t	br_blockcount;	/* number of blocks */
 	/*XFS_EXT_NORM

@@ -2088,8 +2088,8 @@ xfs_ifork_init_cow(
  * If bno is beyond the last extent return false, and return the index after
  * the last valid index in *idxp.
  *
- * 找到bno对应的ext, 其idx 放到 @idxp中, 把ext 解压之后放到gotp中
- return false 表明 bno已经在 eof后了
+ * 找到bno对应的ext, 其block块内的idx 放到 @idxp中, 把ext 解压之后放到gotp中
+ *  return false 表明 bno已经在 eof后了
  */
 bool
 xfs_iext_lookup_extent(

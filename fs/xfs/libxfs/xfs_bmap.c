@@ -1515,6 +1515,8 @@ xfs_bmap_last_extent(
  *
  * Returns 1 in bma->aeof if the file (fork) is empty as any new write will be
  * at, or past the EOF.
+ *
+ * 这次申请
  */
 STATIC int
 xfs_bmap_isaeof(
@@ -1540,7 +1542,7 @@ xfs_bmap_isaeof(
 	 * Check if we are allocation or past the last extent, or at least into
 	 * the last delayed allocated extent.
 	 *
-	 * offset 超过了最后一个ext的范围
+	 * offset 超过了最后一个ext的范围， 或者刚好和最后一个ext 有重合且是delay ext
 	 */
 	bma->aeof = bma->offset >= rec.br_startoff + rec.br_blockcount ||
 		(bma->offset >= rec.br_startoff &&
@@ -2733,6 +2735,8 @@ done:
 
 /*
  * Convert a hole to a delayed allocation.
+ *
+ * 空洞转为delay extent
  */
 STATIC void
 xfs_bmap_add_extent_hole_delay(
@@ -2883,6 +2887,9 @@ xfs_bmap_add_extent_hole_delay(
 
 /*
  * Convert a hole to a real allocation.
+ *
+ * 空洞直接分配为真正的ext
+ * xfs_bmap_add_extent_hole_delay
  */
 STATIC int				/* error */
 xfs_bmap_add_extent_hole_real(
@@ -4182,7 +4189,11 @@ xfs_bmapi_read(
  *
  * @got 作为入参指向要申请的extent紧邻的右边的extent
  * @got 作为出参指向被插入的extent
+ * @idx 为got所处的块内idx
  * 新的extent在插入的过程中可能合并, 通过@lastx 可以查看是否真的有合并发生
+ * @prealloc 表明虽然我实际需要分配的大小为@len， 但是期望分配的更大一些 @len + @prealloc
+ * 
+ * 最开始offset 所在的地方没有extent 其实是一个hole， 这里给他分配一个delay ext
  */
 int
 xfs_bmapi_reserve_delalloc(
@@ -4209,6 +4220,10 @@ xfs_bmapi_reserve_delalloc(
 	 * tag the inode before we return.
 	 */
 	alen = XFS_FILBLKS_MIN(len + prealloc, MAXEXTLEN);
+	/*
+	 * 如果不是eof 我最大可以申请多少长度， 此时@got表示申请
+	 * 的extent紧邻的右边的extent
+	 */
 	if (!eof)
 		alen = XFS_FILBLKS_MIN(alen, got->br_startoff - aoff);
 	if (prealloc && alen >= len)
@@ -4219,9 +4234,10 @@ xfs_bmapi_reserve_delalloc(
 		extsz = xfs_get_cowextsz_hint(ip);
 	else
 		extsz = xfs_get_extsz_hint(ip);
+	/*extsz 作为对齐的hint*/
 	if (extsz) {
 		struct xfs_bmbt_irec	prev;
-
+		/*@lastx - 1 ext ===> prev*/
 		if (!xfs_iext_get_extent(ifp, *lastx - 1, &prev))
 			prev.br_startoff = NULLFILEOFF;
 
@@ -4246,13 +4262,17 @@ xfs_bmapi_reserve_delalloc(
 	/*
 	 * Split changing sb for alen and indlen since they could be coming
 	 * from different places.
+	 *
+	 * 最差的情况 indirect node 有多少个
 	 */
 	indlen = (xfs_extlen_t)xfs_bmap_worst_indlen(ip, alen);
 	ASSERT(indlen > 0);
 
 	if (rt) {
+		/*修改 free realtime extents*/
 		error = xfs_mod_frextents(mp, -((int64_t)extsz));
 	} else {
+		/*修改 free block counter*/
 		error = xfs_mod_fdblocks(mp, -((int64_t)alen), false);
 	}
 
@@ -4265,12 +4285,12 @@ xfs_bmapi_reserve_delalloc(
 
 
 	ip->i_delayed_blks += alen;
-
+	/*got 转变成为新的extent*/
 	got->br_startoff = aoff;
 	got->br_startblock = nullstartblock(indlen);
 	got->br_blockcount = alen;
 	got->br_state = XFS_EXT_NORM;
-
+	/*把@got插入进去*/
 	xfs_bmap_add_extent_hole_delay(ip, whichfork, lastx, got);
 
 	/*
@@ -4297,6 +4317,18 @@ out_unreserve_quota:
 	return error;
 }
 
+/*给bmap申请extent用
+	
+	xfs_do_writepage
+		xfs_writepage_map
+			xfs_iomap_write_allocate
+				xfs_bmapi_write
+					xfs_bmapi_allocate
+						xfs_bmap_alloc
+							xfs_bmap_btalloc	xfs_malloca===> xfs_alloc_arg_t
+								xfs_alloc_vextent
+
+*/
 static int
 xfs_bmapi_allocate(
 	struct xfs_bmalloca	*bma)
@@ -4375,7 +4407,7 @@ xfs_bmapi_allocate(
 	 * Bump the number of extents we've allocated
 	 * in this call.
 	 */
-	bma->nallocs++;
+	bma->nallocs++; /*又申请了一次， 计数用*/
 
 	if (bma->cur)
 		bma->cur->bc_private.b.flags =
@@ -4401,8 +4433,10 @@ xfs_bmapi_allocate(
 		bma->got.br_state = XFS_EXT_UNWRITTEN;
 
 	if (bma->wasdel)
+		/*如果之前是delay alloc， 那么把这个delay 转为 real*/
 		error = xfs_bmap_add_extent_delay_real(bma, whichfork);
 	else
+		/*如果之前是delay alloc， 那么把这个hole 转为 real*/
 		error = xfs_bmap_add_extent_hole_real(bma->tp, bma->ip,
 				whichfork, &bma->idx, &bma->cur, &bma->got,
 				bma->firstblock, bma->dfops, &bma->logflags);

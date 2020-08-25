@@ -40,6 +40,7 @@
  * range of pages. It is assumed that the filesystems will lock whatever
  * resources they require in the iomap_begin call, and release them in the
  * iomap_end call.
+ * @actor 可能== iomap_write_actor
  */
 loff_t
 iomap_apply(struct inode *inode, loff_t pos, loff_t length, unsigned flags,
@@ -149,6 +150,17 @@ iomap_write_end(struct inode *inode, loff_t pos, unsigned len,
 	return ret;
 }
 
+/*
+* 把写入的数据拷贝到pagecache中
+iomap_file_buffered_write
+	iomap_apply
+		ops.iomap_begin 这里通常是申请extent，
+			
+		iomap_write_actor
+		ops.iomap_end /**/
+
+
+*/
 static loff_t
 iomap_write_actor(struct inode *inode, loff_t pos, loff_t length, void *data,
 		struct iomap *iomap)

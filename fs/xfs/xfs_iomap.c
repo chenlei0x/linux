@@ -45,6 +45,7 @@
 #define XFS_WRITEIO_ALIGN(mp,off)	(((off) >> mp->m_writeio_log) \
 						<< mp->m_writeio_log)
 
+/*bmbt 转为 iomap*/
 void
 xfs_bmbt_to_iomap(
 	struct xfs_inode	*ip,
@@ -384,6 +385,7 @@ xfs_quota_calc_throttle(
  * We clean up any extra space left over when the file is closed in
  * xfs_inactive().
  */
+ /*获取prealloc 的block size*/
 STATIC xfs_fsblock_t
 xfs_iomap_prealloc_size(
 	struct xfs_inode	*ip,
@@ -401,6 +403,7 @@ xfs_iomap_prealloc_size(
 	int			qshift = 0;
 	xfs_fsblock_t		alloc_blocks = 0;
 
+	/*这要是成立了 就不是eof了*/
 	if (offset + count <= XFS_ISIZE(ip))
 		return 0;
 
@@ -516,6 +519,7 @@ check_writeio:
 	return alloc_blocks;
 }
 
+/*@inode 的文件偏移 @offset 长度@count， 映射完后放到@iomap中*/
 static int
 xfs_file_iomap_begin_delay(
 	struct inode		*inode,
@@ -526,6 +530,7 @@ xfs_file_iomap_begin_delay(
 	struct xfs_inode	*ip = XFS_I(inode);
 	struct xfs_mount	*mp = ip->i_mount;
 	struct xfs_ifork	*ifp = XFS_IFORK_PTR(ip, XFS_DATA_FORK);
+	/*offset 转为对应的文件偏移block*/
 	xfs_fileoff_t		offset_fsb = XFS_B_TO_FSBT(mp, offset);
 	xfs_fileoff_t		maxbytes_fsb =
 		XFS_B_TO_FSB(mp, mp->m_super->s_maxbytes);
@@ -556,9 +561,10 @@ xfs_file_iomap_begin_delay(
 		if (error)
 			goto out_unlock;
 	}
-
+	/*查找@offset所在的extent*/
 	eof = !xfs_iext_lookup_extent(ip, ifp, offset_fsb, &idx, &got);
 	if (!eof && got.br_startoff <= offset_fsb) {
+		/*棒！ 这个extent已经存在*/
 		if (xfs_is_reflink_inode(ip)) {
 			bool		shared;
 
@@ -587,6 +593,7 @@ xfs_file_iomap_begin_delay(
 	 * Note that the values needs to be less than 32-bits wide until
 	 * the lower level functions are updated.
 	 */
+	 /*对应的extent不存在*/
 	count = min_t(loff_t, count, 1024 * PAGE_SIZE);
 	end_fsb = min(XFS_B_TO_FSB(mp, offset + count), maxbytes_fsb);
 
@@ -612,6 +619,7 @@ xfs_file_iomap_begin_delay(
 	}
 
 retry:
+/*给offset 所在的地方分配一个delay ext*/
 	error = xfs_bmapi_reserve_delalloc(ip, XFS_DATA_FORK, offset_fsb,
 			end_fsb - offset_fsb, prealloc_blocks, &got, &idx, eof);
 	switch (error) {
@@ -986,6 +994,7 @@ xfs_file_iomap_begin(
 	if (((flags & (IOMAP_WRITE | IOMAP_DIRECT)) == IOMAP_WRITE) &&
 			!IS_DAX(inode) && !xfs_get_extsz_hint(ip)) {
 		/* Reserve delalloc blocks for regular writeback. */
+			/*通常来讲 buffer io就是走这里*/
 		return xfs_file_iomap_begin_delay(inode, offset, length, iomap);
 	}
 
@@ -1096,6 +1105,7 @@ out_unlock:
 	return error;
 }
 
+/*删除过多预留的extent*/
 static int
 xfs_file_iomap_end_delalloc(
 	struct xfs_inode	*ip,
@@ -1122,6 +1132,9 @@ xfs_file_iomap_end_delalloc(
 	 * start_fsb refers to the first unused block after a short write. If
 	 * nothing was written, round offset down to point at the first block in
 	 * the range.
+	 *
+	 *
+	 * @written 表明写入的量，正常来讲written == length除非有异常情况
 	 */
 	if (unlikely(!written))
 		start_fsb = XFS_B_TO_FSBT(mp, offset);
@@ -1129,6 +1142,8 @@ xfs_file_iomap_end_delalloc(
 		start_fsb = XFS_B_TO_FSB(mp, offset + written);
 	end_fsb = XFS_B_TO_FSB(mp, offset + length);
 
+	/*拷贝到page cache过程中有异常，但是xfs给你reserv了很多，造成written 实际上小于length，
+	所以得把多余的吐出来！！！*/
 	/*
 	 * Trim delalloc blocks if they were allocated by this write and we
 	 * didn't manage to write the whole range.

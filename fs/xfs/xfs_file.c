@@ -739,6 +739,7 @@ xfs_file_write_iter(
 			goto buffered;
 	} else {
 buffered:
+		/*buffer io走这里*/
 		ret = xfs_file_buffered_aio_write(iocb, from);
 	}
 

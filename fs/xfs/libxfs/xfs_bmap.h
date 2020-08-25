@@ -44,10 +44,13 @@ struct xfs_bmalloca {
 
 	struct xfs_btree_cur	*cur;	/* btree cursor */
 	xfs_extnum_t		idx;	/* current extent index */
+	/*xfs_bmapi_write 会涉及到多个extent(@mval 参数来表示数组)，对每个ext写入都可能涉及到
+	申请新的ext，但是申请的时候都是用同一个bmalloca 对象， 每次申请， 该字段+1*/
 	int			nallocs;/* number of extents alloc'd */
 	int			logflags;/* flags for transaction logging */
 
 	xfs_extlen_t		total;	/* total blocks needed for xaction */
+	/*@minlen 和 @length 共同规定了需要申请的长度*/
 	xfs_extlen_t		minlen;	/* minimum allocation size (blocks) */
 	xfs_extlen_t		minleft; /* amount must be left after alloc */
 	bool			eof;	/* set if allocating past last extent */

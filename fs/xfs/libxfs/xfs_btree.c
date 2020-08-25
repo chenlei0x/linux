@@ -1834,6 +1834,7 @@ xfs_btree_lookup_get_block(
 	if ((cur->bc_flags & XFS_BTREE_ROOT_IN_INODE) &&
 	    (level == cur->bc_nlevels - 1)) {
 	    /*XFS_BTREE_ROOT_IN_INODE 第一层也就是root层需要特殊处理*/
+		/*对于bmbt tree 当从根开始搜索的时候会走到这里*/
 		*blkp = xfs_btree_get_iroot(cur);
 		return 0;
 	}
@@ -1845,7 +1846,7 @@ xfs_btree_lookup_get_block(
 	 * Otherwise throw it away and get a new one.*/
 
 	/*
-	 * 从 @cur 和 @level 中拿到 bp
+	 * 从 @cur 中看bc_bufs 是否刚好含有这个block
 	 * 下面的逻辑其实就是 xfs_btree_get_block 的逻辑
 	 */
 	bp = cur->bc_bufs[level];
@@ -1879,7 +1880,7 @@ xfs_btree_lookup_get_block(
 
 
 
-	/*因为bp为空, 所以需要设置一下*/
+	/*更新一下bc buf*/
 	xfs_btree_setbuf(cur, level, bp);
 	return 0;
 
@@ -2021,7 +2022,7 @@ xfs_btree_lookup(
 			/*
 			 * If we moved left, need the previous key number,
 			 * unless there isn't one.
-			 * cur 比较大  ,但是 keyno = 1 或 0, 说明已经到左边的极限了
+			 * kp 比较大  ,但是 keyno = 1 或 0, 说明已经到左边的极限了
 			 * 那么keyno = 1
 			 */
 			if (diff > 0 && --keyno < 1)
@@ -2035,7 +2036,7 @@ xfs_btree_lookup(
 	}
 
 	/* Done with the search. See if we need to adjust the results. */
-	/*diff < 0 说明应该右移,也就是说key值大于 cur*/
+	/*diff < 0 说明应该右移,也就是说 key 值大于 cur*/
 	if (dir != XFS_LOOKUP_LE && diff < 0) {
 		keyno++;
 		/*
