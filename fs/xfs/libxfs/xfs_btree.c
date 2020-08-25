@@ -2089,6 +2089,7 @@ xfs_btree_high_key_from_key(
 }
 
 /* Determine the low (and high if overlapped) keys of a leaf block */
+/*得到block对应的key*/
 STATIC void
 xfs_btree_get_leaf_keys(
 	struct xfs_btree_cur	*cur,
@@ -2101,6 +2102,7 @@ xfs_btree_get_leaf_keys(
 	union xfs_btree_key	*high;
 	int			n;
 
+	/*leaf block 第一个rec ---> init_key_from_rec ---> 得到 key*/
 	rec = xfs_btree_rec_addr(cur, 1, block);
 	cur->bc_ops->init_key_from_rec(key, rec);
 
@@ -2165,6 +2167,7 @@ xfs_btree_get_node_keys(
 }
 
 /* Derive the keys for any btree block. 
+ * 根据 block 得到他的key
  * 获取一个leaf 或者node 的low key 和 high key, 合并放到@key中
  */
 STATIC void
@@ -3423,9 +3426,11 @@ xfs_btree_make_block_unfull(
  
  
  
- 
+ 若level 指向的是leaf block, 则插入@rec
+ 若level 指向的是非leaf block, 则插入@key @ptr
+ 上述两种情况在插入过程中都有可能造成block分裂, 这时候 @key @ptrp 用来描述当block分裂时,新的block 的kp对
 
- 
+ @rec @key 为入参
  */
 STATIC int
 xfs_btree_insrec(
@@ -3608,6 +3613,7 @@ xfs_btree_insrec(
 	if (bp && bp->b_bn != old_bn) {
 		xfs_btree_get_keys(cur, block, lkey);
 	} else if (xfs_btree_needs_key_update(cur, optr)) {
+		/*如果optr 是第一个, 那么需要更新父节点的key*/
 		error = xfs_btree_update_keys(cur, level);
 		if (error)
 			goto error0;
@@ -3627,7 +3633,9 @@ xfs_btree_insrec(
 	 * If there is one, give back a record value and a cursor too.
 	 */
 	*ptrp = nptr;
+	/*nptr 不是空, 说明有新的block生成了,所以就要有新的kp对在parent block中描述这个block*/
 	if (!xfs_btree_ptr_is_null(cur, &nptr)) {
+		/*这里key 又变为出参, 由于新的block 生成了, @key 又用来描述新的block*/
 		xfs_btree_copy_keys(cur, key, lkey, 1);
 		*curp = ncur;
 	}
@@ -3676,7 +3684,7 @@ xfs_btree_insert(
 	/* Make a key out of the record data to be inserted, and save it. */
 	/*通过 cur->bc_rec 初始化 rec*/
 	cur->bc_ops->init_rec_from_cur(cur, &rec);
-	/* 通过rec 初始化 key*/
+	/* 通过rec 初始化 key, 比如 bmbt key 就是  ext rec 的startoffset*/
 	cur->bc_ops->init_key_from_rec(key, &rec);
 
 	/*
@@ -3688,6 +3696,9 @@ xfs_btree_insert(
 		/*
 		 * Insert nrec/nptr into this level of the tree.
 		 * Note if we fail, nptr will be null.
+		 *
+		 * 这里写的比较有意思, 从叶子节点开始插入一个rec, 那么插入过程中可能
+		 * 会造成leaf block 裂变, 裂变之后新的block应该在其父节点上以一个kp对来呈现
 		 */
 		error = xfs_btree_insrec(pcur, level, &nptr, &rec, key,
 				&ncur, &i);
