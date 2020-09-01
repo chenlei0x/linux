@@ -38,11 +38,13 @@ struct xfs_bmalloca {
 	struct xfs_bmbt_irec	prev;	/* extent before the new one */
 	struct xfs_bmbt_irec	got;	/* extent after, or delayed */
 
-	xfs_fileoff_t		offset;	/* offset in file filling in */
+	xfs_fileoff_t		offset;	/* offset in file filling in 文件偏移*/
+	/*要申请的长度 返回时用来表示申请到的长度*/
 	xfs_extlen_t		length;	/* i/o length asked/allocated */
 	xfs_fsblock_t		blkno;	/* starting block of new extent */
 
 	struct xfs_btree_cur	*cur;	/* btree cursor */
+	/*通过xfs_iext_lookup_extent 查找@offset 所在的extent 得到*/
 	xfs_extnum_t		idx;	/* current extent index */
 	/*xfs_bmapi_write 会涉及到多个extent(@mval 参数来表示数组)，对每个ext写入都可能涉及到
 	申请新的ext，但是申请的时候都是用同一个bmalloca 对象， 每次申请， 该字段+1*/
@@ -52,6 +54,7 @@ struct xfs_bmalloca {
 	xfs_extlen_t		total;	/* total blocks needed for xaction */
 	/*@minlen 和 @length 共同规定了需要申请的长度*/
 	xfs_extlen_t		minlen;	/* minimum allocation size (blocks) */
+	/*完成这次申请后至少还需要剩余多少block*/
 	xfs_extlen_t		minleft; /* amount must be left after alloc */
 	bool			eof;	/* set if allocating past last extent */
 	bool			wasdel;	/* replacing a delayed allocation */

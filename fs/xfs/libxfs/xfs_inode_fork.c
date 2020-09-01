@@ -2114,6 +2114,7 @@ xfs_iext_lookup_extent(
 /*
  * Return true if there is an extent at index idx, and return the expanded
  * extent structure at idx in that case.  Else return false.
+ * 拿到idx 对应的extent
  */
 bool
 xfs_iext_get_extent(
@@ -2129,6 +2130,7 @@ xfs_iext_get_extent(
 	return true;
 }
 
+/*通过@gotp 来更新@idx 对应的extent, extent在磁盘上的格式并不是 bmbt_irec*/
 void
 xfs_iext_update_extent(
 	struct xfs_ifork	*ifp,

@@ -192,6 +192,7 @@ xfs_bmbt_disk_get_startoff(
 
 /*
  * Set all the fields in a bmap extent record from the arguments.
+ * 重新编码的过程
  */
 void
 xfs_bmbt_set_allf(
@@ -219,6 +220,8 @@ xfs_bmbt_set_allf(
 
 /*
  * Set all the fields in a bmap extent record from the uncompressed form.
+ *
+ * s ===加密 >>>> r
  */
 void
 xfs_bmbt_set_all(
