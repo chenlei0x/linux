@@ -91,6 +91,7 @@
 	}							\
 }
 
+/*@n = advance 中的size*/
 #define iterate_and_advance(i, n, v, I, B, K) {			\
 	if (unlikely(i->count < n))				\
 		n = i->count;					\

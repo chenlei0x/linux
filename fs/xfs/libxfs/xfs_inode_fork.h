@@ -119,6 +119,7 @@ typedef struct xfs_ifork {
 /*
  * Per-fork incore inode flags.
  */
+ /*对应local fork*/
 #define	XFS_IFINLINE	0x01	/* Inline data is read in */
 #define	XFS_IFEXTENTS	0x02	/* All extent pointers are read in */
 #define	XFS_IFBROOT	0x04	/* i_broot points to the bmap b-tree root */

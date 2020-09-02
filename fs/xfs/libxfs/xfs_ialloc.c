@@ -2369,7 +2369,7 @@ xfs_imap(
 	 * smaller we get to the buffer by simple arithmetics.
 	 */
 	if (blks_per_cluster == 1) {
-		offset = XFS_INO_TO_OFFSET(mp, ino);
+		offset = XFS_INO_TO_OFFSET(mp, ino); /*ino# 在 block中的偏移 byte*/
 		ASSERT(offset < mp->m_sb.sb_inopblock);
 
 		imap->im_blkno = XFS_AGB_TO_DADDR(mp, agno, agbno);

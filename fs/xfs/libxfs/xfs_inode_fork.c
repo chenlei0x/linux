@@ -245,7 +245,7 @@ xfs_iformat_fork(
 }
 
 
-/*这个fork 直接涵盖了他所代表的数据*/
+/*这个fork 直接涵盖了文件数据*/
 void
 xfs_init_local_fork(
 	struct xfs_inode	*ip,
@@ -298,6 +298,8 @@ xfs_init_local_fork(
  * If we allocate a buffer for the data, make
  * sure that its size is a multiple of 4 and
  * record the real size in i_real_bytes.
+ *
+ * 文件数据就在inode里面
  */
 STATIC int
 xfs_iformat_local(
@@ -330,6 +332,8 @@ xfs_iformat_local(
  * inode.  If there are few enough extents to fit into the if_inline_ext, then
  * copy them there.  Otherwise allocate a buffer for them and copy them into it.
  * Either way, set if_extents to point at the extents.
+ *
+ * extent 数组就在inode 里面
  */
 STATIC int
 xfs_iformat_extents(
@@ -362,7 +366,7 @@ xfs_iformat_extents(
 	else if (nex <= XFS_INLINE_EXTS)
 		ifp->if_u1.if_extents = ifp->if_u2.if_inline_ext;
 	else
-		xfs_iext_add(ifp, 0, nex);
+		xfs_iext_add(ifp, 0, nex); /*先申请好空间*/
 
 	/*xfs_iext_add 已经设置了size,这里重复设置了*/
 	ifp->if_bytes = size;
@@ -377,7 +381,7 @@ xfs_iformat_extents(
 		 */
 		for (i = 0; i < nex; i++, dp++) {
 			xfs_bmbt_rec_host_t *ep = xfs_iext_get_ext(ifp, i);
-			/*做大小端转换*/
+			/*做大小端转换后， 存放到之前申请好的ext 空间中*/
 			ep->l0 = get_unaligned_be64(&dp->l0);
 			ep->l1 = get_unaligned_be64(&dp->l1);
 			if (!xfs_bmbt_validate_extent(mp, whichfork, ep)) {
@@ -422,8 +426,9 @@ xfs_iformat_btree(
 	ifp = XFS_IFORK_PTR(ip, whichfork);
 	/*如果是btree结构的话， 
 	fork 处实际是一个xfs_bmdr_block_t 结构体*/
+	/*disk fork pointer*/
 	dfp = (xfs_bmdr_block_t *)XFS_DFORK_PTR(dip, whichfork);
-	size = XFS_BMAP_BROOT_SPACE(mp, dfp);
+	size = XFS_BMAP_BROOT_SPACE(mp, dfp);/*磁盘上的fork root结构体*/
 	nrecs = be16_to_cpu(dfp->bb_numrecs);
 	level = be16_to_cpu(dfp->bb_level);
 
@@ -2114,7 +2119,6 @@ xfs_iext_lookup_extent(
 /*
  * Return true if there is an extent at index idx, and return the expanded
  * extent structure at idx in that case.  Else return false.
- * 拿到idx 对应的extent
  */
 bool
 xfs_iext_get_extent(
@@ -2130,7 +2134,6 @@ xfs_iext_get_extent(
 	return true;
 }
 
-/*通过@gotp 来更新@idx 对应的extent, extent在磁盘上的格式并不是 bmbt_irec*/
 void
 xfs_iext_update_extent(
 	struct xfs_ifork	*ifp,

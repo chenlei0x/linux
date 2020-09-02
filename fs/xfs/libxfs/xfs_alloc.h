@@ -81,26 +81,21 @@ typedef struct xfs_alloc_arg {
 	 */
 	xfs_agnumber_t	agno;		/* allocation group number */
 	xfs_agblock_t	agbno;		/* allocation group-relative block # */
-	/*extent长度范围 */
 	xfs_extlen_t	minlen;		/* minimum size of extent */
 	xfs_extlen_t	maxlen;		/* maximum size of extent */
 	xfs_extlen_t	mod;		/* mod value for extent size */
 	xfs_extlen_t	prod;		/* prod value for extent size */
 	xfs_extlen_t	minleft;	/* min blocks must be left after us */
-	/*总共需要申请的长度, 虽然总共需要这么多,但是可以拆成多个extent,每个ext的大小
-	由 minlen maxlen决定*/
 	xfs_extlen_t	total;		/* total blocks needed in xaction */
 	xfs_extlen_t	alignment;	/* align answer to multiple of this */
 	xfs_extlen_t	minalignslop;	/* slop for minlen+alignment calcs */
-	/*对NEAR allocs规定ag范围*/
 	xfs_agblock_t	min_agbno;	/* set an agbno range for NEAR allocs */
 	xfs_agblock_t	max_agbno;	/* ... */
-	/*实际申请到的长度*/
 	xfs_extlen_t	len;		/* output: actual size of extent */
 	xfs_alloctype_t	type;		/* allocation type XFS_ALLOCTYPE_... */
 	xfs_alloctype_t	otype;		/* original allocation type */
 
-	/*xfs_alloc_is_userdata 函数可以确定是否是 用户数据*/
+	/*通过xfs_alloc_is_userdata 函数可以确定是否是 用户数据*/
 	int		datatype;	/* mask defining data type treatment */
 	char		wasdel;		/* set if allocation was prev delayed */
 	char		wasfromfl;	/* set if allocation is from freelist */

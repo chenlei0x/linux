@@ -504,6 +504,7 @@ xfs_iread(
 
 	/*
 	 * Get pointers to the on-disk inode and the buffer containing it.
+	 * @dip是磁盘中的inode 镜像
 	 */
 	error = xfs_imap_to_bp(mp, tp, &ip->i_imap, &dip, &bp, 0, iget_flags);
 	if (error)
@@ -527,6 +528,7 @@ xfs_iread(
 	 * Otherwise, just get the truly permanent information.
 	 */
 	if (dip->di_mode) {
+		/*拷贝相关属性字段*/
 		xfs_inode_from_disk(ip, dip);
 		error = xfs_iformat_fork(ip, dip);
 		if (error)  {

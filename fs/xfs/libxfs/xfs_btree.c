@@ -3656,7 +3656,8 @@ error0:
  * cursor.  All callers of this function should assume that the cursor is
  * no longer valid and revalidate it.
  *
- * 对每个level 进行插入,因为下层插入一条 可能会让整个祖先分裂
+ * 对btree 每个level 进行插入,因为下层插入一条 可能会让整个祖先分裂，这里直接操作
+ * 的是磁盘上的数据(如果要操作的是内存中的ext，调用xfs_iext_insert)
  *
  */
 int
@@ -3699,6 +3700,7 @@ xfs_btree_insert(
 		 *
 		 * 这里写的比较有意思, 从叶子节点开始插入一个rec, 那么插入过程中可能
 		 * 会造成leaf block 裂变, 裂变之后新的block应该在其父节点上以一个kp对来呈现
+		 * 这里很像一个迭代器
 		 */
 		error = xfs_btree_insrec(pcur, level, &nptr, &rec, key,
 				&ncur, &i);

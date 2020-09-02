@@ -1639,6 +1639,7 @@ xfs_alloc_ag_vextent_small(
 		 args->resv != XFS_AG_RESV_AGFL &&
 		 (be32_to_cpu(XFS_BUF_TO_AGF(args->agbp)->agf_flcount)
 		  > args->minleft)) {
+		/*从agfl中获得一个block， 放到@fbno中， fbno是ag内的block#*/
 		error = xfs_alloc_get_freelist(args->tp, args->agbp, &fbno, 0);
 		if (error)
 			goto error0;
@@ -2375,6 +2376,8 @@ out_no_agbp:
 /*
  * Get a block from the freelist.
  * Returns with the buffer for the block gotten.
+ *
+ *	从agfl中获得一个block， 放到@fbno中， fbno是ag内的block#
  */
 int				/* error */
 xfs_alloc_get_freelist(

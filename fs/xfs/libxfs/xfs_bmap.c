@@ -3796,12 +3796,11 @@ xfs_bmap_btalloc(
 	args.datatype = ap->datatype;
 	if (ap->datatype & XFS_ALLOC_USERDATA_ZERO)
 		args.ip = ap->ip;
-	/*开始真正的申请extent*/
+
 	error = xfs_alloc_vextent(&args);
 	if (error)
 		return error;
-	
-	
+
 	if (tryagain && args.fsbno == NULLFSBLOCK) {
 		/*
 		 * Exact allocation failed. Now try with alignment
@@ -4286,7 +4285,7 @@ xfs_bmapi_reserve_delalloc(
 
 
 	ip->i_delayed_blks += alen;
-	/*got 转变成为新的extent*/
+	/*got 转变成为新的delay extent*/
 	got->br_startoff = aoff;
 	got->br_startblock = nullstartblock(indlen);
 	got->br_blockcount = alen;
@@ -4390,7 +4389,7 @@ xfs_bmapi_allocate(
 		if (error)
 			return error;
 	}
-	/*!!!申请extent*/
+
 	error = xfs_bmap_alloc(bma);
 	if (error)
 		return error;
@@ -4416,7 +4415,7 @@ xfs_bmapi_allocate(
 
 	bma->got.br_startoff = bma->offset;
 	bma->got.br_startblock = bma->blkno;
-	bma->got.br_blockcount = bma->length; /*bma->length 代表申请到的长度*/
+	bma->got.br_blockcount = bma->length;
 	bma->got.br_state = XFS_EXT_NORM;
 
 	/*
@@ -4437,7 +4436,7 @@ xfs_bmapi_allocate(
 		/*如果之前是delay alloc， 那么把这个delay 转为 real*/
 		error = xfs_bmap_add_extent_delay_real(bma, whichfork);
 	else
-		/*如果之前不是delay alloc， 那么把这个hole 转为 real*/
+		/*如果之前是delay alloc， 那么把这个hole 转为 real*/
 		error = xfs_bmap_add_extent_hole_real(bma->tp, bma->ip,
 				whichfork, &bma->idx, &bma->cur, &bma->got,
 				bma->firstblock, bma->dfops, &bma->logflags);
@@ -4662,7 +4661,6 @@ xfs_bmapi_write(
 	bma.dfops = dfops;
 	bma.firstblock = firstblock;
 
-	/*开始分段申请, bno end 都是file offset*/
 	while (bno < end && n < *nmap) {
 		bool			need_alloc = false, wasdelay = false;
 

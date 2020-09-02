@@ -29,10 +29,11 @@ enum {
 };
 
 struct iov_iter {
-	int type;
-	size_t iov_offset;
-	size_t count;
+	int type; /*WRITE 还是 READ*/
+	size_t iov_offset; /*new_sync_write初始化为0*/
+	size_t count; /*write 时候的 len， 总长度， 随着advance， count逐渐递减*/
 	union {
+		/*new_sync_write 中， 把iov 初始化为 @buf，@len*/
 		const struct iovec *iov;
 		const struct kvec *kvec;
 		const struct bio_vec *bvec;

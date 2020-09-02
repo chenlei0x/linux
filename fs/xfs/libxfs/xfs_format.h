@@ -644,6 +644,8 @@ xfs_is_quota_inode(struct xfs_sb *sbp, xfs_ino_t ino)
  * The second word of agf_levels in the first a.g. overlaps the EFS
  * superblock's magic number.  Since the magic numbers valid for EFS
  * are > 64k, our value cannot be confused for an EFS superblock's.
+ *
+ * 控制ag中空闲空间的元数据，重点在于两棵树 bno 和cno
  */
 
 typedef struct xfs_agf {
@@ -921,7 +923,7 @@ typedef struct xfs_dinode {
 	xfs_timestamp_t	di_atime;	/* time last accessed */
 	xfs_timestamp_t	di_mtime;	/* time last modified */
 	xfs_timestamp_t	di_ctime;	/* time created/inode modified */
-	__be64		di_size;	/* number of bytes in file */
+	__be64		di_size;	/* number of bytes in file 文件数据大小 */
 	__be64		di_nblocks;	/* # of direct & btree blocks used */
 	__be32		di_extsize;	/* basic/minimum extent size for file */
 	/*初始为0 
