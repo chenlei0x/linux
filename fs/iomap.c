@@ -40,7 +40,7 @@
  * range of pages. It is assumed that the filesystems will lock whatever
  * resources they require in the iomap_begin call, and release them in the
  * iomap_end call.
- * @actor 可能== iomap_write_actor
+ * @actor 可能== iomap_write_actor iomap_dio_actor
  */
 loff_t
 iomap_apply(struct inode *inode, loff_t pos, loff_t length, unsigned flags,
@@ -1067,6 +1067,7 @@ iomap_dio_rw(struct kiocb *iocb, struct iov_iter *iter,
 		iomap_dio_set_error(dio, ret);
 
 	if (!atomic_dec_and_test(&dio->ref)) {
+		/*dio->ref == 0*/
 		if (!dio->wait_for_completion)
 			return -EIOCBQUEUED;
 

@@ -2295,7 +2295,7 @@ retry:
 	while (!done && (index <= end)) {
 		int i;
 
-		/*查找打上tag的所有page*/
+		/*查找打上@tag的所有page*/
 		nr_pages = pagevec_lookup_tag(&pvec, mapping, &index, tag,
 			      min(end - index, (pgoff_t)PAGEVEC_SIZE-1) + 1);
 		if (nr_pages == 0)
@@ -2351,6 +2351,7 @@ continue_unlock:
 			}
 
 			BUG_ON(PageWriteback(page));
+			/*写之前先把page 清掉dirty flag*/
 			if (!clear_page_dirty_for_io(page))
 				goto continue_unlock;
 
@@ -2808,6 +2809,7 @@ int clear_page_dirty_for_io(struct page *page)
 		 * as a serialization point for all the different
 		 * threads doing their things.
 		 */
+		 /*把所有映射了@page的页表项都置为干净， 这里需要看反向映射的代码*/
 		if (page_mkclean(page))
 			set_page_dirty(page);
 		/*
@@ -2899,8 +2901,10 @@ int __test_set_page_writeback(struct page *page, bool keep_write)
 		unsigned long flags;
 
 		spin_lock_irqsave(&mapping->tree_lock, flags);
+		/*return its old value*/
 		ret = TestSetPageWriteback(page);
 		if (!ret) {
+			/*PG_Writeback 从无到有*/
 			bool on_wblist;
 
 			on_wblist = mapping_tagged(mapping,

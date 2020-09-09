@@ -219,6 +219,7 @@ static __always_inline void __SetPage##uname(struct page *page)		\
 static __always_inline void __ClearPage##uname(struct page *page)	\
 	{ __clear_bit(PG_##lname, &policy(page, 1)->flags); }
 
+/*return its old value 返回原值*/
 #define TESTSETFLAG(uname, lname, policy)				\
 static __always_inline int TestSetPage##uname(struct page *page)	\
 	{ return test_and_set_bit(PG_##lname, &policy(page, 1)->flags); }
@@ -478,8 +479,11 @@ CLEARPAGEFLAG(Uptodate, uptodate, PF_NO_TAIL)
 int test_clear_page_writeback(struct page *page);
 int __test_set_page_writeback(struct page *page, bool keep_write);
 
+
+/*一定会标记 PAGECACHE_TAG_TOWRITE*/
 #define test_set_page_writeback(page)			\
 	__test_set_page_writeback(page, false)
+/*不清除标记 PAGECACHE_TAG_TOWRITE*/
 #define test_set_page_writeback_keepwrite(page)	\
 	__test_set_page_writeback(page, true)
 

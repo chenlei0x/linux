@@ -468,8 +468,17 @@ struct block_device {
 /*
  * Radix-tree tags, for tagging dirty and writeback pages within the pagecache
  * radix trees
+ *
+ * tag_pages_for_writeback 会把打上DIRTY的page 加上TOWRITE
+ *
+ * The rule we follow is that TOWRITE tag can be cleared only
+ * by the process clearing the DIRTY tag (and submitting the page for IO).
  */
 #define PAGECACHE_TAG_DIRTY	0
+/*
+mapping 中有任何一个页有该标记，说明就已经在wblist了
+该page正在被回写
+*/
 #define PAGECACHE_TAG_WRITEBACK	1
 #define PAGECACHE_TAG_TOWRITE	2
 

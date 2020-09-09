@@ -958,7 +958,7 @@ static bool invalid_mkclean_vma(struct vm_area_struct *vma, void *arg)
 
 	return true;
 }
-
+/*把所有映射了@page的页表项都置为干净， 这里需要看反向映射的代码*/
 int page_mkclean(struct page *page)
 {
 	int cleaned = 0;

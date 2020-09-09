@@ -669,6 +669,8 @@ static void __set_page_dirty(struct page *page, struct address_space *mapping,
  *
  * FIXME: may need to call ->reservepage here as well.  That's rather up to the
  * address_space though.
+ *
+ * 把页置脏， 同时把页的buffer 页置为脏
  */
 int __set_page_dirty_buffers(struct page *page)
 {
