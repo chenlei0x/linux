@@ -99,6 +99,11 @@ static int __blk_mq_get_tag(struct blk_mq_alloc_data *data,
 		return __sbitmap_queue_get(bt);
 }
 
+/*
+ 从data 指向的hctx中拿到一个tag
+ 这里不需要加锁之类的，因为sbitmap接口中已经保证了互斥问题
+
+*/
 unsigned int blk_mq_get_tag(struct blk_mq_alloc_data *data)
 {
 	struct blk_mq_tags *tags = blk_mq_tags_from_data(data);
@@ -121,7 +126,7 @@ unsigned int blk_mq_get_tag(struct blk_mq_alloc_data *data)
 	}
 
 	tag = __blk_mq_get_tag(data, bt);
-	if (tag != -1)
+	if (tag != -1) /*还有空余的*/
 		goto found_tag;
 
 	if (data->flags & BLK_MQ_REQ_NOWAIT)

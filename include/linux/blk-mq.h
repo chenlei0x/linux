@@ -75,6 +75,8 @@ struct blk_mq_hw_ctx {
 	/**
 	 * @ctx_map: Bitmap for each software queue. If bit is on, there is a
 	 * pending request in that software queue.
+	 *
+	 * 每个soft queue 对应一个bit， 为1时说明有pending io
 	 */
 	struct sbitmap		ctx_map;
 
@@ -87,6 +89,7 @@ struct blk_mq_hw_ctx {
 	 * @dispatch_busy: Number used by blk_mq_update_dispatch_busy() to
 	 * decide if the hw_queue is busy using Exponential Weighted Moving
 	 * Average algorithm.
+	 繁忙程度
 	 */
 	unsigned int		dispatch_busy;
 
@@ -114,21 +117,27 @@ struct blk_mq_hw_ctx {
 	/**
 	 * @tags: Tags owned by the block driver. A tag at this set is only
 	 * assigned when a request is dispatched from a hardware queue.
+	 *
+	 * 这里面包含了rq map，以及rq申请时用到的bitmap
 	 */
 	struct blk_mq_tags	*tags;
 	/**
 	 * @sched_tags: Tags owned by I/O scheduler. If there is an I/O
 	 * scheduler associated with a request queue, a tag is assigned when
 	 * that request is allocated. Else, this member is not used.
+	 * io scheduler 所用的tag
 	 */
 	struct blk_mq_tags	*sched_tags;
 
 	/** @queued: Number of queued requests. */
+	/*每分配出去一个rq +1， blk_mq_get_request*/
 	unsigned long		queued;
 	/** @run: Number of dispatched requests. */
 	unsigned long		run;
 #define BLK_MQ_MAX_DISPATCH_ORDER	7
-	/** @dispatched: Number of dispatch requests by queue. */
+	/** @dispatched: Number of dispatch requests by queue. 
+		dispatched [i] 表示 一次性下发2^i 个req 有dispatched[i]次
+*/
 	unsigned long		dispatched[BLK_MQ_MAX_DISPATCH_ORDER];
 
 	/** @numa_node: NUMA node the storage adapter has been connected to. */
@@ -186,8 +195,10 @@ struct blk_mq_hw_ctx {
  *	set of hardware queues.
  */
 struct blk_mq_queue_map {
-	/*map[cpu] = queue_index(qmap, nr_queues, q++)*/
+	/*map[cpu] = queue_index(qmap, nr_queues, q++)
+ cpu 和具体hw queue 的映射*/
 	unsigned int *mq_map;
+	/*set->nr_hw_queues*/
 	unsigned int nr_queues;
 	unsigned int queue_offset;
 };
@@ -235,8 +246,20 @@ enum hctx_type {
  * @tag_list:	   List of the request queues that use this tag set. See also
  *		   request_queue.tag_set_list.
  */
+
+/*
+
+nvme_alloc_admin_tags
+
+nvme_dev_add
+	dev->tagset.xxx = xxx
+
+
+初始化： blk_mq_alloc_tag_set
+
+*/
 struct blk_mq_tag_set {
-	struct blk_mq_queue_map	map[HCTX_MAX_TYPES];
+	struct blk_mq_queue_map	map[HCTX_MAX_TYPES]; /*blk_mq_alloc_tag_set 初始化*/
 	unsigned int		nr_maps;/*map里面有几个是valid的*/
 	const struct blk_mq_ops	*ops;
 	unsigned int		nr_hw_queues;/*有几个hw queue， 用来初始化*/
@@ -249,11 +272,13 @@ struct blk_mq_tag_set {
 	unsigned int		flags;
 	void			*driver_data;
 
-	/*每个blk_mq_tags 结构体对应一个硬件队列*/
+	/*每个blk_mq_tags 结构体对应一个硬件队列
+	= new_nr_hw_queues * sizeof(struct blk_mq_tags *)
+	*/
 	struct blk_mq_tags	**tags; /*元素个数： nr_hw_queues 下表：hctx_idx*/
 
 	struct mutex		tag_list_lock;
-	struct list_head	tag_list;
+	struct list_head	tag_list; /*使用这个tag set的queue的所有列表*/
 };
 
 /**
@@ -438,6 +463,7 @@ enum {
 	/* allocate from reserved pool */
 	BLK_MQ_REQ_RESERVED	= (__force blk_mq_req_flags_t)(1 << 1),
 	/* allocate internal/sched tag */
+	/*如果当前q使用了elevator，则使能这个flag*/
 	BLK_MQ_REQ_INTERNAL	= (__force blk_mq_req_flags_t)(1 << 2),
 	/* set RQF_PREEMPT */
 	BLK_MQ_REQ_PREEMPT	= (__force blk_mq_req_flags_t)(1 << 3),

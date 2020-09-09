@@ -2421,6 +2421,7 @@ void blk_throtl_drain(struct request_queue *q)
 	spin_lock_irq(&q->queue_lock);
 }
 
+/*throttle data 的初始化，td 和一个q对应 1：1*/
 int blk_throtl_init(struct request_queue *q)
 {
 	struct throtl_data *td;

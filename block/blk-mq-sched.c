@@ -46,6 +46,7 @@ void blk_mq_sched_assign_ioc(struct request *rq)
 		return;
 
 	spin_lock_irq(&q->queue_lock);
+	/*一个进程会对多个q进行io， ioc用来做统一管理，icq是一个实例*/
 	icq = ioc_lookup_icq(ioc, q);
 	spin_unlock_irq(&q->queue_lock);
 
@@ -84,6 +85,8 @@ void blk_mq_sched_restart(struct blk_mq_hw_ctx *hctx)
  * Only SCSI implements .get_budget and .put_budget, and SCSI restarts
  * its queue by itself in its completion handler, so we don't need to
  * restart queue if .get_budget() returns BLK_STS_NO_RESOURCE.
+ *
+ * 调用调度层的 dispatch-request函数，放入q->queuelist中
  */
 static void blk_mq_do_dispatch_sched(struct blk_mq_hw_ctx *hctx)
 {
@@ -130,6 +133,8 @@ static struct blk_mq_ctx *blk_mq_next_ctx(struct blk_mq_hw_ctx *hctx,
  * Only SCSI implements .get_budget and .put_budget, and SCSI restarts
  * its queue by itself in its completion handler, so we don't need to
  * restart queue if .get_budget() returns BLK_STS_NO_RESOURCE.
+ *
+ * 从soft queue中挨个拿出rq
  */
 static void blk_mq_do_dispatch_ctx(struct blk_mq_hw_ctx *hctx)
 {
@@ -146,6 +151,7 @@ static void blk_mq_do_dispatch_ctx(struct blk_mq_hw_ctx *hctx)
 		if (!blk_mq_get_dispatch_budget(hctx))
 			break;
 
+		/*这里只取一个req*/
 		rq = blk_mq_dequeue_from_ctx(hctx, ctx);
 		if (!rq) {
 			blk_mq_put_dispatch_budget(hctx);
@@ -208,8 +214,10 @@ void blk_mq_sched_dispatch_requests(struct blk_mq_hw_ctx *hctx)
 		blk_mq_sched_mark_restart_hctx(hctx);
 		if (blk_mq_dispatch_rq_list(q, &rq_list, false)) {
 			if (has_sched_dispatch)
+				/*从他的调度层开始派发*/
 				blk_mq_do_dispatch_sched(hctx);
 			else
+				/*从他的软队列里拉req*/
 				blk_mq_do_dispatch_ctx(hctx);
 		}
 	} else if (has_sched_dispatch) {
@@ -399,10 +407,11 @@ void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 		LIST_HEAD(list);
 
 		list_add(&rq->queuelist, &list);
+		/*调度层插入req*/
 		e->type->ops.insert_requests(hctx, &list, at_head);
 	} else {
 		spin_lock(&ctx->lock);
-		/*直接放入ctx中*/
+		/*直接放入软队列ctx中*/
 		__blk_mq_insert_request(hctx, rq, at_head);
 		spin_unlock(&ctx->lock);
 	}

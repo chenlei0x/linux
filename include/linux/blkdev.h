@@ -137,8 +137,8 @@ struct request {
 	unsigned int cmd_flags;		/* op and common flags */
 	req_flags_t rq_flags;
 
-	int tag;
-	int internal_tag;
+	int tag; /*我在hctx中的tag 下标*/
+	int internal_tag;/*用作flush 待研究*/
 
 	/* the following two fields are internal, NEVER access directly */
 	unsigned int __data_len;	/* total data len */
@@ -400,6 +400,7 @@ struct request_queue {
 	struct blk_queue_stats	*stats;
 	struct rq_qos		*rq_qos;
 
+	/*目前该回调函数只会等于 blk_mq_make_request*/
 	make_request_fn		*make_request_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
 
@@ -410,7 +411,9 @@ struct request_queue {
 
 	unsigned int		queue_depth;
 
-	/* hw dispatch queues */
+	/* hw dispatch queues 硬件派发队列map
+	 长度： set->nr_hw_queues
+	 */
 	struct blk_mq_hw_ctx	**queue_hw_ctx;
 	unsigned int		nr_hw_queues;
 
@@ -567,8 +570,12 @@ struct request_queue {
 	struct mutex		mq_freeze_lock;
 	struct percpu_ref	q_usage_counter;
 
+	/*本q使用的tag set*/
 	struct blk_mq_tag_set	*tag_set;
+	/*使用相同的set的queue链接在一起，
+	 blk_mq_tag_set->tag_list*/
 	struct list_head	tag_set_list;
+	
 	struct bio_set		bio_split;
 
 #ifdef CONFIG_BLK_DEBUG_FS

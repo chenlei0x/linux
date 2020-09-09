@@ -6,6 +6,8 @@
 
 /*
  * Tag address space map.
+ *
+ * 对应一个hw queue， 每个hw queue都有自己的rq 队列，和bitmap
  */
 struct blk_mq_tags {
 	/* depth = tags->nr_tags - tags->nr_reserved_tags;*/
@@ -14,10 +16,26 @@ struct blk_mq_tags {
 
 	atomic_t active_queues;
 
+	/*以下两个bitmap用来描述 static_rqs中的使用情况*/
 	struct sbitmap_queue bitmap_tags;/*长度为depth*/
 	struct sbitmap_queue breserved_tags; /*长度为nr_reserved_tags*/
 
+	/*用来记录正在使用的rqs
+	  初始化该map：
+	  	blk_mq_alloc_rq_map
+	  后续使用：
+		blk_mq_get_driver_tag
+			rq->tag = blk_mq_get_tag(&data);
+			data.hctx->tags->rqs[rq->tag] = rq;
+
+	  释放：
+	  	blk_mq_free_request
+	*/
 	struct request **rqs; /*长度为nr_tags*/
+	/*
+	  blk_mq_alloc_rq_map 初始化
+	  bitmap_tags 中描述的就是该数组中的所有req
+	 */
 	struct request **static_rqs; /*长度为nr_tags*/
 	struct list_head page_list;
 };

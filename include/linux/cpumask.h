@@ -607,6 +607,8 @@ static inline void cpumask_copy(struct cpumask *dstp,
  * @src2p: the second input
  *
  * Returns >= nr_cpu_ids if no cpus set in both.  See also cpumask_next_and().
+ *
+ * 第一个交集cpu
  */
 #define cpumask_first_and(src1p, src2p) cpumask_next_and(-1, (src1p), (src2p))
 

@@ -269,6 +269,7 @@ static inline bool blk_mq_need_time_stamp(struct request *rq)
 	return (rq->rq_flags & (RQF_IO_STAT | RQF_STATS)) || rq->q->elevator;
 }
 
+/*通过tag 从 tags中拿到rq， 并初始化rq*/
 static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 		unsigned int tag, unsigned int op, u64 alloc_time_ns)
 {
@@ -331,6 +332,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 	return rq;
 }
 
+/*申请并初始化一个req*/
 static struct request *blk_mq_get_request(struct request_queue *q,
 					  struct bio *bio,
 					  struct blk_mq_alloc_data *data)
@@ -374,6 +376,7 @@ static struct request *blk_mq_get_request(struct request_queue *q,
 		blk_mq_tag_busy(data->hctx);
 	}
 
+	/*从data 指向的hctx中拿到一个tag， 一个tag对应一个rq*/
 	tag = blk_mq_get_tag(data);
 	if (tag == BLK_MQ_TAG_FAIL) {
 		if (clear_ctx_on_error)
@@ -382,6 +385,7 @@ static struct request *blk_mq_get_request(struct request_queue *q,
 		return NULL;
 	}
 
+	/*通过tag 就拿到了对应的req*/
 	rq = blk_mq_rq_ctx_init(data, tag, data->cmd_flags, alloc_time_ns);
 	if (!op_is_flush(data->cmd_flags)) {
 		rq->elv.icq = NULL;
@@ -449,14 +453,17 @@ struct request *blk_mq_alloc_request_hctx(struct request_queue *q,
 	 * Check if the hardware context is actually mapped to anything.
 	 * If not tell the caller that it should skip this queue.
 	 */
+	 /*这里和blk_mq_alloc_request 函数的区别，指定了具体的h ctx*/
 	alloc_data.hctx = q->queue_hw_ctx[hctx_idx];
 	if (!blk_mq_hw_queue_mapped(alloc_data.hctx)) {
 		blk_queue_exit(q);
 		return ERR_PTR(-EXDEV);
 	}
 	cpu = cpumask_first_and(alloc_data.hctx->cpumask, cpu_online_mask);
+	/*软队列*/
 	alloc_data.ctx = __blk_mq_get_ctx(q, cpu);
 
+	/*blk_mq_get_request中会帮忙分配软硬队列*/
 	rq = blk_mq_get_request(q, NULL, &alloc_data);
 	blk_queue_exit(q);
 
@@ -979,6 +986,7 @@ struct dispatch_rq_data {
 	struct request *rq;
 };
 
+/*从软队列中拿到第一个req， 如果有req，则返回false*/
 static bool dispatch_rq_from_ctx(struct sbitmap *sb, unsigned int bitnr,
 		void *data)
 {
@@ -1000,7 +1008,7 @@ static bool dispatch_rq_from_ctx(struct sbitmap *sb, unsigned int bitnr,
 }
 
 /*
- * 对hctx 的每个对应的ctx 把他们的request 都拿出来
+ * 从这些有pending io的ctx中获得第一个req，放到data->req
  * 
  */
 struct request *blk_mq_dequeue_from_ctx(struct blk_mq_hw_ctx *hctx,
@@ -1012,6 +1020,7 @@ struct request *blk_mq_dequeue_from_ctx(struct blk_mq_hw_ctx *hctx,
 		.rq   = NULL,
 	};
 
+	/*从这些有pending io的ctx中, 从off开始，获得第一个req，放到data->req*/
 	__sbitmap_for_each_set(&hctx->ctx_map, off,
 			       dispatch_rq_from_ctx, &data);
 
@@ -1043,12 +1052,14 @@ bool blk_mq_get_driver_tag(struct request *rq)
 		data.flags |= BLK_MQ_REQ_RESERVED;
 
 	shared = blk_mq_tag_busy(data.hctx);
+	/*拿到一个tag*/
 	rq->tag = blk_mq_get_tag(&data);
 	if (rq->tag >= 0) {
 		if (shared) {
 			rq->rq_flags |= RQF_MQ_INFLIGHT;
 			atomic_inc(&data.hctx->nr_active);
 		}
+		/*记录下来表示已经申请到了*/
 		data.hctx->tags->rqs[rq->tag] = rq;
 	}
 
@@ -1179,6 +1190,7 @@ static void blk_mq_update_dispatch_busy(struct blk_mq_hw_ctx *hctx, bool busy)
 
 /*
  * Returns true if we did some work AND can potentially do more.
+ * 这里派发给驱动层！！！
  */
 bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 			     bool got_budget)
@@ -1229,6 +1241,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 			}
 		}
 
+		/*从@list上摘下来*/
 		list_del_init(&rq->queuelist);
 
 		bd.rq = rq;
@@ -1244,7 +1257,9 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 			bd.last = !blk_mq_get_driver_tag(nxt);
 		}
 
-		/*驱动注册的 如 nvme_queue_rq*/
+		/*向驱动层提交req！！！！！
+		 驱动注册的 如 nvme_queue_rq
+		 */
 		ret = q->mq_ops->queue_rq(hctx, &bd);
 		if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {
 			/*
@@ -1257,6 +1272,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 				blk_mq_put_driver_tag(nxt);
 			}
 			list_add(&rq->queuelist, list);
+			/*重新下发，进入qos层*/
 			__blk_mq_requeue_request(rq);
 			break;
 		}
@@ -1283,6 +1299,8 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		 * If we didn't flush the entire list, we could have told
 		 * the driver there was more coming, but that turned out to
 		 * be a lie.
+		 *
+		 * nvme_commit_rqs 用来nvmd door bell
 		 */
 		if (q->mq_ops->commit_rqs)
 			q->mq_ops->commit_rqs(hctx);
@@ -1393,6 +1411,8 @@ static inline int blk_mq_first_mapped_cpu(struct blk_mq_hw_ctx *hctx)
  * in a mask and had some smarts for more clever placement.
  * For now we just round-robin here, switching for every
  * BLK_MQ_CPU_WORK_BATCH queued items.
+ * 一个hctx 可能对应好几个cpu， 我们可以在这些cpu上run 这个hctx，该函数
+ * 用来找到合适的hctx
  */
 static int blk_mq_hctx_next_cpu(struct blk_mq_hw_ctx *hctx)
 {
@@ -1451,6 +1471,7 @@ static void __blk_mq_delay_run_hw_queue(struct blk_mq_hw_ctx *hctx, bool async,
 		put_cpu();
 	}
 
+	/*blk_mq_run_work_fn*/
 	kblockd_mod_delayed_work_on(blk_mq_hctx_next_cpu(hctx), &hctx->run_work,
 				    msecs_to_jiffies(msecs));
 }
@@ -1610,7 +1631,7 @@ static void blk_mq_run_work_fn(struct work_struct *work)
 }
 
 
-/*插入到ctx队列中*/
+/*插入到软队列中*/
 static inline void __blk_mq_insert_req_list(struct blk_mq_hw_ctx *hctx,
 					    struct request *rq,
 					    bool at_head)
@@ -1637,7 +1658,9 @@ void __blk_mq_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
 
 	lockdep_assert_held(&ctx->lock);
 
+	/*先挂到软队列*/
 	__blk_mq_insert_req_list(hctx, rq, at_head);
+	/*再告诉被映射的硬件队列此时有io pending*/
 	blk_mq_hctx_mark_pending(hctx, ctx);
 }
 
@@ -1927,6 +1950,8 @@ static void blk_add_rq_to_plug(struct blk_plug *plug, struct request *rq)
 	blk_mq_init_sq_queue
 		blk_mq_init_queue
 			blk_mq_init_allocated_queue
+
+	make_request_fn
 */
 static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 {
@@ -1940,6 +1965,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	blk_qc_t cookie;
 
 	blk_queue_bounce(q, &bio);
+	/*把@bio的尾部形成一个新的bio 进行提交,然后缩短@bio*/
 	__blk_queue_split(q, &bio, &nr_segs);
 
 	if (!bio_integrity_prep(bio))
@@ -1952,9 +1978,11 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	if (blk_mq_sched_bio_merge(q, bio, nr_segs))
 		return BLK_QC_T_NONE;
 
+	/*这里可能会睡眠，睡完了继续往下走， throttle针对的是bio*/
 	rq_qos_throttle(q, bio);
 
 	data.cmd_flags = bio->bi_opf;
+	/*申请并初始化一个req*/
 	rq = blk_mq_get_request(q, bio, &data);
 	if (unlikely(!rq)) {
 		rq_qos_cleanup(q, bio);
@@ -2102,7 +2130,7 @@ struct blk_mq_tags *blk_mq_alloc_rq_map(struct blk_mq_tag_set *set,
 		blk_mq_free_tags(tags);
 		return NULL;
 	}
-	/*/*申请req 指针数组*/
+	/*申请req  * 指针数组*/
 	tags->static_rqs = kcalloc_node(nr_tags, sizeof(struct request *),
 					GFP_NOIO | __GFP_NOWARN | __GFP_NORETRY,
 					node);
@@ -2431,12 +2459,12 @@ static void blk_mq_init_cpu_queues(struct request_queue *q,
 	}
 }
 
-/**/
+/*申请一个 blk_mq_tag_set */
 static bool __blk_mq_alloc_rq_map(struct blk_mq_tag_set *set, int hctx_idx)
 {
 	int ret = 0;
 
-	/*先申请req 指针数组*/
+	/*先申请一个blk_mq_tags， 申请里面的req * 指针数组*/
 	set->tags[hctx_idx] = blk_mq_alloc_rq_map(set, hctx_idx,
 					set->queue_depth, set->reserved_tags);
 	if (!set->tags[hctx_idx])
@@ -2690,6 +2718,7 @@ void blk_mq_release(struct request_queue *q)
 	blk_mq_sysfs_deinit(q);
 }
 
+/*驱动中会调用该函数新建一个queue*/
 struct request_queue *blk_mq_init_queue(struct blk_mq_tag_set *set)
 {
 	struct request_queue *uninit_q, *q;
@@ -2965,6 +2994,8 @@ out_unwind:
  * Allocate the request maps associated with this tag_set. Note that this
  * may reduce the depth asked for, if memory is tight. set->queue_depth
  * will be updated to reflect the allocated depth.
+ *
+ * 初始化刚才申请的blk_mq_tags， 申请真正的rq结构体
  */
 static int blk_mq_alloc_rq_maps(struct blk_mq_tag_set *set)
 {
@@ -3026,6 +3057,8 @@ static int blk_mq_update_queue_map(struct blk_mq_tag_set *set)
 	}
 }
 
+
+/*申请 blk_mq_tags * 数组*/
 static int blk_mq_realloc_tag_set_tags(struct blk_mq_tag_set *set,
 				  int cur_nr_hw_queues, int new_nr_hw_queues)
 {
@@ -3102,6 +3135,7 @@ int blk_mq_alloc_tag_set(struct blk_mq_tag_set *set)
 	if (set->nr_maps == 1 && set->nr_hw_queues > nr_cpu_ids)
 		set->nr_hw_queues = nr_cpu_ids;
 
+	/*申请 blk-mq-tags map*/
 	if (blk_mq_realloc_tag_set_tags(set, 0, set->nr_hw_queues) < 0)
 		return -ENOMEM;
 

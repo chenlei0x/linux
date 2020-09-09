@@ -1066,7 +1066,7 @@ blk_qc_t generic_make_request(struct bio *bio)
 			/* Create a fresh bio_list for all subordinate requests */
 			bio_list_on_stack[1] = bio_list_on_stack[0];
 			bio_list_init(&bio_list_on_stack[0]);
-			ret = q->make_request_fn(q, bio);
+			ret = q->make_request_fn(q, bio); /*blk_mq_make_request*/
 
 			blk_queue_exit(q);
 

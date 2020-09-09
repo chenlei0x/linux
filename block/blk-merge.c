@@ -278,6 +278,10 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 	return NULL;
 split:
 	*segs = nsegs;
+	/*
+	 * @bio advance @sectors 个 扇区
+	 * 返回的是包含的是开头的 @sectors 个扇区的bio
+	 */
 	return bio_split(bio, sectors, GFP_NOIO, bs);
 }
 
@@ -293,6 +297,11 @@ split:
  * function may allocate a new bio from @q->bio_split, it is the responsibility
  * of the caller to ensure that @q is only released after processing of the
  * split bio has finished.
+ *
+ *
+ * |------bio---------|
+   |split || bio提交    |
+   最后@bio = split
  */
 void __blk_queue_split(struct request_queue *q, struct bio **bio,
 		unsigned int *nr_segs)
@@ -331,7 +340,7 @@ void __blk_queue_split(struct request_queue *q, struct bio **bio,
 		split = blk_bio_segment_split(q, *bio, &q->bio_split, nr_segs);
 		break;
 	}
-
+	
 	if (split) {
 		/* there isn't chance to merge the splitted bio */
 		split->bi_opf |= REQ_NOMERGE;
@@ -348,8 +357,8 @@ void __blk_queue_split(struct request_queue *q, struct bio **bio,
 
 		bio_chain(split, *bio);
 		trace_block_split(q, split, (*bio)->bi_iter.bi_sector);
-		generic_make_request(*bio);
-		*bio = split;
+		generic_make_request(*bio);/*现在的bio 是入参的bio的后半段*/
+		*bio = split; /*最终返回前半段的bio*/
 	}
 }
 

@@ -82,6 +82,8 @@ EXPORT_SYMBOL_GPL(blk_mq_map_queues);
  *
  * We have no quick way of doing reverse lookups. This is only used at
  * queue init time, so runtime isn't important.
+ *
+ * 找出index 所对应的 hw ctx 被哪个cpu使用，然后返回这个cpu所处的memory node
  */
 int blk_mq_hw_queue_to_node(struct blk_mq_queue_map *qmap, unsigned int index)
 {

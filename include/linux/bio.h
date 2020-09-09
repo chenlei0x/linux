@@ -603,6 +603,7 @@ static inline unsigned bio_list_size(const struct bio_list *bl)
 	return sz;
 }
 
+/*尾插*/
 static inline void bio_list_add(struct bio_list *bl, struct bio *bio)
 {
 	bio->bi_next = NULL;
@@ -614,7 +615,7 @@ static inline void bio_list_add(struct bio_list *bl, struct bio *bio)
 
 	bl->tail = bio;
 }
-
+/*头插*/
 static inline void bio_list_add_head(struct bio_list *bl, struct bio *bio)
 {
 	bio->bi_next = bl->head;
@@ -625,6 +626,7 @@ static inline void bio_list_add_head(struct bio_list *bl, struct bio *bio)
 		bl->tail = bio;
 }
 
+/*bl2 续接到bl1 上*/
 static inline void bio_list_merge(struct bio_list *bl, struct bio_list *bl2)
 {
 	if (!bl2->head)

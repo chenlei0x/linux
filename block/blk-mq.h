@@ -18,6 +18,7 @@ struct blk_mq_ctxs {
 struct blk_mq_ctx {
 	struct {
 		spinlock_t		lock;
+		/*req先挂到这里__blk_mq_insert_req_list*/
 		struct list_head	rq_lists[HCTX_MAX_TYPES];
 	} ____cacheline_aligned_in_smp;
 
@@ -26,7 +27,7 @@ struct blk_mq_ctx {
 	struct blk_mq_hw_ctx 	*hctxs[HCTX_MAX_TYPES];
 
 	/* incremented at dispatch time */
-	unsigned long		rq_dispatched[2];
+	unsigned long		rq_dispatched[2]; /*sync & async*/
 	unsigned long		rq_merged;
 
 	/* incremented at completion time */
@@ -128,6 +129,7 @@ extern void blk_mq_hctx_kobj_init(struct blk_mq_hw_ctx *hctx);
 
 void blk_mq_release(struct request_queue *q);
 
+/*soft queue*/
 static inline struct blk_mq_ctx *__blk_mq_get_ctx(struct request_queue *q,
 					   unsigned int cpu)
 {
@@ -139,6 +141,8 @@ static inline struct blk_mq_ctx *__blk_mq_get_ctx(struct request_queue *q,
  * as well, for instance. For now this is hardcoded as-is. Note that we don't
  * care about preemption, since we know the ctx's are persistent. This does
  * mean that we can't rely on ctx always matching the currently running CPU.
+ *
+ * 拿到当前cpu对应的soft queue
  */
 static inline struct blk_mq_ctx *blk_mq_get_ctx(struct request_queue *q)
 {
@@ -155,7 +159,7 @@ struct blk_mq_alloc_data {
 	unsigned int cmd_flags;
 
 	/* input & output parameter */
-	struct blk_mq_ctx *ctx;
+	struct blk_mq_ctx *ctx; /*对应的soft queue*/
 	struct blk_mq_hw_ctx *hctx;
 };
 
