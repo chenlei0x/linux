@@ -33,7 +33,20 @@ struct rq_qos {
 #endif
 };
 
+
+/*
+3个qos
+ioc_rqos_ops
+blkcg_iolatency_ops
+wbt_rqos_ops
+*/
 struct rq_qos_ops {
+	/*
+		blk_mq_make_request
+			rq_qos_throttle
+				__rq_qos_throttle
+					每个qos如果需要需要对当前io进行qos处理,则会直接睡眠
+	*/
 	void (*throttle)(struct rq_qos *, struct bio *);
 	void (*track)(struct rq_qos *, struct request *, struct bio *);
 	void (*merge)(struct rq_qos *, struct request *, struct bio *);
@@ -100,6 +113,7 @@ static inline void rq_wait_init(struct rq_wait *rq_wait)
 	init_waitqueue_head(&rq_wait->wait);
 }
 
+/*头插*/
 static inline void rq_qos_add(struct request_queue *q, struct rq_qos *rqos)
 {
 	rqos->next = q->rq_qos;

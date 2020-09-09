@@ -138,6 +138,7 @@ struct cgroup_subsys_state {
 	struct cgroup_subsys *ss;
 
 	/* reference count - access via css_[try]get() and css_put() */
+	/*blkg 对 blkcg 含有一个引用*/
 	struct percpu_ref refcnt;
 
 	/* siblings list anchored at the parent's ->children */

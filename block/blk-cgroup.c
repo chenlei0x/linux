@@ -44,6 +44,7 @@
 static DEFINE_MUTEX(blkcg_pol_register_mutex);
 static DEFINE_MUTEX(blkcg_pol_mutex);
 
+/*parent 为空*/
 struct blkcg blkcg_root;
 EXPORT_SYMBOL_GPL(blkcg_root);
 
@@ -221,6 +222,9 @@ EXPORT_SYMBOL_GPL(blkg_lookup_slowpath);
 /*
  * If @new_blkg is %NULL, this function tries to allocate a new one as
  * necessary using %GFP_NOWAIT.  @new_blkg is always consumed on return.
+ *
+ * 给@blkcg 创建针对 @q 的blkcg_gq
+ * 给@q 创建关于blkcg相关的信息,比如wb congested
  */
 static struct blkcg_gq *blkg_create(struct blkcg *blkcg,
 				    struct request_queue *q,
@@ -1031,6 +1035,7 @@ int blkcg_init_queue(struct request_queue *q)
 	/* Make sure the root blkg exists. */
 	rcu_read_lock();
 	spin_lock_irq(&q->queue_lock);
+	/*互相创建信息,因为blkcg 和 q之间是多对多的关系*/
 	blkg = blkg_create(&blkcg_root, q, new_blkg);
 	if (IS_ERR(blkg))
 		goto err_unlock;
@@ -1402,6 +1407,7 @@ int blkcg_policy_register(struct blkcg_policy *pol)
 	blkcg_policy[pol->plid] = pol;
 
 	/* allocate and install cpd's */
+	/*给每个blkcg 创建 blkcg_policy_data*/
 	if (pol->cpd_alloc_fn) {
 		list_for_each_entry(blkcg, &all_blkcgs, all_blkcgs_node) {
 			struct blkcg_policy_data *cpd;
