@@ -91,6 +91,10 @@ static inline bool biovec_phys_mergeable(struct request_queue *q,
 static inline bool __bvec_gap_to_prev(struct request_queue *q,
 		struct bio_vec *bprv, unsigned int offset)
 {
+	/*可以将两个不同的page 通过虚拟内存映射为连续的两个虚拟页
+	那么两个bv 只要位置上能够连续,那就能保证映射之后再虚拟空间上连续
+	所以保证新的bv offset = 0 且 @bprv 的offset = boundary +1
+*/
 	return (offset & queue_virt_boundary(q)) ||
 		((bprv->bv_offset + bprv->bv_len) & queue_virt_boundary(q));
 }

@@ -17,13 +17,15 @@
  */
 struct bio_vec {
 	struct page	*bv_page;
-	unsigned int	bv_len;
-	unsigned int	bv_offset;
+	unsigned int	bv_len; /*page 内多长 单位B*/
+	unsigned int	bv_offset;/*page 内的offset*/
 };
 
 struct bvec_iter {
 	sector_t		bi_sector;	/* device address in 512 byte
 						   sectors */
+	/* residual I/O count，初始为整个bio长度，单位Byte， 
+	后面在 bio_advance 中会慢慢减小，同时bi_done增加 */
 	unsigned int		bi_size;	/* residual I/O count */
 
 	unsigned int		bi_idx;		/* current index into bvl_vec */

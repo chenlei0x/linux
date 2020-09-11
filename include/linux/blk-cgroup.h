@@ -598,6 +598,7 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
 
 	blkg = bio->bi_blkg;
 
+	/*如果之前被throttle过， 就会存在BIO_THROTTLED标记，会直接return*/
 	throtl = blk_throtl_bio(q, blkg, bio);
 
 	if (!throtl) {

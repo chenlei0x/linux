@@ -319,20 +319,24 @@ enum blk_zoned_model {
 	BLK_ZONED_HM,	/* Host-managed zoned block device */
 };
 
+
+/*blk_set_default_limits*/
 struct queue_limits {
 	unsigned long		bounce_pfn;
 	unsigned long		seg_boundary_mask;
+	/*nvme 此处为4K - 1*/
 	unsigned long		virt_boundary_mask;
 
 	unsigned int		max_hw_sectors;
 	unsigned int		max_dev_sectors;
-	unsigned int		chunk_sectors;
-	unsigned int		max_sectors;
+	unsigned int		chunk_sectors;/*0*/
+	unsigned int		max_sectors; /*255*/
 	unsigned int		max_segment_size;
-	unsigned int		physical_block_size;
-	unsigned int		logical_block_size;
+	/*NVME最大不会超过 1<< PAGE_SHIFT */
+	unsigned int		physical_block_size;/*512B*/
+	unsigned int		logical_block_size;/*512B*/
 	unsigned int		alignment_offset;
-	unsigned int		io_min;
+	unsigned int		io_min;/*512*/
 	unsigned int		io_opt;
 	unsigned int		max_discard_sectors;
 	unsigned int		max_hw_discard_sectors;
@@ -1026,6 +1030,7 @@ static inline unsigned int blk_max_size_offset(struct request_queue *q,
 	if (!q->limits.chunk_sectors)
 		return q->limits.max_sectors;
 
+	/*offset 在chunk中的剩余sector*/
 	return min(q->limits.max_sectors, (unsigned int)(q->limits.chunk_sectors -
 			(offset & (q->limits.chunk_sectors - 1))));
 }

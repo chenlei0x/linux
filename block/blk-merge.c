@@ -143,15 +143,25 @@ static struct bio *blk_bio_write_same_split(struct request_queue *q,
 static inline unsigned get_max_io_size(struct request_queue *q,
 				       struct bio *bio)
 {
+	/*在 bio->bi_iter.bi_sector处可以io的最大长度*/
 	unsigned sectors = blk_max_size_offset(q, bio->bi_iter.bi_sector);
 	unsigned max_sectors = sectors;
 	unsigned pbs = queue_physical_block_size(q) >> SECTOR_SHIFT;
 	unsigned lbs = queue_logical_block_size(q) >> SECTOR_SHIFT;
 	unsigned start_offset = bio->bi_iter.bi_sector & (pbs - 1);
 
+	/*start_offset 为IO起始的sector在 phy block中的偏移*/
+	/* max sector + start_offset 去掉round donw pbs */
 	max_sectors += start_offset;
+	/*抹去pbs内偏移*/
+	/*io end sector 和 phy block对齐*/
 	max_sectors &= ~(pbs - 1);
+	/*如果max_sector + start_offset < 一个 physical block sectors
+		那么应该返回
+	*/
 	if (max_sectors > start_offset)
+		/*正常的流程都是能走到这里的, 我们让第一个io和 pbs 不对齐,
+	这样后面就都能对齐了*/
 		return max_sectors - start_offset;
 
 	return sectors & (lbs - 1);
