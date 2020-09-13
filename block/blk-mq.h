@@ -254,6 +254,9 @@ static inline struct blk_plug *blk_mq_plug(struct request_queue *q,
 	/*
 	 * For regular block devices or read operations, use the context plug
 	 * which may be NULL if blk_start_plug() was not executed.
+	  plug 机制可能会造成io顺序和 submit_bio 下发的io顺序不一致,这对于普通存储介质应该没什么
+	  但是 zoned block device 对可能需要顺序写入, 所以 如果是zone bd 且是write ,就返回null,
+	  不要让该bio进入plug队列,以免引起io乱序导致失败
 	 */
 	if (!blk_queue_is_zoned(q) || !op_is_write(bio_op(bio)))
 		return current->plug;

@@ -312,6 +312,8 @@ split:
  * |------bio---------|
    |split || bio提交    |
    最后@bio = split
+
+   @nr_segs = @bio的segs count
  */
 void __blk_queue_split(struct request_queue *q, struct bio **bio,
 		unsigned int *nr_segs)
@@ -367,8 +369,10 @@ void __blk_queue_split(struct request_queue *q, struct bio **bio,
 
 		bio_chain(split, *bio);
 		trace_block_split(q, split, (*bio)->bi_iter.bi_sector);
-		generic_make_request(*bio);/*现在的bio 是入参的bio的后半段*/
-		*bio = split; /*最终返回前半段的bio*/
+		/*现在的@bio 是入参的bio的后半段, 调用这个函数直接将后半段挂到 current->bio_list链表上*/
+		generic_make_request(*bio);
+		/*最终返回前半段的bio, 返回的bio为继续下发的bio,前半段应该先于后半段下发*/
+		*bio = split;
 	}
 }
 

@@ -1965,7 +1965,8 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	blk_qc_t cookie;
 
 	blk_queue_bounce(q, &bio);
-	/*把@bio的尾部形成一个新的bio 进行提交,然后缩短@bio*/
+	/*把@bio进行分割, 分为前后两部分, 后一部分在该函数内部继续调用generic_make_request, 挂到current->bio_list
+	然后@bio 代表前一部分*/
 	__blk_queue_split(q, &bio, &nr_segs);
 
 	if (!bio_integrity_prep(bio))

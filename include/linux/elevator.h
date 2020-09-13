@@ -33,10 +33,25 @@ struct elevator_mq_ops {
 	void (*exit_hctx)(struct blk_mq_hw_ctx *, unsigned int);
 	void (*depth_updated)(struct blk_mq_hw_ctx *);
 
+	/*bio 是否可以合并到@request中?*/
 	bool (*allow_merge)(struct request_queue *, struct request *, struct bio *);
+	/*将bio合并
+		__blk_mq_sched_bio_merge
+	*/
 	bool (*bio_merge)(struct blk_mq_hw_ctx *, struct bio *, unsigned int);
+
+	/*bio 是否可以合并到某个req中? 如果可以 请在第二个参数中告诉我! 探测性函数,不做真的合并
+
+	@bio_merge (上面的 bio_merge)
+		blk_mq_sched_try_merge
+			elv_merge
+				request_merge
+
+
+	*/
 	int (*request_merge)(struct request_queue *q, struct request **, struct bio *);
 	void (*request_merged)(struct request_queue *, struct request *, enum elv_merge);
+	/*两个req 已经发生了合并, 调度器是否有啥别的事情要做?*/
 	void (*requests_merged)(struct request_queue *, struct request *, struct request *);
 	void (*limit_depth)(unsigned int, struct blk_mq_alloc_data *);
 	void (*prepare_request)(struct request *, struct bio *bio);

@@ -340,6 +340,7 @@ enum elv_merge elv_merge(struct request_queue *q, struct request **req,
 		return ELEVATOR_BACK_MERGE;
 	}
 
+	/*bfq_request_merge, 探测是否能够front merge*/
 	if (e->type->ops.request_merge)
 		return e->type->ops.request_merge(q, req, bio);
 

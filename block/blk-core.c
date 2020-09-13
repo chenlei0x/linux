@@ -1067,7 +1067,10 @@ blk_qc_t generic_make_request(struct bio *bio)
 			bio_list_on_stack[1] = bio_list_on_stack[0];
 			bio_list_init(&bio_list_on_stack[0]);
 
-			/*   blk_mq_make_request   !!!!!*/
+			/*   blk_mq_make_request   !!!!!
+					该函数可能由于分裂或者镜像bio (md场景)产生新的bio,挂到 current->bio_list上
+					通常来说这个函数还会调用generic_make_request
+			 */
 			ret = q->make_request_fn(q, bio);
 
 			blk_queue_exit(q);
@@ -1081,6 +1084,7 @@ blk_qc_t generic_make_request(struct bio *bio)
 				if (q == bio->bi_disk->queue)
 					bio_list_add(&same, bio);
 				else
+					/*make_request_fn 中会产生给别的q发送的bio, md情景??*/
 					bio_list_add(&lower, bio);
 			/* now assemble so we handle the lowest level first */
 			bio_list_merge(&bio_list_on_stack[0], &lower);
@@ -1093,6 +1097,7 @@ blk_qc_t generic_make_request(struct bio *bio)
 			else
 				bio_io_error(bio);
 		}
+		/*从头部拿一个bio*/
 		bio = bio_list_pop(&bio_list_on_stack[0]);
 	} while (bio);
 	current->bio_list = NULL; /* deactivate */
