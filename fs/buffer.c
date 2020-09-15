@@ -518,6 +518,8 @@ static int osync_buffers_list(spinlock_t *lock, struct list_head *list)
 	int err = 0;
 
 	spin_lock(lock);
+
+	/*从后向前, 最后一个io大概率是最后一个完成的,他结束了意味着前面的都结束了*/
 repeat:
 	list_for_each_prev(p, list) {
 		bh = BH_ENTRY(p);
@@ -555,6 +557,7 @@ void emergency_thaw_bdev(struct super_block *sb)
  */
 int sync_mapping_buffers(struct address_space *mapping)
 {
+	/*mark_buffer_dirty_inode*/
 	struct address_space *buffer_mapping = mapping->private_data;
 
 	if (buffer_mapping == NULL || list_empty(&mapping->private_list))
@@ -582,10 +585,14 @@ void write_boundary_block(struct block_device *bdev,
 	}
 }
 
+/*文件系统在分配,释放数据块时,会弄脏元数据块,元数据块所在的page也会变脏
+比如给inode 分配新的extent时, 会产生新的index node block或者leaf node block,
+此时 @bh就代表这些block
+*/
 void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode *inode)
 {
 	struct address_space *mapping = inode->i_mapping;
-	struct address_space *buffer_mapping = bh->b_page->mapping;
+	struct address_space *buffer_mapping = bh->b_page->mapping;/*这个应该是blkdev 的mapping*/
 
 	mark_buffer_dirty(bh);
 	if (!mapping->private_data) {
@@ -774,7 +781,7 @@ static int fsync_buffers_list(spinlock_t *lock, struct list_head *list)
 			bh->b_assoc_map = mapping;
 		}
 		spin_unlock(lock);
-		wait_on_buffer(bh);
+		wait_on_buffer(bh); /*等待*/
 		if (!buffer_uptodate(bh))
 			err = -EIO;
 		brelse(bh);
@@ -782,6 +789,7 @@ static int fsync_buffers_list(spinlock_t *lock, struct list_head *list)
 	}
 	
 	spin_unlock(lock);
+	/*O_SYNC*/
 	err2 = osync_buffers_list(lock, list);
 	if (err)
 		return err;
@@ -3431,7 +3439,7 @@ int bh_uptodate_or_lock(struct buffer_head *bh)
 	if (!buffer_uptodate(bh)) {
 		lock_buffer(bh);
 		if (!buffer_uptodate(bh))
-			return 0;
+			return 0; /*如果从这里退出会保持bh的锁*/
 		unlock_buffer(bh);
 	}
 	return 1;

@@ -461,7 +461,7 @@ enum {
 	/* return when out of requests */
 	BLK_MQ_REQ_NOWAIT	= (__force blk_mq_req_flags_t)(1 << 0),
 	/* allocate from reserved pool */
-	BLK_MQ_REQ_RESERVED	= (__force blk_mq_req_flags_t)(1 << 1),
+	BLK_MQ_REQ_RESERVED	= (__force blk_mq_req_flags_t)(1 << 1), /*驱动可能也会直接发起一个req,带上这个tag*/
 	/* allocate internal/sched tag */
 	/*如果当前q使用了elevator，则使能这个flag*/
 	BLK_MQ_REQ_INTERNAL	= (__force blk_mq_req_flags_t)(1 << 2),

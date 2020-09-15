@@ -524,7 +524,7 @@ __read_extent_tree_block(const char *function, unsigned int line,
 
 	if (!bh_uptodate_or_lock(bh)) {
 		trace_ext4_ext_load_extent(inode, pblk, _RET_IP_);
-		err = bh_submit_read(bh);
+		err = bh_submit_read(bh); /*提交IO*/
 		if (err < 0)
 			goto errout;
 	}
@@ -742,6 +742,7 @@ void ext4_ext_drop_refs(struct ext4_ext_path *path)
  * ext4_ext_binsearch_idx:
  * binary search for the closest index of the given block
  * the header must be checked before calling this
+ * block 在 @path 中的idx 位置
  */
 static void
 ext4_ext_binsearch_idx(struct inode *inode,
@@ -873,6 +874,7 @@ int ext4_ext_tree_init(handle_t *handle, struct inode *inode)
 	return 0;
 }
 
+/*搜索block , 返回 ext4_ext_path 数组*/
 struct ext4_ext_path *
 ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 		 struct ext4_ext_path **orig_path, int flags)
@@ -900,7 +902,8 @@ ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 		}
 	}
 	if (!path) {
-		/* account possible depth increase */
+		/* account possible depth increase
+		 * +2 是因为最后一个path 是extent, 同时为了防止树分裂, 再加一*/
 		path = kcalloc(depth + 2, sizeof(struct ext4_ext_path),
 				GFP_NOFS);
 		if (unlikely(!path))
@@ -934,6 +937,7 @@ ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 		path[ppos].p_hdr = eh;
 	}
 
+	/*此处i 为0  也就是说 p_depth为0 的 path 为 extent*/
 	path[ppos].p_depth = i;
 	path[ppos].p_ext = NULL;
 	path[ppos].p_idx = NULL;

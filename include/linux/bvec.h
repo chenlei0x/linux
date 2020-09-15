@@ -22,6 +22,7 @@ struct bio_vec {
 };
 
 struct bvec_iter {
+	/*当前的要进行io的起始地址*/
 	sector_t		bi_sector;	/* device address in 512 byte
 						   sectors */
 	/* residual I/O count，初始为整个bio长度，单位Byte， 

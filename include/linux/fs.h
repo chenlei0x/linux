@@ -461,7 +461,7 @@ struct address_space {
 	errseq_t		wb_err;
 	spinlock_t		private_lock;
 	struct list_head	private_list;
-	void			*private_data;
+	void			*private_data; /*mark_buffer_dirty_inode*/
 } __attribute__((aligned(sizeof(long)))) __randomize_layout;
 	/*
 	 * On most architectures that alignment is already the case; but

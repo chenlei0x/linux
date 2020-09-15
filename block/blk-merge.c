@@ -150,20 +150,23 @@ static inline unsigned get_max_io_size(struct request_queue *q,
 	unsigned lbs = queue_logical_block_size(q) >> SECTOR_SHIFT;
 	unsigned start_offset = bio->bi_iter.bi_sector & (pbs - 1);
 
-	/*start_offset 为IO起始的sector在 phy block中的偏移*/
-	/* max sector + start_offset 去掉round donw pbs */
+	/*
+	 * 我们以bi_sector所在的pb 中的第一个sector 作为0号 sector, 
+	 * 那么 start_offset 为IO起始的sector在 phy block中的偏移
+	 * 从start_offset 开始, 长度为max sector进行io
+	 * max_sector 用来存储结尾sector
+	 */
 	max_sectors += start_offset;
-	/*抹去pbs内偏移*/
-	/*io end sector 和 phy block对齐*/
+	/*尾部sector   和 phy block对齐*/
 	max_sectors &= ~(pbs - 1);
-	/*如果max_sector + start_offset < 一个 physical block sectors
-		那么应该返回
+
+	/*max_sectors > start_offset 说明结尾sector已经到某个pb的结尾了
 	*/
 	if (max_sectors > start_offset)
-		/*正常的流程都是能走到这里的, 我们让第一个io和 pbs 不对齐,
-	这样后面就都能对齐了*/
+		/*减去 start_offset, 使得io结尾的sector 刚好和一个pb对齐*/
 		return max_sectors - start_offset;
 
+	/*好搓, end sector 和 start_offset 落在同一个 pb, 勉强和lb 对齐吧*/
 	return sectors & (lbs - 1);
 }
 

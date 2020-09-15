@@ -59,6 +59,7 @@ struct ext4_extent_tail {
 /*
  * This is the extent on-disk structure.
  * It's used at the bottom of the tree.
+ * ext 树中,叶子节点中的条目
  */
 struct ext4_extent {
 	__le32	ee_block;	/* first logical block extent covers */
@@ -70,6 +71,8 @@ struct ext4_extent {
 /*
  * This is index on-disk structure.
  * It's used at all the levels except the bottom.
+ *
+ * extent 树中中间节点的条目
  */
 struct ext4_extent_idx {
 	__le32	ei_block;	/* index covers logical blocks from 'block' */
@@ -81,6 +84,7 @@ struct ext4_extent_idx {
 
 /*
  * Each block (leaves and indexes), even inode-stored has header.
+ * 叶子节点和中间节点都有这个header
  */
 struct ext4_extent_header {
 	__le16	eh_magic;	/* probably will support different formats */
@@ -108,6 +112,8 @@ find_ext4_extent_tail(struct ext4_extent_header *eh)
  * Array of ext4_ext_path contains path to some extent.
  * Creation/lookup routines use it for traversal/splitting/etc.
  * Truncate uses it to simulate recursive walking.
+ *
+ * 用来描述extent树一层上的某一个节点, ext4_ext_path 数组中的0号为root节点
  */
 struct ext4_ext_path {
 	ext4_fsblk_t			p_block;

@@ -20,6 +20,10 @@ struct kvec {
 
 enum iter_type {
 	/* iter types */
+	/*
+	 * kvec 或者iovec， 区别在于kvec buffer
+	 * 内存来自于内核空间， iovec 来自于用户空间
+	 */
 	ITER_IOVEC = 4,
 	ITER_KVEC = 8,
 	ITER_BVEC = 16,
@@ -27,6 +31,7 @@ enum iter_type {
 	ITER_DISCARD = 64,
 };
 
+/*iter 中包含了vec数组*/
 struct iov_iter {
 	/*
 	 * Bit 0 is the read/write bit, set if we're writing.
@@ -34,15 +39,19 @@ struct iov_iter {
 	 * the caller isn't expecting to drop a page reference when done.
 	 */
 	unsigned int type;
+	/*当前迭代器所处的iov 中的偏移*/
 	size_t iov_offset;
+	/*所有的bvec 的总长度, advance过程中不断减小*/
 	size_t count;
 	union {
+		/*数组*/
 		const struct iovec *iov;
 		const struct kvec *kvec;
 		const struct bio_vec *bvec;
 		struct pipe_inode_info *pipe;
 	};
 	union {
+		/*还剩多少个iov 需要处理, 只要一个iov 还没有完全处理完, 就依然计算在内*/
 		unsigned long nr_segs;
 		struct {
 			unsigned int head;

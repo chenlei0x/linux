@@ -22,8 +22,14 @@
 
 #define MAKE_MM_SEG(s)	((mm_segment_t) { (s) })
 
-#define KERNEL_DS	MAKE_MM_SEG(-1UL)
-#define USER_DS 	MAKE_MM_SEG(TASK_SIZE_MAX)
+
+/*
+ * https://www.cnblogs.com/aspirs/p/12620294.html
+ * 这个连接中有对所有的XX_DS set_fs的解释
+ */
+
+#define KERNEL_DS	MAKE_MM_SEG(-1UL)  /*0xFFFFFFFF FFFFFFFF*/
+#define USER_DS 	MAKE_MM_SEG(TASK_SIZE_MAX) /*0x00007FFFFFFFF000 */
 
 #define get_fs()	(current->thread.addr_limit)
 static inline void set_fs(mm_segment_t fs)

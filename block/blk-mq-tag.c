@@ -100,7 +100,7 @@ static int __blk_mq_get_tag(struct blk_mq_alloc_data *data,
 }
 
 /*
- 从data 指向的hctx中拿到一个tag
+ 从data 指向的hctx中的tags中(可能是sched tags 或者是 driver tags)拿到一个tag
  这里不需要加锁之类的，因为sbitmap接口中已经保证了互斥问题
 
 */

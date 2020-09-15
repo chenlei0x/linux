@@ -42,6 +42,21 @@ enum {
 #define ES_SHIFT (sizeof(ext4_fsblk_t)*8 - ES_FLAGS)
 #define ES_MASK (~((ext4_fsblk_t)0) << ES_SHIFT)
 
+/*
+
+Zeroes space in the byte range starting at offset and continuing for length bytes. 
+Within the specified range, blocks are preallocated for the regions that span the 
+holes in the file. After a successful call, subsequent reads from this range will return zeroes.
+
+Zeroing is done within the filesystem preferably by converting the range into
+unwritten extents. This approach means that the specified range will not be
+physically zeroed out on the device (except for partial blocks at the either
+end of the range), and I/O is (otherwise) required only to update metadata.
+
+文件刚开始为hole, 分配之后没有写入任何内核为unwritten extent,此时读取该区域返回0, 但是磁盘中可能并不是0
+只是对该extent打上了unwritten extent 标记,使得读取时遇到该标记对buf进行清空操作
+*/
+
 #define EXTENT_STATUS_WRITTEN	(1 << ES_WRITTEN_B)
 #define EXTENT_STATUS_UNWRITTEN (1 << ES_UNWRITTEN_B)
 #define EXTENT_STATUS_DELAYED	(1 << ES_DELAYED_B)

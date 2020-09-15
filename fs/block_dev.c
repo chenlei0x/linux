@@ -239,6 +239,7 @@ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
 
 	if (iov_iter_rw(iter) == READ) {
 		bio.bi_opf = REQ_OP_READ;
+		/*iter为 iovec,说明页是用户的匿名页, 需要置为脏, 这样后续就可以刷到swap空间去*/
 		if (iter_is_iovec(iter))
 			should_dirty = true;
 	} else {
@@ -248,17 +249,19 @@ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
 	if (iocb->ki_flags & IOCB_HIPRI)
 		bio_set_polled(&bio, iocb);
 
+	/*qc 包括所在的hctx# 是否是internal 以及 tag号*/
 	qc = submit_bio(&bio);
 	for (;;) {
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		if (!READ_ONCE(bio.bi_private))
 			break;
 		if (!(iocb->ki_flags & IOCB_HIPRI) ||
-		    !blk_poll(bdev_get_queue(bdev), qc, true))
+		    !blk_poll(bdev_get_queue(bdev), qc, true))/*等待bio所处的req完成*/
 			io_schedule();
 	}
 	__set_current_state(TASK_RUNNING);
 
+	/*用户的是anonymous page, 需要置脏, 后续刷到swap上*/
 	bio_release_pages(&bio, should_dirty);
 	if (unlikely(bio.bi_status))
 		ret = blk_status_to_errno(bio.bi_status);

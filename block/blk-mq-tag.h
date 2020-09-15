@@ -11,6 +11,8 @@
  */
 struct blk_mq_tags {
 	/* depth = tags->nr_tags - tags->nr_reserved_tags;*/
+	/*nr_tags 中包含了 nr_reserved_tags
+	 */
 	unsigned int nr_tags;/*blk_mq_tag_set->queue_depth*/
 	unsigned int nr_reserved_tags;/*blk_mq_tag_set->reserved_tags*/
 
@@ -35,8 +37,10 @@ struct blk_mq_tags {
 	/*
 	  blk_mq_alloc_rq_map 初始化
 	  bitmap_tags 中描述的就是该数组中的所有req
+
+	  
 	 */
-	struct request **static_rqs; /*长度为nr_tags*/
+	struct request **static_rqs; /*长度为nr_tags, 其中前面为reserved rq, 后面的为普通的rq*/
 	struct list_head page_list;
 };
 
@@ -102,7 +106,7 @@ static inline void blk_mq_tag_set_rq(struct blk_mq_hw_ctx *hctx,
 static inline bool blk_mq_tag_is_reserved(struct blk_mq_tags *tags,
 					  unsigned int tag)
 {
-	return tag < tags->nr_reserved_tags;
+	return tag < tags->nr_reserved_tags; /*前半部分tag 为reserved tag*/
 }
 
 #endif

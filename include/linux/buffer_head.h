@@ -347,6 +347,7 @@ map_bh(struct buffer_head *bh, struct super_block *sb, sector_t block)
 	bh->b_size = sb->s_blocksize;
 }
 
+/*等 BH_Lock 标志消失*/
 static inline void wait_on_buffer(struct buffer_head *bh)
 {
 	might_sleep();

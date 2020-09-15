@@ -395,6 +395,7 @@ int __mnt_want_write_file(struct file *file)
 	if (!(file->f_mode & FMODE_WRITER))
 		return __mnt_want_write(file->f_path.mnt);
 	else
+		/*如果FMODE_WRITE 使能的画, 在 do_dentry_open 中就调用了 __mnt_want_write */
 		return mnt_clone_write(file->f_path.mnt);
 }
 

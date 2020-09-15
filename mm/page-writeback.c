@@ -2545,6 +2545,8 @@ EXPORT_SYMBOL(redirty_page_for_writepage);
  *
  * If the mapping doesn't provide a set_page_dirty a_op, then
  * just fall through and assume that it wants buffer_heads.
+ *
+ * 处理page buffer 以及inode 脏的情况
  */
 int set_page_dirty(struct page *page)
 {

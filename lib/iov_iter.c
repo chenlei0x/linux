@@ -10,23 +10,32 @@
 #include <linux/scatterlist.h>
 
 #define PIPE_PARANOIA /* for now */
-
+/*
+@i  iov_iter
+@v  struct iovec
+@p struct iovec *
+@n  要advance多少字节
+@skip  i->iov_offset vec左边需要掠过的长度;
+@STEP !!!!!!是 一条 语句!!!! 针对@__v 进行处理, 比如从 @__v中拷贝数据,
+长度为 __v.iov_len, 返回 剩余还没处理的长度!!! 比如还没拷贝完的量
+*/
 #define iterate_iovec(i, n, __v, __p, skip, STEP) {	\
 	size_t left;					\
 	size_t wanted = n;				\
-	__p = i->iov;					\
+	__p = i->iov; /*iov 数组*/					\
 	__v.iov_len = min(n, __p->iov_len - skip);	\
 	if (likely(__v.iov_len)) {			\
-		__v.iov_base = __p->iov_base + skip;	\
-		left = (STEP);				\
+		__v.iov_base = __p->iov_base + skip;/*起始向右推*/	\
+		left = (STEP); /*我希望@STEP 拷贝__v.iov_len, 但是可能只拷贝了一部分, 剩下的就是@left*/ 				\
 		__v.iov_len -= left;			\
 		skip += __v.iov_len;			\
 		n -= __v.iov_len;			\
 	} else {					\
 		left = 0;				\
 	}						\
+	/*left == 0 说明这个iov 已经拷贝完了, 进入下一个iov*/
 	while (unlikely(!left && n)) {			\
-		__p++;					\
+		__p++;	/*下一个iov*/				\
 		__v.iov_len = min(n, __p->iov_len);	\
 		if (unlikely(!__v.iov_len))		\
 			continue;			\
@@ -94,6 +103,11 @@
 	}							\
 }
 
+/*
+@n advance 的长度
+@i iter
+@I @B @K 是三条语句,针对@v进行处理
+*/
 #define iterate_and_advance(i, n, v, I, B, K) {			\
 	if (unlikely(i->count < n))				\
 		n = i->count;					\
@@ -120,8 +134,10 @@
 		} else if (unlikely(i->type & ITER_DISCARD)) {	\
 			skip += n;				\
 		} else {					\
+		/*ITER_IOVEC */
 			const struct iovec *iov;		\
-			struct iovec v;				\
+			struct iovec v;		
+			/*size_t skip = i->iov_offset;*/  \
 			iterate_iovec(i, n, v, iov, skip, (I))	\
 			if (skip == iov->iov_len) {		\
 				iov++;				\
@@ -437,6 +453,7 @@ int iov_iter_fault_in_readable(struct iov_iter *i, size_t bytes)
 }
 EXPORT_SYMBOL(iov_iter_fault_in_readable);
 
+/*@nr_segs iov 数组长度*/
 void iov_iter_init(struct iov_iter *i, unsigned int direction,
 			const struct iovec *iov, unsigned long nr_segs,
 			size_t count)
@@ -446,6 +463,7 @@ void iov_iter_init(struct iov_iter *i, unsigned int direction,
 
 	/* It will get better.  Eventually... */
 	if (uaccess_kernel()) {
+		/*iov 来自于内核*/
 		i->type = ITER_KVEC | direction;
 		i->kvec = (struct kvec *)iov;
 	} else {
@@ -1075,6 +1093,7 @@ void iov_iter_advance(struct iov_iter *i, size_t size)
 }
 EXPORT_SYMBOL(iov_iter_advance);
 
+/*开倒车， advance的反向*/
 void iov_iter_revert(struct iov_iter *i, size_t unroll)
 {
 	if (!unroll)
@@ -1582,6 +1601,7 @@ size_t hash_and_copy_to_iter(const void *addr, size_t bytes, void *hashp,
 }
 EXPORT_SYMBOL(hash_and_copy_to_iter);
 
+/*计算@i 中涉及到了多少个page*/
 int iov_iter_npages(const struct iov_iter *i, int maxpages)
 {
 	size_t size = i->count;

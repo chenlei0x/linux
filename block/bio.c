@@ -872,6 +872,8 @@ int bio_add_page(struct bio *bio, struct page *page,
 }
 EXPORT_SYMBOL(bio_add_page);
 
+
+/*对page 置脏,然后put page*/
 void bio_release_pages(struct bio *bio, bool mark_dirty)
 {
 	struct bvec_iter_all iter_all;
@@ -988,10 +990,11 @@ int bio_iov_iter_get_pages(struct bio *bio, struct iov_iter *iter)
 	if (WARN_ON_ONCE(bio->bi_vcnt))
 		return -EINVAL;
 
+
 	do {
-		if (is_bvec)
+		if (is_bvec)	/*iov_iter_advance*/
 			ret = __bio_iov_bvec_add_pages(bio, iter);
-		else
+		else	/*iov_iter_advance*/
 			ret = __bio_iov_iter_get_pages(bio, iter);
 	} while (!ret && iov_iter_count(iter) && !bio_full(bio, 0));
 

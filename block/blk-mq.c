@@ -279,7 +279,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 
 	if (data->flags & BLK_MQ_REQ_INTERNAL) {
 		rq->tag = -1;
-		rq->internal_tag = tag;
+		rq->internal_tag = tag; /*elevator 存在的情况下*/
 	} else {
 		if (data->hctx->flags & BLK_MQ_F_TAG_SHARED) {
 			rq_flags = RQF_MQ_INFLIGHT;
@@ -332,7 +332,10 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 	return rq;
 }
 
-/*申请并初始化一个req*/
+/*申请并初始化一个req
+有调度层存在就拿调度层的tag
+没有的话直接拿驱动层的tag
+*/
 static struct request *blk_mq_get_request(struct request_queue *q,
 					  struct bio *bio,
 					  struct blk_mq_alloc_data *data)
@@ -361,7 +364,7 @@ static struct request *blk_mq_get_request(struct request_queue *q,
 		data->flags |= BLK_MQ_REQ_NOWAIT;
 
 	if (e) {
-		data->flags |= BLK_MQ_REQ_INTERNAL;
+		data->flags |= BLK_MQ_REQ_INTERNAL; /*从调度层拿到一个tag*/
 
 		/*
 		 * Flush requests are special and go directly to the
@@ -385,7 +388,7 @@ static struct request *blk_mq_get_request(struct request_queue *q,
 		return NULL;
 	}
 
-	/*通过tag 就拿到了对应的req*/
+	/*通过tag 就拿到了对应的req, 这个req可能来自sched层, 也可能来自驱动层*/
 	rq = blk_mq_rq_ctx_init(data, tag, data->cmd_flags, alloc_time_ns);
 	if (!op_is_flush(data->cmd_flags)) {
 		rq->elv.icq = NULL;
@@ -1213,9 +1216,12 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 	do {
 		struct blk_mq_queue_data bd;
 
+		/*这个rq可能是调度层的rq*/
 		rq = list_first_entry(list, struct request, queuelist);
 
 		hctx = rq->mq_hctx;
+
+		/*bfq实现中 budget相关为空*/
 		if (!got_budget && !blk_mq_get_dispatch_budget(hctx))
 			break;
 
@@ -2657,6 +2663,7 @@ static void blk_mq_add_queue_tag_set(struct blk_mq_tag_set *set,
 	}
 	if (set->flags & BLK_MQ_F_TAG_SHARED)
 		queue_set_hctx_shared(q, true);
+	/*q 和 set 是 n : 1的关系*/
 	list_add_tail_rcu(&q->tag_set_list, &set->tag_list);
 
 	mutex_unlock(&set->tag_list_lock);
@@ -3446,6 +3453,7 @@ static unsigned long blk_mq_poll_nsecs(struct request_queue *q,
 	return ret;
 }
 
+/*一直等到rq完成*/
 static bool blk_mq_poll_hybrid_sleep(struct request_queue *q,
 				     struct blk_mq_hw_ctx *hctx,
 				     struct request *rq)
@@ -3485,6 +3493,7 @@ static bool blk_mq_poll_hybrid_sleep(struct request_queue *q,
 	hrtimer_set_expires(&hs.timer, kt);
 
 	do {
+		/*直到rq 完成, 否则一直pool*/
 		if (blk_mq_rq_state(rq) == MQ_RQ_COMPLETE)
 			break;
 		set_current_state(TASK_UNINTERRUPTIBLE);
@@ -3536,6 +3545,7 @@ static bool blk_mq_poll_hybrid(struct request_queue *q,
  *    completed entries found. If @spin is true, then blk_poll will continue
  *    looping until at least one completion is found, unless the task is
  *    otherwise marked running (or we need to reschedule).
+ * 轮询驱动层, 会被循环调用
  */
 int blk_poll(struct request_queue *q, blk_qc_t cookie, bool spin)
 {

@@ -137,6 +137,8 @@ struct request {
 	unsigned int cmd_flags;		/* op and common flags */
 	req_flags_t rq_flags;
 
+	/*tag 和 internal_tag只有一个使能, 当elevator存在时,使用internal_tag
+	*/
 	int tag; /*我在hctx中的tag 下标*/
 	int internal_tag;/*用作flush 待研究*/
 
@@ -475,6 +477,7 @@ struct request_queue {
 
 	/*
 	 * queue settings
+	 * blk_mq_init_sched 中初始化 = 2 * queue_depth
 	 */
 	unsigned long		nr_requests;	/* Max # of requests */
 
