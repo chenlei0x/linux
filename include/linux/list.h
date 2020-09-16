@@ -443,6 +443,12 @@ static inline void list_splice_tail(struct list_head *list,
  * @head: the place to add it in the first list.
  *
  * The list at @list is reinitialised
+ *
+ * @list = 1 2 3 4
+ * @head = 5 6 7 8
+ *  ====>
+ * @list = empty
+ * head = 1 2 3 4 5 6 7 8
  */
 static inline void list_splice_init(struct list_head *list,
 				    struct list_head *head)
