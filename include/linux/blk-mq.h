@@ -275,7 +275,8 @@ struct blk_mq_tag_set {
 	/*每个blk_mq_tags 结构体对应一个硬件队列
 	= new_nr_hw_queues * sizeof(struct blk_mq_tags *)
 	*/
-	struct blk_mq_tags	**tags; /*元素个数： nr_hw_queues 下表：hctx_idx*/
+	/*tags 中的元素个数是不断变化的 详见 blk_mq_realloc_tag_set_tags */
+	struct blk_mq_tags	**tags; /*元素个数： nr_hw_queues 下标：hctx_idx*/
 
 	struct mutex		tag_list_lock;
 	struct list_head	tag_list; /*使用这个tag set的queue的所有列表*/

@@ -205,6 +205,7 @@ struct request {
 	/*alloc 之后的时间戳, 所以start time - alloc time 就是申请tag(req)的时间*/
 	u64 start_time_ns;
 	/* Time that I/O was submitted to the device. */
+	/*blk_mq_start_request 会设置他, nvme_queue_rq 中会调用该函数  blk_mq_ops->queue_rq 会调用*/
 	u64 io_start_time_ns;
 
 #ifdef CONFIG_BLK_WBT

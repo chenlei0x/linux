@@ -956,6 +956,7 @@ struct flush_busy_ctx_data {
 	struct list_head *list;
 };
 
+/*把有pending io 的 ctx中的req 都flush下去*/
 static bool flush_busy_ctx(struct sbitmap *sb, unsigned int bitnr, void *data)
 {
 	struct flush_busy_ctx_data *flush_data = data;
@@ -973,6 +974,9 @@ static bool flush_busy_ctx(struct sbitmap *sb, unsigned int bitnr, void *data)
 /*
  * Process software queues that have been marked busy, splicing them
  * to the for-dispatch
+ *
+ * 
+把有pending io 的 ctx中的req 都flush下去
  */
 void blk_mq_flush_busy_ctxs(struct blk_mq_hw_ctx *hctx, struct list_head *list)
 {
@@ -3074,7 +3078,7 @@ static int blk_mq_update_queue_map(struct blk_mq_tag_set *set)
 }
 
 
-/*申请 blk_mq_tags * 数组*/
+/*给 tag_set 申请 blk_mq_tags * 数组*/
 static int blk_mq_realloc_tag_set_tags(struct blk_mq_tag_set *set,
 				  int cur_nr_hw_queues, int new_nr_hw_queues)
 {
