@@ -280,6 +280,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 	if (data->flags & BLK_MQ_REQ_INTERNAL) {
 		rq->tag = -1;
 		rq->internal_tag = tag; /*elevator 存在的情况下*/
+		/*这里不像下方, 并没有对sched_tags->rqs 进行赋值*/
 	} else {
 		if (data->hctx->flags & BLK_MQ_F_TAG_SHARED) {
 			rq_flags = RQF_MQ_INFLIGHT;
@@ -1055,14 +1056,17 @@ bool blk_mq_get_driver_tag(struct request *rq)
 		data.flags |= BLK_MQ_REQ_RESERVED;
 
 	shared = blk_mq_tag_busy(data.hctx);
-	/*拿到一个tag*/
+	/*data->flags 中没有BLK_MQ_REQ_INTERNAL, 所以一定是从驱动层拿到一个tag*/
 	rq->tag = blk_mq_get_tag(&data);
 	if (rq->tag >= 0) {
 		if (shared) {
 			rq->rq_flags |= RQF_MQ_INFLIGHT;
 			atomic_inc(&data.hctx->nr_active);
 		}
-		/*记录下来表示已经申请到了*/
+		/*
+		 * 记录下来表示已经申请到了
+		 * 如果调度层存在的画 @rq来自于调度层
+		 */
 		data.hctx->tags->rqs[rq->tag] = rq;
 	}
 
@@ -1989,7 +1993,9 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	rq_qos_throttle(q, bio);
 
 	data.cmd_flags = bio->bi_opf;
-	/*申请并初始化一个req*/
+	/*申请并初始化一个req
+	 * 如果调度层存在,则该rq来自于调度层
+	 */
 	rq = blk_mq_get_request(q, bio, &data);
 	if (unlikely(!rq)) {
 		rq_qos_cleanup(q, bio);
@@ -2004,6 +2010,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 
 	cookie = request_to_qc_t(data.hctx, rq);
 
+	/*bio 转化为req*/
 	blk_mq_bio_to_request(rq, bio, nr_segs);
 
 	plug = blk_mq_plug(q, bio);
@@ -2036,6 +2043,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 
 		blk_add_rq_to_plug(plug, rq);
 	} else if (q->elevator) {
+		/*放入软队列或者sched中*/
 		blk_mq_sched_insert_request(rq, false, true, true);
 	} else if (plug && !blk_queue_nomerges(q)) {
 		/*
