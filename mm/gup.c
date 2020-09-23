@@ -1617,6 +1617,13 @@ static __always_inline long __gup_longterm_locked(struct task_struct *tsk,
  * and mm being operated on are the current task's and don't allow
  * passing of a locked parameter.  We also obviously don't pass
  * FOLL_REMOTE in here.
+ *
+ * 你问的是gup的问题，和gupf没有关系(gupf是gup的无锁形式，但有使用条件限制，
+ 条件不成立会自动fallback回gup）。gup的作用就是get_page()，释放的方法是put_page()。
+ 所以它能保证页面不被释放，但它不能保证进程的vma还指着这个页面，所以你需要用
+ mm的mmap_sem锁来保护这个过程，在锁的范围内，没有人能动这个vma，你就是安全的，
+ 但一旦你释放这个锁，就没有保证了，进程的虚拟空间可能不再指向这个页面。
+ 因此gup是有限制的，简单说，你必须在一个系统调用的范围内，把page put回去
  */
 long get_user_pages(unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,

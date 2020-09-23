@@ -462,6 +462,11 @@ void iov_iter_init(struct iov_iter *i, unsigned int direction,
 	direction &= READ | WRITE;
 
 	/* It will get better.  Eventually... */
+	/*
+	 *io buffer 是内核态的还是用户态的?
+	 * https://www.cnblogs.com/aspirs/p/12620294.html
+	 * 这个连接中有对所有的XX_DS set_fs的解释
+	 */
 	if (uaccess_kernel()) {
 		/*iov 来自于内核*/
 		i->type = ITER_KVEC | direction;
@@ -1348,6 +1353,9 @@ ssize_t iov_iter_get_pages(struct iov_iter *i,
 			len = maxpages * PAGE_SIZE;
 		addr &= ~(PAGE_SIZE - 1);
 		n = DIV_ROUND_UP(len, PAGE_SIZE);
+		/*获取用户区进程使用内存的某个页(struct page)，然后可以在内核区通过kmap_atomic(),
+		 kmap()等函数映射到内核区线性地址，从而可以在内核区向其写入数据。
+		*/
 		res = get_user_pages_fast(addr, n,
 				iov_iter_rw(i) != WRITE ?  FOLL_WRITE : 0,
 				pages);

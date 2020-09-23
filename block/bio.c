@@ -899,6 +899,10 @@ static int __bio_iov_bvec_add_pages(struct bio *bio, struct iov_iter *iter)
 		return -EINVAL;
 
 	len = min_t(size_t, bv->bv_len - iter->iov_offset, iter->count);
+	/*
+	 * iter 中的biovec 可能跨越好几个page, bv->bv_offset 表明该bv在页中的起始offset, iter->iov_offset表明
+	 * 当前遍历到该bv中的offset
+	 */
 	size = bio_add_page(bio, bv->bv_page, len,
 				bv->bv_offset + iter->iov_offset);
 	if (unlikely(size != len))

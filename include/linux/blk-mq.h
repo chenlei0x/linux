@@ -126,6 +126,8 @@ struct blk_mq_hw_ctx {
 	 * scheduler associated with a request queue, a tag is assigned when
 	 * that request is allocated. Else, this member is not used.
 	 * io scheduler 所用的tag
+	 *
+	 * blk_mq_sched_alloc_tags 初始化
 	 */
 	struct blk_mq_tags	*sched_tags;
 

@@ -198,6 +198,10 @@ static void blkdev_bio_end_io_simple(struct bio *bio)
 	blk_wake_io_task(waiter);
 }
 
+/*
+@nr_pages  iter中涉及到多少个page
+vecs  和nr_pages 可能不相等, 一个pages中可能有多个vec
+*/
 static ssize_t
 __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
 		int nr_pages)
@@ -224,6 +228,7 @@ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
 			return -ENOMEM;
 	}
 
+	/*vecs 中 bio_vec 数量肯定>= nr_pages*/
 	bio_init(&bio, vecs, nr_pages);
 	bio_set_dev(&bio, bdev);
 	bio.bi_iter.bi_sector = pos >> 9;

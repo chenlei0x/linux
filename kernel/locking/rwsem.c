@@ -276,6 +276,7 @@ static inline bool rwsem_read_trylock(struct rw_semaphore *sem)
 	long cnt = atomic_long_add_return_acquire(RWSEM_READER_BIAS, &sem->count);
 	if (WARN_ON_ONCE(cnt < 0))
 		rwsem_set_nonspinnable(sem);
+	/*如果已经有写锁了, 返回0 , 这里已经加了RWSEM_READER_BIAS*/
 	return !(cnt & RWSEM_READ_FAILED_MASK);
 }
 
@@ -1341,6 +1342,7 @@ static struct rw_semaphore *rwsem_downgrade_wake(struct rw_semaphore *sem)
 inline void __down_read(struct rw_semaphore *sem)
 {
 	if (!rwsem_read_trylock(sem)) {
+		/*没拿到锁*/
 		rwsem_down_read_slowpath(sem, TASK_UNINTERRUPTIBLE);
 		DEBUG_RWSEMS_WARN_ON(!is_rwsem_reader_owned(sem), sem);
 	} else {

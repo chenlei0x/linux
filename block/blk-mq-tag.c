@@ -106,6 +106,7 @@ static int __blk_mq_get_tag(struct blk_mq_alloc_data *data,
 */
 unsigned int blk_mq_get_tag(struct blk_mq_alloc_data *data)
 {
+	/*hctx 的sched tags或者 tags*/
 	struct blk_mq_tags *tags = blk_mq_tags_from_data(data);
 	struct sbitmap_queue *bt;
 	struct sbq_wait_state *ws;

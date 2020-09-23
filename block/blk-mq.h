@@ -163,9 +163,10 @@ struct blk_mq_alloc_data {
 	struct blk_mq_hw_ctx *hctx;
 };
 
+/*返回hctx中的tags*/
 static inline struct blk_mq_tags *blk_mq_tags_from_data(struct blk_mq_alloc_data *data)
 {
-	if (data->flags & BLK_MQ_REQ_INTERNAL)
+	if (data->flags & BLK_MQ_REQ_INTERNAL) /*elevator 存在*/
 		return data->hctx->sched_tags;
 
 	return data->hctx->tags;

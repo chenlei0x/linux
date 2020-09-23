@@ -45,7 +45,7 @@ struct iov_iter {
 	size_t count;
 	union {
 		/*数组*/
-		const struct iovec *iov;
+		const struct iovec *iov;/*从用户态调用write时会用这个数组*/
 		const struct kvec *kvec;
 		const struct bio_vec *bvec;
 		struct pipe_inode_info *pipe;

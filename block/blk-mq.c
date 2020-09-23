@@ -2048,6 +2048,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 		blk_add_rq_to_plug(plug, rq);
 	} else if (q->elevator) {
 		/*放入软队列或者sched中*/
+		/*插入调度层,大多数都是这个方式了*/
 		blk_mq_sched_insert_request(rq, false, true, true);
 	} else if (plug && !blk_queue_nomerges(q)) {
 		/*

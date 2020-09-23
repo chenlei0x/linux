@@ -406,6 +406,7 @@ void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 
 	WARN_ON(e && (rq->tag != -1));
 
+	/*RQF_FLUSH_SEQ 会返回true*/
 	if (blk_mq_sched_bypass_insert(hctx, !!e, rq))
 		goto run;
 
