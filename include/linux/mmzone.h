@@ -260,11 +260,11 @@ enum node_stat_item {
 #define LRU_FILE 2
 
 enum lru_list {
-	LRU_INACTIVE_ANON = LRU_BASE,
-	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
-	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
-	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
-	LRU_UNEVICTABLE,
+	LRU_INACTIVE_ANON = LRU_BASE, /*0*/
+	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE, /*1*/
+	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE, /*2*/
+	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE, /*3*/
+	LRU_UNEVICTABLE, /*4*/
 	NR_LRU_LISTS
 };
 
@@ -301,6 +301,7 @@ enum lruvec_flags {
 					 */
 };
 
+/*描述一个node 中的page 回收情况*/
 struct lruvec {
 	struct list_head		lists[NR_LRU_LISTS];
 	struct zone_reclaim_stat	reclaim_stat;

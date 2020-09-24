@@ -322,6 +322,7 @@ struct mem_cgroup {
 	struct deferred_split deferred_split_queue;
 #endif
 
+	/*memcg 对每个node的信息*/
 	struct mem_cgroup_per_node *nodeinfo[0];
 	/* WARNING: nodeinfo must be the last member here */
 };
@@ -375,6 +376,8 @@ void mem_cgroup_uncharge_list(struct list_head *page_list);
 
 void mem_cgroup_migrate(struct page *oldpage, struct page *newpage);
 
+
+/*memcg 对每个node的信息*/
 static struct mem_cgroup_per_node *
 mem_cgroup_nodeinfo(struct mem_cgroup *memcg, int nid)
 {

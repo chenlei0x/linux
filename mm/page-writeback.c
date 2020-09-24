@@ -1873,6 +1873,7 @@ void balance_dirty_pages_ratelimited(struct address_space *mapping)
 		return;
 
 	if (inode_cgwb_enabled(inode))
+		/*wb为 当前进程所在的 memcg 在该bdi中的代表*/
 		wb = wb_get_create_current(bdi, GFP_KERNEL);
 	if (!wb)
 		wb = &bdi->wb;
@@ -2418,6 +2419,7 @@ void account_page_dirtied(struct page *page, struct address_space *mapping)
 	if (mapping_cap_account_dirty(mapping)) {
 		struct bdi_writeback *wb;
 
+		/*根据page 找到memcg 再找到wb 再进行绑定*/
 		inode_attach_wb(inode, page);
 		wb = inode_to_wb(inode);
 
