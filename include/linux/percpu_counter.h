@@ -26,7 +26,7 @@ struct percpu_counter {
 	s32 __percpu *counters;
 };
 
-extern int percpu_counter_batch;
+extern int percpu_counter_batch; /*初始化为32*/
 
 int __percpu_counter_init(struct percpu_counter *fbc, s64 amount, gfp_t gfp,
 			  struct lock_class_key *key);

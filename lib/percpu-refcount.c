@@ -154,6 +154,9 @@ static void percpu_ref_switch_to_atomic_rcu(struct rcu_head *rcu)
 	 * &ref->count; we need the bias value to prevent &ref->count from
 	 * reaching 0 before we add the percpu counts. But doing it at the same
 	 * time is equivalent and saves us atomic operations:
+	 * 此时已经转为atomic模式了, 所以大家的get put操作都是针对ref->count的
+	 * 这里不要直接将percpu count值加到ref->count中, 因为这会造成ref->count值为0
+	 * 当ref->count = 0时, 即会调用release 回调函数, 但是此时可能还有ref count在引用中
 	 */
 	atomic_long_add((long)count - PERCPU_COUNT_BIAS, &ref->count);
 
@@ -188,6 +191,22 @@ static void __percpu_ref_switch_to_atomic(struct percpu_ref *ref,
 	ref->confirm_switch = confirm_switch ?: percpu_ref_noop_confirm_switch;
 
 	percpu_ref_get(ref);	/* put after confirmation */
+
+	/*
+	 * 我这个时候不能直接调用percpu_ref_switch_to_atomic_rcu, 对per cpu count 进行加和操作
+	 * 因为有可能我加和完之后,依然有人对percpu count 进行get put操作!
+	 * 为了保险起见, 我要需要 当前这个时刻!!! 正在进行put get的cpu 全部执行完,
+	 * 这样他们下次再get put时, 因为185行已经打上了 __PERCPU_REF_ATOMIC标识, 所以肯定不会操作
+	 * percpu count. 此时我就可以安心对percpu count 进行加和操作了
+	 * 这里起始很精妙的用了rcu用法, 回顾一下步骤:
+	 * 1. 导流
+	 * 2. 确定倒流成功(等待grace period)
+	 * 3. 针对导流前的一些积累进行清理 (call_rcu) 或者sync_rcu之类的, 两者的区别一个是回调,一个是傻等
+	 * 我们再抽象一下用法
+	 * 1. 修改
+	 * 2. 保证修改都被看到
+	 * 3. 清理, 这里有可能时释放修改前的备份什么的...
+	 */
 	call_rcu(&ref->rcu, percpu_ref_switch_to_atomic_rcu);
 }
 
@@ -228,6 +247,8 @@ static void __percpu_ref_switch_mode(struct percpu_ref *ref,
 	 * If the previous ATOMIC switching hasn't finished yet, wait for
 	 * its completion.  If the caller ensures that ATOMIC switching
 	 * isn't in progress, this function can be called from any context.
+	 *
+	 * !ref->confirm_switch == True时, wait完毕
 	 */
 	wait_event_lock_irq(percpu_ref_switch_waitq, !ref->confirm_switch,
 			    percpu_ref_switch_lock);
@@ -345,7 +366,7 @@ void percpu_ref_kill_and_confirm(struct percpu_ref *ref,
 	WARN_ONCE(ref->percpu_count_ptr & __PERCPU_REF_DEAD,
 		  "%s called more than once on %ps!", __func__, ref->release);
 
-	ref->percpu_count_ptr |= __PERCPU_REF_DEAD;
+	ref->percpu_count_ptr |= __PERCPU_REF_DEAD; /*之后ref_get 或者 ref_put都会针对 ref->count进行操作*/
 	__percpu_ref_switch_mode(ref, confirm_kill);
 	percpu_ref_put(ref);
 
@@ -394,7 +415,7 @@ void percpu_ref_resurrect(struct percpu_ref *ref)
 	spin_lock_irqsave(&percpu_ref_switch_lock, flags);
 
 	WARN_ON_ONCE(!(ref->percpu_count_ptr & __PERCPU_REF_DEAD));
-	WARN_ON_ONCE(__ref_is_percpu(ref, &percpu_count));
+	WARN_ON_ONCE(__ref_is_percpu(ref, &percpu_count));/*说明只有是atomic模式才能用resurrect??*/
 
 	ref->percpu_count_ptr &= ~__PERCPU_REF_DEAD;
 	percpu_ref_get(ref);

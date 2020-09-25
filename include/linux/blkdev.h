@@ -72,7 +72,7 @@ typedef __u32 __bitwise req_flags_t;
 /* may not be passed by ioscheduler */
 #define RQF_SOFTBARRIER		((__force req_flags_t)(1 << 3))
 /* request for flush sequence */
-#define RQF_FLUSH_SEQ		((__force req_flags_t)(1 << 4))
+#define 			((__force req_flags_t)(1 << 4))
 /* merge of different types, fail separately */
 #define RQF_MIXED_MERGE		((__force req_flags_t)(1 << 5))
 /* track inflight for MQ */
@@ -134,13 +134,13 @@ struct request {
 	struct blk_mq_ctx *mq_ctx;
 	struct blk_mq_hw_ctx *mq_hctx;
 
-	unsigned int cmd_flags;		/* op and common flags */
-	req_flags_t rq_flags;
+	unsigned int cmd_flags;		/* op and common flags REQ_OP_xxx  REQ_SYNC */
+	req_flags_t rq_flags; /*RQF_XXX*/
 
 	/*tag 和 internal_tag只有一个使能, 当elevator存在时,使用internal_tag
 	*/
 	int tag; /*我在hctx中的tag 下标*/
-	int internal_tag;/*用作flush 待研究*/
+	int internal_tag;/*用作flush 和 sched*/
 
 	/* the following two fields are internal, NEVER access directly */
 	unsigned int __data_len;	/* total data len */
@@ -629,6 +629,19 @@ struct request_queue {
 #define QUEUE_FLAG_POLL_STATS	21	/* collecting stats for hybrid polling */
 #define QUEUE_FLAG_REGISTERED	22	/* queue has been registered to a disk */
 #define QUEUE_FLAG_SCSI_PASSTHROUGH 23	/* queue supports SCSI commands */
+
+/*
+blk_mq_run_hw_queue in blk-mq.c (block) : 	
+	need_run = !blk_queue_quiesced(hctx->queue) &&
+	
+__blk_mq_try_issue_directly in blk-mq.c (block)
+	if (blk_mq_hctx_stopped(hctx) || blk_queue_quiesced(q)) {
+
+让__blk_mq_try_issue_directly 把 rq 统一都暂存到hctx->dispatch中, 
+但是不让blk_mq_run_hw_queue下发!!!
+
+
+*/
 #define QUEUE_FLAG_QUIESCED	24	/* queue has been quiesced */
 #define QUEUE_FLAG_PCI_P2PDMA	25	/* device supports PCI p2p requests */
 #define QUEUE_FLAG_ZONE_RESETALL 26	/* supports Zone Reset All */

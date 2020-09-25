@@ -399,6 +399,14 @@ EXPORT_SYMBOL(blk_alloc_queue);
  * blk_queue_enter() - try to increase q->q_usage_counter
  * @q: request queue pointer
  * @flags: BLK_MQ_REQ_NOWAIT and/or BLK_MQ_REQ_PREEMPT
+ *
+ * @q可能会被freeze, 比如elevator重置的时候
+ *
+generic_make_request
+	blk_queue_enter
+	q->make_request_fn(q, bio);
+	blk_mq_get_request
+		blk_queue_enter_live
  */
 int blk_queue_enter(struct request_queue *q, blk_mq_req_flags_t flags)
 {
@@ -447,6 +455,9 @@ int blk_queue_enter(struct request_queue *q, blk_mq_req_flags_t flags)
 	}
 }
 
+/*只要对queue有引用就会enter
+
+*/
 void blk_queue_exit(struct request_queue *q)
 {
 	percpu_ref_put(&q->q_usage_counter);

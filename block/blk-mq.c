@@ -131,9 +131,13 @@ void blk_freeze_queue_start(struct request_queue *q)
 {
 	mutex_lock(&q->mq_freeze_lock);
 	if (++q->mq_freeze_depth == 1) {
+		/*
+		 * 这里必须kill 一下, 否则percpu_ref_is_zero(&q->q_usage_counter) 
+		 * 一直会返回false, 详见 blk_mq_freeze_queue_wait
+		 */
 		percpu_ref_kill(&q->q_usage_counter);
 		mutex_unlock(&q->mq_freeze_lock);
-		if (queue_is_mq(q))
+		if (queue_is_mq(q))/*不管怎样先run一把!!! 说不定能让blk_mq_freeze_queue_wait 事件变短呢~*/
 			blk_mq_run_hw_queues(q, false);
 	} else {
 		mutex_unlock(&q->mq_freeze_lock);
@@ -189,6 +193,7 @@ void blk_mq_unfreeze_queue(struct request_queue *q)
 	q->mq_freeze_depth--;
 	WARN_ON_ONCE(q->mq_freeze_depth < 0);
 	if (!q->mq_freeze_depth) {
+		/*棒! 把percpu_ref 从atomic模式转为 per cpu模式*/
 		percpu_ref_resurrect(&q->q_usage_counter);
 		wake_up_all(&q->mq_freeze_wq);
 	}
@@ -296,7 +301,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 	rq->mq_ctx = data->ctx;
 	rq->mq_hctx = data->hctx;
 	rq->rq_flags = rq_flags;
-	rq->cmd_flags = op;
+	rq->cmd_flags = op; /*REQ_OP_xxx | REQ_XXX*/
 	if (data->flags & BLK_MQ_REQ_PREEMPT)
 		rq->rq_flags |= RQF_PREEMPT;
 	if (blk_queue_io_stat(data->q))
@@ -469,7 +474,7 @@ struct request *blk_mq_alloc_request_hctx(struct request_queue *q,
 
 	/*blk_mq_get_request中会帮忙分配软硬队列*/
 	rq = blk_mq_get_request(q, NULL, &alloc_data);
-	blk_queue_exit(q);
+	blk_queue_exit(q);/*这里的exit 对应 上面的enter*/
 
 	if (!rq)
 		return ERR_PTR(-EWOULDBLOCK);
@@ -594,6 +599,9 @@ static void __blk_mq_complete_request(struct request *rq)
 	 * For a polled request, always complete locallly, it's pointless
 	 * to redirect the completion.
 	 */
+	 /*
+		q->mq_ops->complete(rq);
+	*/
 	if ((rq->cmd_flags & REQ_HIPRI) ||
 	    !test_bit(QUEUE_FLAG_SAME_COMP, &q->queue_flags)) {
 		q->mq_ops->complete(rq);
@@ -1997,8 +2005,10 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	rq_qos_throttle(q, bio);
 
 	data.cmd_flags = bio->bi_opf;
-	/*申请并初始化一个req
+	/*申请并初始化一个空req
 	 * 如果调度层存在,则该rq来自于调度层
+	 *
+	 * 这里会调用 blk_queue_enter_live
 	 */
 	rq = blk_mq_get_request(q, bio, &data);
 	if (unlikely(!rq)) {

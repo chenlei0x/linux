@@ -61,6 +61,15 @@ void blk_free_flush_queue(struct blk_flush_queue *q);
 
 void blk_freeze_queue(struct request_queue *q);
 
+/*前面有调用过blk_queue_enter 才可以直接调用这个函数
+
+generic_make_request
+	blk_queue_enter
+	q->make_request_fn(q, bio);
+	blk_mq_get_request
+		blk_queue_enter_live
+
+*/
 static inline void blk_queue_enter_live(struct request_queue *q)
 {
 	/*

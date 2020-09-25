@@ -86,9 +86,11 @@ void percpu_counter_add_batch(struct percpu_counter *fbc, s64 amount, s32 batch)
 	preempt_disable();
 	count = __this_cpu_read(*fbc->counters) + amount;
 	if (count >= batch || count <= -batch) {
+		/*this cpu 上的计数 超过batch了, 需要计入 总的count中*/
 		unsigned long flags;
 		raw_spin_lock_irqsave(&fbc->lock, flags);
 		fbc->count += count;
+		/*此时this_cpu::fbc->counters 可能值已经发生变动了, 因为中断*/
 		__this_cpu_sub(*fbc->counters, count - amount);
 		raw_spin_unlock_irqrestore(&fbc->lock, flags);
 	} else {

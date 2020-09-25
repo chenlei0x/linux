@@ -2281,7 +2281,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 		goto out_unlock_inode;
 	if ((inode->i_state & flags) != flags) {
 		const int was_dirty = inode->i_state & I_DIRTY;
-
+		/*inode 和当前进程所在的memcg 绑定*/
 		inode_attach_wb(inode, NULL);
 
 		if (flags & I_DIRTY_INODE)

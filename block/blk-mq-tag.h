@@ -33,7 +33,7 @@ struct blk_mq_tags {
 	  释放：
 	  	blk_mq_free_request
 	*/
-	struct request **rqs; /*长度为nr_tags*/
+	struct request **rqs; /*长度为nr_tags, 清空为NULL*/
 	/*
 	  blk_mq_alloc_rq_map 初始化
 	  bitmap_tags 中描述的就是该数组中的所有req

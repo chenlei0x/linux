@@ -61,8 +61,8 @@ typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
 /* flags set in the lower bits of percpu_ref->percpu_count_ptr */
 enum {
-	__PERCPU_REF_ATOMIC	= 1LU << 0,	/* operating in atomic mode */
-	__PERCPU_REF_DEAD	= 1LU << 1,	/* (being) killed */
+	__PERCPU_REF_ATOMIC	= 1LU << 0,	/* operating in atomic mode, 这个位表示当前的工作模式 */
+	__PERCPU_REF_DEAD	= 1LU << 1,	/* (being) killed 调用kill 会打上这个标记 resurrect之后会去掉这个标记 */
 	__PERCPU_REF_ATOMIC_DEAD = __PERCPU_REF_ATOMIC | __PERCPU_REF_DEAD,
 
 	__PERCPU_REF_FLAG_BITS	= 2,
@@ -141,6 +141,8 @@ static inline void percpu_ref_kill(struct percpu_ref *ref)
  * function doesn't return the pointer and let the caller test it for NULL
  * because doing so forces the compiler to generate two conditional
  * branches as it can't assume that @ref->percpu_count is not NULL.
+ *
+ * 如果当前是per cpu模式, 返回true, 否则返回false
  */
 static inline bool __ref_is_percpu(struct percpu_ref *ref,
 					  unsigned long __percpu **percpu_countp)
@@ -250,6 +252,8 @@ static inline bool percpu_ref_tryget(struct percpu_ref *ref)
  * guaranteed that no new reference will be given out by
  * percpu_ref_tryget_live().
  *
+ * 
+ *
  * This function is safe to call as long as @ref is between init and exit.
  */
 static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
@@ -259,10 +263,21 @@ static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 
 	rcu_read_lock();
 
+	/*
+	 * 只要__PERCPU_REF_DEAD 设置了, 这个函数就会返回false
+	 * 所以只要percpu_ref_kill被调用了, 之后该函数会直接返回false
+	percpu_ref_kill_and_confirm
+		ref->percpu_count_ptr |= __PERCPU_REF_DEAD; 
+		__percpu_ref_switch_to_atomic
+			ref->percpu_count_ptr |= __PERCPU_REF_ATOMIC;
+
+	*/
 	if (__ref_is_percpu(ref, &percpu_count)) {
+		/*per cpu模式*/
 		this_cpu_inc(*percpu_count);
 		ret = true;
 	} else if (!(ref->percpu_count_ptr & __PERCPU_REF_DEAD)) {
+		/*没有被kill, 且处于atmoic模式*/
 		ret = atomic_long_inc_not_zero(&ref->count);
 	}
 

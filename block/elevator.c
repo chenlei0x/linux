@@ -679,11 +679,12 @@ void elevator_init_mq(struct request_queue *q)
 	if (unlikely(q->elevator))
 		return;
 
+	/*这个变量由设备驱动调用blk_queue_required_elevator_features 设置, 通常来讲为0*/
 	if (!q->required_elevator_features)
 		e = elevator_get_default(q);
 	else
 		e = elevator_get_by_features(q);
-	if (!e)
+	if (!e) /*多队列设备默认没有调度器*/
 		return;
 
 	blk_mq_freeze_queue(q);
@@ -714,6 +715,10 @@ static int elevator_switch(struct request_queue *q, struct elevator_type *new_e)
 
 	lockdep_assert_held(&q->sysfs_lock);
 
+	/*冻住queue, 这样上游 blk_queue_enter会造成在generic_make_request中卡住
+	rq 下发不了了, 同时一直等所有的rq都下发了
+	等待 q->q_usage_counter = 0
+	*/
 	blk_mq_freeze_queue(q);
 	blk_mq_quiesce_queue(q);
 
