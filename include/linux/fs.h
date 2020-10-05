@@ -659,6 +659,17 @@ struct inode {
 		unsigned int __i_nlink;
 	};
 	dev_t			i_rdev;
+
+	/*
+	 * i_size -1 的目的是为了得到从0开始的编号！	
+	 * 打个比方，如果刚好 i_size = PAGE_CACHE_SHIFT，那么用i_size >> PAGE_CACHE_SHIFT，
+	 * 得到的是1，而事实上i_size = PAGE_CACHE_SHIFT,一共只有一个PAGE, 所以得到的最后
+	 * 一个PAGE的编号（从0开始）应该是0；所以用了一个简单的编程技巧来得到从0开始的编号：
+	 * 就是(i_size－1) >> PAGE_CACHE_SHIFT；
+	 * 为什么偏偏是-1,而不是－2，－3，－4 ...呢？
+	 * 那时因为如果i_size = PAGE_CACHE_SHIFT+1,按上面的公式，最后一个PAGE的编号
+	 * 应该是1(该PAGE的实际大小就是1个字节),如果用 -2, -3, -4 ... 那么得到的最后一块的PAGE编号就变成了0,这和事实不符合！
+	*/
 	loff_t			i_size;
 	struct timespec64	i_atime;
 	struct timespec64	i_mtime;
@@ -667,6 +678,10 @@ struct inode {
 	unsigned short          i_bytes;
 	u8			i_blkbits;
 	u8			i_write_hint;
+	/*
+	 * i_blocks 和 i_bytes 是进位的关系,
+	 * 通过 inode_set_bytes接口设置
+	 */
 	blkcnt_t		i_blocks;
 
 #ifdef __NEED_I_SIZE_ORDERED
@@ -2141,7 +2156,18 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  *
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
+ 
+/*表示inode 有不重要的数据脏了,虽然脏了,但是不一定需要刷下去,比如inode的属性(如:访问时间)改变*/
 #define I_DIRTY_SYNC		(1 << 0)
+
+
+/*
+ * 表示inode 结构体有重要数据脏了,比如文件长度等
+ * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。
+ * 当fdatasync发现了I_DIRTY_DATASYNC被设置，
+ * 就知道metadata需要马上回写了
+ */
+
 #define I_DIRTY_DATASYNC	(1 << 1)
 #define I_DIRTY_PAGES		(1 << 2)
 #define __I_NEW			3
@@ -2155,6 +2181,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define __I_DIO_WAKEUP		9
 #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
 #define I_LINKABLE		(1 << 10)
+/*只有ACM时间戳脏了*/
 #define I_DIRTY_TIME		(1 << 11)
 #define __I_DIRTY_TIME_EXPIRED	12
 #define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
@@ -2162,6 +2189,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_OVL_INUSE		(1 << 14)
 #define I_CREATING		(1 << 15)
 
+/*inode 有重要或者不重要的改动或者有脏页*/
 #define I_DIRTY_INODE (I_DIRTY_SYNC | I_DIRTY_DATASYNC)
 #define I_DIRTY (I_DIRTY_INODE | I_DIRTY_PAGES)
 #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)

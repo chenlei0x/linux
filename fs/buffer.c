@@ -1789,13 +1789,14 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 		 * and kswapd activity, but those code paths have their own
 		 * higher-level throttling.
 		 */
-		if (wbc->sync_mode != WB_SYNC_NONE) {
+		if (wbc->sync_mode != WB_SYNC_NONE) {/*WB_SYNC_NONE 不允许发生任何阻塞*/
 			lock_buffer(bh);
 		} else if (!trylock_buffer(bh)) {
 			redirty_page_for_writepage(wbc, page);
 			continue;
 		}
 		if (test_clear_buffer_dirty(bh)) {
+			/*end_bio_bh_io_sync 会调用handler*/
 			mark_buffer_async_write_endio(bh, handler);
 		} else {
 			unlock_buffer(bh);

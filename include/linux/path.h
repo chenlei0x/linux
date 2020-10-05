@@ -5,6 +5,7 @@
 struct dentry;
 struct vfsmount;
 
+/*一个dentry 可能被多个mnt引用*/
 struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;

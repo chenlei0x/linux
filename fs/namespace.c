@@ -2778,6 +2778,8 @@ static int do_new_mount_fc(struct fs_context *fc, struct path *mountpoint,
 /*
  * create a new mount for userspace and request it to be added into the
  * namespace's tree
+ *
+ * @path 要挂载的地方
  */
 static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 			int mnt_flags, const char *name, void *data)

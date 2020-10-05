@@ -712,6 +712,15 @@ EXPORT_SYMBOL_GPL(of_css);
 		else
 
 /* walk live descendants in preorder */
+/*cgroup->self.cgroup = cgroup*/
+/*cgroup 代表一个dir, 这些cgroup 按照self (css结构)链接起来组成树形结构*/
+/*该宏用来遍历cgroup
+其中@cgrp为起点, 第一个被遍历的cgroup
+
+@dsct 为当前被遍历的 cgroup
+@d_css 为当前cgroup 的self域
+
+*/
 #define cgroup_for_each_live_descendant_pre(dsct, d_css, cgrp)		\
 	css_for_each_descendant_pre((d_css), cgroup_css((cgrp), NULL))	\
 		if (({ lockdep_assert_held(&cgroup_mutex);		\
@@ -1715,6 +1724,7 @@ err:
 	return ret;
 }
 
+/*把@ss_mask对应的ss绑定到 dst_root 上*/
 int rebind_subsystems(struct cgroup_root *dst_root, u16 ss_mask)
 {
 	struct cgroup *dcgrp = &dst_root->cgrp;
@@ -1753,7 +1763,9 @@ int rebind_subsystems(struct cgroup_root *dst_root, u16 ss_mask)
 
 		/* rebind */
 		RCU_INIT_POINTER(scgrp->subsys[ssid], NULL);
+		/*重点, 这样把css 绑定到新的cgroup上*/
 		rcu_assign_pointer(dcgrp->subsys[ssid], css);
+		/*改变ss ->root*/
 		ss->root = dst_root;
 		css->cgroup = dcgrp;
 
@@ -1926,6 +1938,10 @@ void init_cgroup_root(struct cgroup_fs_context *ctx)
 		set_bit(CGRP_CPUSET_CLONE_CHILDREN, &root->cgrp.flags);
 }
 
+/*
+ * @root 需要初始化的root
+ * @ss_mask 这个root 上面需要承载那些subsys
+ */
 int cgroup_setup_root(struct cgroup_root *root, u16 ss_mask)
 {
 	LIST_HEAD(tmp_links);
@@ -5010,6 +5026,10 @@ static void css_release(struct percpu_ref *ref)
 	queue_work(cgroup_destroy_wq, &css->destroy_work);
 }
 
+/*
+ * @ss css所处的ss
+ * @cgrp
+ */
 static void init_and_link_css(struct cgroup_subsys_state *css,
 			      struct cgroup_subsys *ss, struct cgroup *cgrp)
 {
@@ -5115,6 +5135,7 @@ static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
 	css->id = err;
 
 	/* @css is ready to be brought online now, make it visible */
+	/*挂入链表中*/
 	list_add_tail_rcu(&css->sibling, &parent_css->children);
 	cgroup_idr_replace(&ss->css_idr, css, css->id);
 
@@ -5181,6 +5202,7 @@ static struct cgroup *cgroup_create(struct cgroup *parent, const char *name,
 	cgrp->kn = kn;
 
 	init_cgroup_housekeeping(cgrp);
+
 
 	cgrp->self.parent = &parent->self;
 	cgrp->root = root;
@@ -5362,7 +5384,7 @@ static void css_killed_work_fn(struct work_struct *work)
 		offline_css(css);
 		css_put(css);
 		/* @css can't go away while we're holding cgroup_mutex */
-		css = css->parent;
+		css = css->parent;/*css 从自己开始 只要online cnt == 0, 都进行offline操作*/
 	} while (css && atomic_dec_and_test(&css->online_cnt));
 
 	mutex_unlock(&cgroup_mutex);
@@ -5556,6 +5578,7 @@ static void __init cgroup_init_subsys(struct cgroup_subsys *ss, bool early)
 
 	/* Create the root cgroup state for this subsystem */
 	ss->root = &cgrp_dfl_root;
+	/*css_alloc 中的参数为 parent css*/
 	css = ss->css_alloc(cgroup_css(&cgrp_dfl_root.cgrp, ss));
 	/* We don't handle early failures gracefully */
 	BUG_ON(IS_ERR(css));
@@ -5640,6 +5663,8 @@ static u16 cgroup_disable_mask __initdata;
  *
  * Register cgroup filesystem and /proc file, and initialize
  * any subsystems that didn't request early init.
+ *
+ * cgroup v1 & v2 都会调用这个函数
  */
 int __init cgroup_init(void)
 {
@@ -5665,6 +5690,8 @@ int __init cgroup_init(void)
 	/*
 	 * Add init_css_set to the hash table so that dfl_root can link to
 	 * it during init.
+	 *
+	 * init_css_set.hlist 加入 css_set_table
 	 */
 	hash_add(css_set_table, &init_css_set.hlist,
 		 css_set_hash(init_css_set.subsys));
@@ -5682,6 +5709,7 @@ int __init cgroup_init(void)
 						   GFP_KERNEL);
 			BUG_ON(css->id < 0);
 		} else {
+			/*ss 默认的root 为 cgrp_dfl_root*/
 			cgroup_init_subsys(ss, false);
 		}
 
@@ -5700,6 +5728,7 @@ int __init cgroup_init(void)
 			continue;
 		}
 
+		/*通过 cgroup_no_v1 禁用 的ss*/
 		if (cgroup1_ssid_disabled(ssid))
 			printk(KERN_INFO "Disabling %s control group subsystem in v1 mounts\n",
 			       ss->name);

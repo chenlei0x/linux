@@ -41,7 +41,7 @@ struct kstat {
 	dev_t		rdev;
 	kuid_t		uid;
 	kgid_t		gid;
-	loff_t		size;
+	loff_t		size; /*i_size_read 通过这个获得*/
 	struct timespec64 atime;
 	struct timespec64 mtime;
 	struct timespec64 ctime;

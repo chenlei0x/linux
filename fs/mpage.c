@@ -514,6 +514,7 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 	struct block_device *boundary_bdev = NULL;
 	int length;
 	struct buffer_head map_bh;
+
 	loff_t i_size = i_size_read(inode);
 	int ret = 0;
 	int op_flags = wbc_to_write_flags(wbc);

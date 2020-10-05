@@ -132,7 +132,7 @@ struct dirty_throttle_control {
 	struct dirty_throttle_control *gdtc;	/* only set in memcg dtc's */
 #endif
 	struct bdi_writeback	*wb;
-	struct fprop_local_percpu *wb_completions;
+	struct fprop_local_percpu *wb_completions;/*每个wb 有两个completion*/
 
 	unsigned long		avail;		/* dirtyable */
 	unsigned long		dirty;		/* file_dirty + write + nfs */

@@ -112,7 +112,9 @@ struct fs_context_operations {
 	int (*dup)(struct fs_context *fc, struct fs_context *src_fc);
 	int (*parse_param)(struct fs_context *fc, struct fs_parameter *param);
 	int (*parse_monolithic)(struct fs_context *fc, void *data);
+	/*用来得到文件系统的root dentry*/
 	int (*get_tree)(struct fs_context *fc);
+	/*用来remount*/
 	int (*reconfigure)(struct fs_context *fc);
 };
 

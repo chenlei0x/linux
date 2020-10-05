@@ -750,7 +750,20 @@ void wbc_account_cgroup_owner(struct writeback_control *wbc, struct page *page,
 	if (id == wbc->wb_lcand_id)
 		wbc->wb_lcand_bytes += bytes;
 
-	/* Boyer-Moore majority vote algorithm */
+	/* Boyer-Moore majority vote algorithm 
+	* 好厉害... Boyer-Moore Algorithm 算法应用 主要解决inode 归属于哪个memcg中
+	* https://blog.csdn.net/kimixuchen/article/details/52787307 算法详解
+	* 用来解决判定哪个memcg对该inode脏页贡献多的问题
+	* 假如我们按次数来说, 有3个memcg m1 m2 m3
+	* 写入顺序为
+	* m1 m2 m2 m2 m3 m3 m2 m1 m1 m2 m2 m2 
+	* 根据该算法,我们只要挨个扫这个序列,就可以确定哪个memcg 的次数最多
+	* 那如果我们不按次数,按照写入量来算, 需要找到哪个memcg 为该inode 贡献的最多
+	* 我们将每个byte 作为memcg 出现一次, 比如写入5个byte 就算该memcg出现5次,
+	* 依然按照上述算法, 就可以算出谁写入最多
+	*
+	* 
+	*/
 	if (!wbc->wb_tcand_bytes)
 		wbc->wb_tcand_id = id;
 	if (id == wbc->wb_tcand_id)

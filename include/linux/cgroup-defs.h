@@ -152,7 +152,7 @@ struct cgroup_subsys_state {
 	 * PI: Subsys-unique ID.  0 is unused and root is always 1.  The
 	 * matching css can be looked up using css_from_id().
 	 */
-	int id;
+	int id; /*&ss->css_idr 分配*/
 
 	unsigned int flags;
 
@@ -177,6 +177,8 @@ struct cgroup_subsys_state {
 	/*
 	 * PI: the parent css.	Placed here for cache proximity to following
 	 * fields of the containing structure.
+	 * 
+	 * cgrp_dfl_root.cgrp.parent = 0
 	 */
 	struct cgroup_subsys_state *parent;
 };
@@ -349,6 +351,8 @@ struct cgroup_freezer_state {
 	int nr_frozen_tasks;
 };
 
+
+/*对应一个cgruop dir*/
 struct cgroup {
 	/* self css with NULL ->ss, points back to this cgroup */
 	struct cgroup_subsys_state self;
@@ -361,7 +365,7 @@ struct cgroup {
 	 * ancestor_ids[] can determine whether a given cgroup is a
 	 * descendant of another without traversing the hierarchy.
 	 */
-	int level;
+	int level; /*从0 开始*/
 
 	/* Maximum allowed descent tree depth */
 	int max_depth;
@@ -490,7 +494,9 @@ struct cgroup {
 struct cgroup_root {
 	struct kernfs_root *kf_root;
 
-	/* The bitmask of subsystems attached to this hierarchy */
+	/* The bitmask of subsystems attached to this hierarchy 
+		cgroup_no_v1 中禁用的ss 不会出现在这里
+	*/
 	unsigned int subsys_mask;
 
 	/* Unique id for this hierarchy. */
@@ -636,6 +642,9 @@ struct cgroup_subsys {
 	void (*release)(struct task_struct *task);
 	void (*bind)(struct cgroup_subsys_state *root_css);
 
+	/*cpu_cgrp_subsys
+cpuacct_cgrp_subsys
+cpuset_cgrp_subsys*/
 	bool early_init:1;
 
 	/*

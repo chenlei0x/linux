@@ -72,6 +72,11 @@ static inline struct cgroup_fs_context *cgroup_fc2context(struct fs_context *fc)
  * This M:N relationship is represented by the following link structure
  * which exists for each association and allows traversing the associations
  * from both sides.
+ *
+ * cgroup对应一个controll实例，需要和css_set关联，这样每个task_struct就可以通
+ * 过task_struct->cgroups 继而和cgroup关联，达到控制和隔离资源的目的，那么css_set和
+ * cgroup具体是怎么关联的呢？ 首先需要明确的是cgroup和css_set是多对多的关系，
+ * 既：一个css_set可以对应多个cgroup,同时一个cgroup也可以被多个css_set所包含。
  */
 struct cgrp_cset_link {
 	/* the cgroup and css_set this link associates */

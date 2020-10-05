@@ -493,7 +493,7 @@ struct nameidata {
 	unsigned int	flags;
 	unsigned	seq, m_seq;
 	int		last_type;
-	unsigned	depth;
+	unsigned	depth; /*path_init 初始化为0 */
 	int		total_link_count;
 	struct saved {
 		struct path link;
@@ -1348,14 +1348,18 @@ static bool __follow_mount_rcu(struct nameidata *nd, struct path *path,
 		!(path->dentry->d_flags & DCACHE_NEED_AUTOMOUNT);
 }
 
+/*当一个dentry 被挂载多次的时候, 中间的root dentry 同时也是mnt point*/
 static int follow_dotdot_rcu(struct nameidata *nd)
 {
 	struct inode *inode = nd->inode;
 
+	/* 举例来说 /mnt/a/b/..  实际上我们需要返回的是 /mnt/a*/
 	while (1) {
 		if (path_equal(&nd->path, &nd->root))
 			break;
+		/*假如/mnt/a/b 不是一个挂载点, 那么通过dentry 找他b的父亲, /mnt/a 		*/
 		if (nd->path.dentry != nd->path.mnt->mnt_root) {
+			/*注意这个判断, 如果dentry 和 mnt_root不重叠,说明这不是一个mount point*/
 			struct dentry *old = nd->path.dentry;
 			struct dentry *parent = old->d_parent;
 			unsigned seq;
@@ -1370,6 +1374,13 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 				return -ECHILD;
 			break;
 		} else {
+			/* 
+			 * /mnt/a/b 是一个挂载点, 假如一个这个挂载点上面连续挂了好几个文件系统,一层
+			 *  覆盖一层, 这时候会产生root dentry 的mount point 是另外一个root dentry
+			 * 我们通过下面 {} 内的语句,用来找到被覆盖的mnt root dentry
+			 * 通过1346行的循环 我们一直找到最底部的dentry, 这个dentry 是一个mount point 但是
+			 * 不再是一个mount root了
+			 */
 			struct mount *mnt = real_mount(nd->path.mnt);
 			struct mount *mparent = mnt->mnt_parent;
 			struct dentry *mountpoint = mnt->mnt_mountpoint;
@@ -1387,6 +1398,7 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 		}
 	}
 	while (unlikely(d_mountpoint(nd->path.dentry))) {
+		/* /mnt/a 可能又被挂载了 我们需要找到最上面一层的mnt root */
 		struct mount *mounted;
 		mounted = __lookup_mnt(nd->path.mnt, nd->path.dentry);
 		if (unlikely(read_seqretry(&mount_lock, nd->m_seq)))
