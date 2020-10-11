@@ -39,6 +39,8 @@ enum {
 struct rq_wb {
 	/*
 	 * Settings that govern how we throttle
+	 *
+	 * 这两个值由 calc_wb_limits 计算得来
 	 */
 	unsigned int wb_background;		/* background writeback */
 	unsigned int wb_normal;			/* normal writeback */
@@ -54,7 +56,7 @@ struct rq_wb {
 	u64 win_nsec;				/* default window size */
 	u64 cur_win_nsec;			/* current window size */
 
-	struct blk_stat_callback *cb;
+	struct blk_stat_callback *cb; /*wb_timer_fn*/
 
 	u64 sync_issue;
 	void *sync_cookie;
@@ -64,7 +66,7 @@ struct rq_wb {
 	unsigned long last_issue;		/* last non-throttled issue */
 	unsigned long last_comp;		/* last non-throttled comp */
 	unsigned long min_lat_nsec;
-	struct rq_qos rqos;
+	struct rq_qos rqos; /*通用 obj*/
 	struct rq_wait rq_wait[WBT_NUM_RWQ];
 	struct rq_depth rq_depth;
 };

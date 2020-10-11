@@ -455,6 +455,8 @@ static bool close_io(struct rq_wb *rwb)
 
 #define REQ_HIPRIO	(REQ_SYNC | REQ_META | REQ_PRIO)
 
+
+/* wb_background 还是 wb_normal 或者 rwb->rq_depth.max_depth*/
 static inline unsigned int get_limit(struct rq_wb *rwb, unsigned long rw)
 {
 	unsigned int limit;
