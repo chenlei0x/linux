@@ -48,13 +48,27 @@ struct rq_qos_ops {
 					每个qos如果需要需要对当前io进行qos处理,则会直接睡眠
 	*/
 	void (*throttle)(struct rq_qos *, struct bio *);
+	/*
+	blk_mq_make_request
+		rq_qos_track 产生了rq
+
+	*/
 	void (*track)(struct rq_qos *, struct request *, struct bio *);
+
+	/*bio 可以合并到rq中
+	bio_attempt_front_merge
+		bio_attempt_back_merge
+	*/
 	void (*merge)(struct rq_qos *, struct request *, struct bio *);
+	/*blk_mq_start_request*/
 	void (*issue)(struct rq_qos *, struct request *);
+	/*__blk_mq_requeue_request*/
 	void (*requeue)(struct rq_qos *, struct request *);
 	void (*done)(struct rq_qos *, struct request *); /*__blk_mq_end_request 会调用*/
 	void (*done_bio)(struct rq_qos *, struct bio *); /* bio_endio会调用他*/
+	/*blk_mq_get_request 返回失败*/
 	void (*cleanup)(struct rq_qos *, struct bio *);
+	/*blk_set_queue_depth 会调用*/
 	void (*queue_depth_changed)(struct rq_qos *);
 	void (*exit)(struct rq_qos *);
 	const struct blk_mq_debugfs_attr *debugfs_attrs;

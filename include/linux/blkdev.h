@@ -479,6 +479,9 @@ struct request_queue {
 	/*
 	 * queue settings
 	 * blk_mq_init_sched 中初始化 = 2 * queue_depth
+	 *
+	 * blk_mq_init_allocated_queue 初始化为 queue_depth
+	 * 
 	 */
 	unsigned long		nr_requests;	/* Max # of requests */
 

@@ -801,7 +801,7 @@ EXPORT_SYMBOL(blk_queue_update_dma_alignment);
  * blk_set_queue_depth - tell the block layer about the device queue depth
  * @q:		the request queue for the device
  * @depth:		queue depth
- *
+ * 驱动调用
  */
 void blk_set_queue_depth(struct request_queue *q, unsigned int depth)
 {
