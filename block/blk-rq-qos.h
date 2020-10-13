@@ -60,16 +60,22 @@ struct rq_qos_ops {
 		bio_attempt_back_merge
 	*/
 	void (*merge)(struct rq_qos *, struct request *, struct bio *);
-	/*blk_mq_start_request*/
+	/*
+	 * blk_mq_start_request 驱动层开始处理这个req
+	 */
 	void (*issue)(struct rq_qos *, struct request *);
 	/*__blk_mq_requeue_request*/
 	void (*requeue)(struct rq_qos *, struct request *);
-	void (*done)(struct rq_qos *, struct request *); /*__blk_mq_end_request 会调用*/
-	void (*done_bio)(struct rq_qos *, struct bio *); /* bio_endio会调用他*/
+	/*__blk_mq_end_request 会调用*/
+	void (*done)(struct rq_qos *, struct request *);
+
+	/* bio_endio会调用他*/
+	void (*done_bio)(struct rq_qos *, struct bio *);
 	/*blk_mq_get_request 返回失败*/
 	void (*cleanup)(struct rq_qos *, struct bio *);
 	/*blk_set_queue_depth 会调用*/
 	void (*queue_depth_changed)(struct rq_qos *);
+	/*blk_cleanup_queue 调用， 关闭queue*/
 	void (*exit)(struct rq_qos *);
 	const struct blk_mq_debugfs_attr *debugfs_attrs;
 };

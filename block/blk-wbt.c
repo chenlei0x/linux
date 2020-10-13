@@ -187,6 +187,8 @@ static void wbt_done(struct rq_qos *rqos, struct request *rq)
 	struct rq_wb *rwb = RQWB(rqos);
 
 	if (!wbt_is_tracked(rq)) {
+		/*没有tracked 标记的rq 可能是read*/
+		/*bio_to_wbt_flags*/
 		if (rwb->sync_cookie == rq) {
 			rwb->sync_issue = 0;
 			rwb->sync_cookie = NULL;
@@ -195,6 +197,7 @@ static void wbt_done(struct rq_qos *rqos, struct request *rq)
 		if (wbt_is_read(rq))
 			wb_timestamp(rwb, &rwb->last_comp);
 	} else {
+	/*肯定是写*/
 		WARN_ON_ONCE(rq == rwb->sync_cookie);
 		__wbt_done(rqos, wbt_flags(rq));
 	}
@@ -346,6 +349,7 @@ static void rwb_arm_timer(struct rq_wb *rwb)
 		rwb->cur_win_nsec = rwb->win_nsec;
 	}
 
+	/*wb_timer_fn， 在时间窗口结束时看是否超时*/
 	blk_stat_activate_nsecs(rwb->cb, rwb->cur_win_nsec);
 }
 
@@ -534,6 +538,9 @@ static inline bool wbt_should_throttle(struct rq_wb *rwb, struct bio *bio)
 	case REQ_OP_WRITE:
 		/*
 		 * Don't throttle WRITE_ODIRECT
+		 *
+		 * dio_bio_write_op
+		 * do_blockdev_direct_IO 这两个函数对DIRECT io 都会打上SYNC 和 IDLE标记
 		 */
 		if ((bio->bi_opf & (REQ_SYNC | REQ_IDLE)) ==
 		    (REQ_SYNC | REQ_IDLE))
@@ -554,7 +561,7 @@ static enum wbt_flags bio_to_wbt_flags(struct rq_wb *rwb, struct bio *bio)
 		return 0;
 
 	if (bio_op(bio) == REQ_OP_READ) {
-		flags = WBT_READ;
+		flags = WBT_READ;/*READ 不会被track*/
 	} else if (wbt_should_throttle(rwb, bio)) {
 		if (current_is_kswapd())
 			flags |= WBT_KSWAPD;
@@ -602,7 +609,7 @@ static void wbt_track(struct rq_qos *rqos, struct request *rq, struct bio *bio)
 	rq->wbt_flags |= bio_to_wbt_flags(rwb, bio);
 }
 
-static void wbt_issue(struct rq_qos *rqos, struct request *rq)
+static void  wbt_issue(struct rq_qos *rqos, struct request *rq)
 {
 	struct rq_wb *rwb = RQWB(rqos);
 

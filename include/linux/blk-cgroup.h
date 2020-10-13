@@ -102,6 +102,7 @@ struct blkcg_policy_data {
 };
 
 /* association between a blk cgroup and a request queue */
+/* 一个blkcg 在一个request queue中的信息代表*/
 struct blkcg_gq {
 	/* Pointer to the associated request_queue */
 	struct request_queue		*q;
@@ -136,7 +137,7 @@ struct blkcg_gq {
 	atomic_t			use_delay;
 	atomic64_t			delay_nsec;
 	atomic64_t			delay_start;
-	u64				last_delay;
+	u64				last_delay; /*上次delay 的nsec */
 	int				last_use;
 
 	struct rcu_head			rcu_head;
@@ -648,6 +649,12 @@ static inline void blkcg_use_delay(struct blkcg_gq *blkg)
 }
 
 /*use delay -1*/
+/*
+ return 0 表明已经脱离congestion 了
+ return 1 表明本次调用脱离了congestion
+
+ iolat->rq_depth.max_depth 需要增加时会调用该函数
+*/
 static inline int blkcg_unuse_delay(struct blkcg_gq *blkg)
 {
 	int old = atomic_read(&blkg->use_delay);

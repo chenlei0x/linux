@@ -121,6 +121,10 @@ struct child_latency_info {
 	struct iolatency_grp *scale_grp;
 
 	/* Cookie to tell if we need to scale up or down. */
+	/*
+	 * scale_cookie_change 会调整
+	 * check_scale_change 会和blkg 中的scale_cookie 比较
+	 */
 	atomic_t scale_cookie;
 };
 
@@ -140,6 +144,10 @@ struct latency_stat {
 	};
 };
 
+/*
+一个blkcg_gq 对应一个该数据结构 
+blkg_to_lat
+*/
 struct iolatency_grp {
 	struct blkg_policy_data pd;
 	struct latency_stat __percpu *stats;
@@ -148,12 +156,18 @@ struct iolatency_grp {
 	struct rq_depth rq_depth;
 	struct rq_wait rq_wait; /*__blkcg_iolatency_throttle 可能会把任务挂起到该进程上*/
 	atomic64_t window_start;
-	atomic_t scale_cookie; /*DEFAULT_SCALE_COOKIE*/
+	
+	/*如果是root 初始化为 DEFAULT_SCALE_COOKIE 
+	 否则初始化为 parent->child_lat.scale_cookie
+
+	 scale_cookie 和 child_lat 决定max——depth 是up 还是down
+	 */
+	atomic_t scale_cookie;
 	u64 min_lat_nsec; /*用户通过latency文件可以配置*/
 	u64 cur_win_nsec;
 
 	/* total running average of our io latency. */
-	u64 lat_avg;
+	u64 lat_avg;/*这个值用来显示*/
 
 	/* Our current number of IO's for the last summation. */
 	u64 nr_samples;
@@ -253,6 +267,7 @@ static inline u64 latency_stat_samples(struct iolatency_grp *iolat,
 	return stat->rqs.nr_samples;
 }
 
+/*平滑计算lat_avg*/
 static inline void iolat_update_total_lat_avg(struct iolatency_grp *iolat,
 					      struct latency_stat *stat)
 {
@@ -373,6 +388,7 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 			if (diff < max_scale)
 				atomic_dec(&lat_info->scale_cookie);
 		} else {
+			/*这里是否会成复数？*/
 			atomic_sub(scale, &lat_info->scale_cookie);
 		}
 	}
@@ -407,6 +423,7 @@ static void scale_change(struct iolatency_grp *iolat, bool up)
 			wake_up_all(&iolat->rq_wait.wait);
 		}
 	} else {
+		/*up == 0， max_depth减半*/
 		old >>= 1;
 		iolat->rq_depth.max_depth = max(old, 1UL);
 	}
@@ -414,7 +431,7 @@ static void scale_change(struct iolatency_grp *iolat, bool up)
 
 /*
  * Check our parent and see if the scale cookie has changed. 
- * @iolat 我所属于的iolat
+ * @iolat 我所属于的iolat， 对应一个blkg
  */
 static void check_scale_change(struct iolatency_grp *iolat)
 {
@@ -445,7 +462,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	else
 		return;
 
-	/*不管怎样 scale_cookie 都会被赋值给 cur_cookie*/
+	/*不管怎样 cur_cookie 都会被赋值给 &iolat->scale_cookie*/
 	old = atomic_cmpxchg(&iolat->scale_cookie, our_cookie, cur_cookie);
 
 	/* Somebody beat us to the punch, just bail. */
@@ -476,6 +493,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 
 	/* We're as low as we can go. */
 	if (iolat->rq_depth.max_depth == 1 && direction < 0) {
+		/*use_delay ++*/
 		blkcg_use_delay(lat_to_blkg(iolat));
 		return;
 	}
@@ -588,6 +606,7 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 	if (!parent)
 		return;
 
+	/*lat_info 是父节点的child_lat*/
 	lat_info = &parent->child_lat;
 
 	/*根据 stat->rqs.mean 计算iolat->lat_avg*/
@@ -624,14 +643,16 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 			scale_cookie_change(iolat->blkiolat, lat_info, true);
 		}
 
-		/*
-		 * 如果超时,调整parent scale_lat,如果一个parent 有好几个子cgroup
-		 * 则每个cgroup 都有可能走进来, 不断更新scale lat,使得scale lat = 最小的
-		 * iolat->min_lat_nsec,并且让lat_info->scale_grp 记录下来scale lat 是谁
-		 * 设置的
-		 */
+
 	} else if (lat_info->scale_lat == 0 ||
 		   lat_info->scale_lat >= iolat->min_lat_nsec) {
+		/*
+		 * 如果超时,调整parent scale_lat,如果一个parent 有好几个子cgroup
+		 * 则每个cgroup 都有可能走进来, 不断更新scale lat,
+		 * 使得scale lat = 最小的 iolat->min_lat_nsec,
+		 * 并且让lat_info->scale_grp 记录下来scale lat 是哪个iolat
+		 * 设置的
+		 */
 		lat_info->last_scale_event = now;
 		if (!lat_info->scale_grp ||
 		    lat_info->scale_lat > iolat->min_lat_nsec) {

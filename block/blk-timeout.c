@@ -108,6 +108,8 @@ unsigned long blk_rq_timeout(unsigned long timeout)
  * Notes:
  *    Each request has its own timer, and as it is added to the queue, we
  *    set up the timer. When the request completes, we cancel the timer.
+ *
+ * 单个 req 的超时timer
  */
 void blk_add_timer(struct request *req)
 {

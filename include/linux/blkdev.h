@@ -490,6 +490,7 @@ struct request_queue {
 	unsigned int		dma_pad_mask;
 	unsigned int		dma_alignment;
 
+	/*blk_queue_rq_timeout 会设置 默认30s*/
 	unsigned int		rq_timeout;
 	int			poll_nsec;
 

@@ -50,6 +50,8 @@ static int blk_mq_poll_stats_bkt(const struct request *rq)
 	ddir = rq_data_dir(rq);
 	sectors = blk_rq_stats_sectors(rq);
 
+	/*读 bucket 2 4 6 8 10 12
+	  写 bucket 3 5 7 9 11 13 */
 	bucket = ddir + 2 * ilog2(sectors);
 
 	if (bucket < 0)
@@ -660,6 +662,8 @@ bool blk_mq_complete_request(struct request *rq)
 }
 EXPORT_SYMBOL(blk_mq_complete_request);
 
+
+/*驱动层开始受理该rq*/
 void blk_mq_start_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;

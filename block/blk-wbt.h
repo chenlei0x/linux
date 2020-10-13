@@ -53,13 +53,16 @@ struct rq_wb {
 	 */
 	unsigned int unknown_cnt;
 
+	/*RWB_WINDOW_NSEC*/
 	u64 win_nsec;				/* default window size */
 	u64 cur_win_nsec;			/* current window size */
 
 	struct blk_stat_callback *cb; /*wb_timer_fn*/
 
+	/*
+	 blk_mq_start_request->wbt_issue*/
 	u64 sync_issue;
-	void *sync_cookie;
+	void *sync_cookie; /*= rq*/
 
 	unsigned int wc;
 

@@ -30,12 +30,15 @@ struct blk_stat_callback {
 	/**
 	 * @cpu_stat: Per-cpu statistics buckets.
 	 */
-	struct blk_rq_stat __percpu *cpu_stat;
+	 /*每个cpu 有一个 blk_rq_stat 数组，每个blk_rq_stat 称为一个bucket 长度 = buckets*/
+	struct blk_rq_stat __percpu *cpu_stat; 
 
 	/**
 	 * @bucket_fn: Given a request, returns which statistics bucket it
 	 * should be accounted under. Return -1 for no bucket for this
 	 * request.
+	 *
+	 * 给定一个rq， 返回属于该rq 的bucket - blk_rq_stat
 	 */
 	int (*bucket_fn)(const struct request *);
 
@@ -47,10 +50,12 @@ struct blk_stat_callback {
 	/**
 	 * @stat: Array of statistics buckets.
 	 */
-	struct blk_rq_stat *stat;
+	struct blk_rq_stat *stat;/*对于wbt 来说， 读/写*/
 
 	/**
 	 * @fn: Callback function.
+	 *
+	 * blk_stat_alloc_callback 中的第一个参数
 	 */
 	void (*timer_fn)(struct blk_stat_callback *);
 
