@@ -2234,6 +2234,7 @@ atomic64_add_unless(atomic64_t *v, s64 a, s64 u)
 static inline bool
 atomic64_inc_not_zero(atomic64_t *v)
 {
+	/*如果不是0 就加1*/
 	return atomic64_add_unless(v, 1, 0);
 }
 #define atomic64_inc_not_zero atomic64_inc_not_zero

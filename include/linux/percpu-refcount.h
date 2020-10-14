@@ -231,6 +231,7 @@ static inline bool percpu_ref_tryget(struct percpu_ref *ref)
 		this_cpu_inc(*percpu_count);
 		ret = true;
 	} else {
+		/*ret = true 表明加成功了, 说明ref->count != 0*/
 		ret = atomic_long_inc_not_zero(&ref->count);
 	}
 

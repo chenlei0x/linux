@@ -135,7 +135,9 @@ struct blkcg_gq {
 	struct work_struct		async_bio_work; /*blkg_async_bio_workfn*/
 
 	atomic_t			use_delay;
+	/*blkcg_add_delay*/
 	atomic64_t			delay_nsec;
+	/* 只有 blkcg_scale_delay 会改动*/
 	atomic64_t			delay_start;
 	u64				last_delay; /*上次delay 的nsec */
 	int				last_use;
@@ -641,6 +643,10 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
 }
 
 /*use delay +1*/
+/*
+check_scale_change
+
+*/
 static inline void blkcg_use_delay(struct blkcg_gq *blkg)
 {
 	/*0 ====> 1*/

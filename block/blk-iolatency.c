@@ -83,6 +83,7 @@
 static struct blkcg_policy blkcg_policy_iolatency;
 struct iolatency_grp;
 
+/*每个queue 对应一个*/
 struct blk_iolatency {
 	struct rq_qos rqos;
 	
@@ -115,6 +116,7 @@ struct child_latency_info {
 	u64 scale_lat;
 
 	/* Total io's from all of our children for the last summation. */
+	/* 所有孩子的 sample 之和*/
 	u64 nr_samples;
 
 	/* The guy who actually changed the latency numbers. */
@@ -147,6 +149,7 @@ struct latency_stat {
 /*
 一个blkcg_gq 对应一个该数据结构 
 blkg_to_lat
+申请的时候被清空 iolatency_pd_alloc
 */
 struct iolatency_grp {
 	struct blkg_policy_data pd;
@@ -160,6 +163,8 @@ struct iolatency_grp {
 	/*如果是root 初始化为 DEFAULT_SCALE_COOKIE 
 	 否则初始化为 parent->child_lat.scale_cookie
 
+	 check_scale_change 将该字段赋值为 parent->child_latency_info->scale_cookie
+
 	 scale_cookie 和 child_lat 决定max——depth 是up 还是down
 	 */
 	atomic_t scale_cookie;
@@ -169,7 +174,9 @@ struct iolatency_grp {
 	/* total running average of our io latency. */
 	u64 lat_avg;/*这个值用来显示*/
 
-	/* Our current number of IO's for the last summation. */
+	/* Our current number of IO's for the last summation. 
+	* 上次汇总的时候 该blkg 的nr_sample
+	*/
 	u64 nr_samples;
 
 	bool ssd;
@@ -234,6 +241,9 @@ static inline void latency_stat_sum(struct iolatency_grp *iolat,
 		blk_rq_stat_sum(&sum->rqs, &stat->rqs);
 }
 
+/*
+ * @req_time bio完成时间
+ */
 static inline void latency_stat_record_time(struct iolatency_grp *iolat,
 					    u64 req_time)
 {
@@ -363,7 +373,15 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 	if (old < DEFAULT_SCALE_COOKIE)
 		diff = DEFAULT_SCALE_COOKIE - old;
 
-	/*往上调整就增加scale_cookie*/
+	/*往上调整就增加scale_cookie, 最大不能超过 DEFAULT_SCALE_COOKIE */
+	/*
+	lat_info 是 iolat->parent->child_latency_info
+	if (lat_info->scale_cookie < iolat->scale_cookie)
+		down
+	else if (lat_info->scale_cookie > iolat->scale_cookie)
+		up
+
+	*/
 	if (up) {
 		if (scale + old > DEFAULT_SCALE_COOKIE)
 			atomic_set(&lat_info->scale_cookie,
@@ -388,7 +406,6 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 			if (diff < max_scale)
 				atomic_dec(&lat_info->scale_cookie);
 		} else {
-			/*这里是否会成复数？*/
 			atomic_sub(scale, &lat_info->scale_cookie);
 		}
 	}
@@ -455,6 +472,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	cur_cookie = atomic_read(&lat_info->scale_cookie);
 	scale_lat = READ_ONCE(lat_info->scale_lat);
 
+	/*lat_info->scale_cookie 和 iolat->scale_cookie 之间的关系 决定了up 还是down*/
 	if (cur_cookie < our_cookie)
 		direction = -1; /*iolate->max_depth 需要减小*/
 	else if (cur_cookie > our_cookie)
@@ -462,7 +480,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	else
 		return;
 
-	/*不管怎样 cur_cookie 都会被赋值给 &iolat->scale_cookie*/
+	/*不管怎样 lat_info->scale_cookie 都会被赋值给 &iolat->scale_cookie*/
 	old = atomic_cmpxchg(&iolat->scale_cookie, our_cookie, cur_cookie);
 
 	/* Somebody beat us to the punch, just bail. */
@@ -507,10 +525,11 @@ static void check_scale_change(struct iolatency_grp *iolat)
 		return;
 	}
 
-	/*调整max_depth, 根据需求看是否唤醒*/
+	/*调整该blkcg->iolat->max_depth, 根据需求看是否唤醒, max_depth决定了可以用多少带宽*/
 	scale_change(iolat, direction > 0);
 }
 
+/*iolatency 的throttle 回调函数*/
 static void blkcg_iolatency_throttle(struct rq_qos *rqos, struct bio *bio)
 {
 	struct blk_iolatency *blkiolat = BLKIOLATENCY(rqos);
@@ -537,6 +556,13 @@ static void blkcg_iolatency_throttle(struct rq_qos *rqos, struct bio *bio)
 		mod_timer(&blkiolat->timer, jiffies + HZ);
 }
 
+
+/*
+blkcg_iolatency_ops.done_bio
+    blkcg_iolatency_done_bio
+        iolatency_record_time
+
+*/
 static void iolatency_record_time(struct iolatency_grp *iolat,
 				  struct bio_issue *issue, u64 now,
 				  bool issue_as_root)
@@ -558,6 +584,10 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 	/*
 	 * We don't want to count issue_as_root bio's in the cgroups latency
 	 * statistics as it could skew the numbers downwards.
+	 *
+	 * issue_as_root由于没有限制,所以会拉低 blkg ->iolat-> latency mean值
+	 * 所以这里需要单独处理
+	 * issue_as_root 肯定是meta 或者swap io, 如果此时iolat 有限制,那么可能需要惩罚一下
 	 */
 	if (unlikely(issue_as_root && iolat->rq_depth.max_depth != UINT_MAX)) {
 		u64 sub = iolat->min_lat_nsec;
@@ -566,6 +596,7 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 		return;
 	}
 
+	/*非 issue_as_root bio*/
 	latency_stat_record_time(iolat, req_time);
 }
 
@@ -575,6 +606,8 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 
 /*
  * @iolat blkg 对应的 latency policy data
+ *
+ * blkcg_iolatency_done_bio 会调用, 每个bio完成后就会调用他
  */
 static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 {
@@ -589,7 +622,7 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 	latency_stat_init(iolat, &stat);
 	preempt_disable();
 
-	/*该blkg中的所有latency stat 汇总到 @stat中*/
+	/*该blkg中的所有latency stat 汇总到 @stat中, 并把latency stat清空*/
 	for_each_online_cpu(cpu) {
 		struct latency_stat *s;
 		s = per_cpu_ptr(iolat->stats, cpu);
@@ -622,22 +655,31 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 
 	/* iolat->cur_stat += stat*/
 	latency_stat_sum(iolat, &iolat->cur_stat, &stat);
+	/*iolat->nr_samples 记录的是上次汇总时,sample数量, 这次check时,在上次的基础上又有新的sample了
+	* 所以为了准确需要先减去上次该blkg的sample数量,再加上新的sample数量
+	*/
 	lat_info->nr_samples -= iolat->nr_samples;
 	lat_info->nr_samples += latency_stat_samples(iolat, &iolat->cur_stat);
+	/*再记下来这次的sample, 因为函数返回之前cur_stat 就被清零了*/
 	iolat->nr_samples = latency_stat_samples(iolat, &iolat->cur_stat);
 
 	if ((lat_info->last_scale_event >= now ||
 	    now - lat_info->last_scale_event < BLKIOLATENCY_MIN_ADJUST_TIME))
 		goto out;
 
+	/*
+	 * cur_stat 是历史值, 其中的信息包括了stat
+	 * cur_stat 和 stat 都必须是满足要求的
+	 */
 	if (latency_sum_ok(iolat, &iolat->cur_stat) &&
 	    latency_sum_ok(iolat, &stat)) {
 		if (latency_stat_samples(iolat, &iolat->cur_stat) <
 		    BLKIOLATENCY_MIN_GOOD_SAMPLES)
 			goto out;
 
-		/**/
+		/*scale_grp scale_lat 含义见下面*/
 		if (lat_info->scale_grp == iolat) {
+			/*@iolat 就是那个最小的min_lat_nsec, 既然他都是ok的, 那么放大depth*/
 			lat_info->last_scale_event = now;
 			/*放大depth*/
 			scale_cookie_change(iolat->blkiolat, lat_info, true);
@@ -647,7 +689,8 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 	} else if (lat_info->scale_lat == 0 ||
 		   lat_info->scale_lat >= iolat->min_lat_nsec) {
 		/*
-		 * 如果超时,调整parent scale_lat,如果一个parent 有好几个子cgroup
+		 * 走到这里说明cur_stat 或者 stat 至少有一个latency不满足了,
+		 * 这时候,调整parent scale_lat,如果一个parent 有好几个子cgroup
 		 * 则每个cgroup 都有可能走进来, 不断更新scale lat,
 		 * 使得scale lat = 最小的 iolat->min_lat_nsec,
 		 * 并且让lat_info->scale_grp 记录下来scale lat 是哪个iolat
@@ -709,11 +752,14 @@ static void blkcg_iolatency_done_bio(struct rq_qos *rqos, struct bio *bio)
 			window_start = atomic64_read(&iolat->window_start);
 			if (now > window_start &&
 			    (now - window_start) >= iolat->cur_win_nsec) {
+			    /*更新window*/
 				if (atomic64_cmpxchg(&iolat->window_start,
 					     window_start, now) == window_start)
+					     /*更新成功, 检查latency, 注意这里从[blkg, root) 每个都需要检查 */
 					iolatency_check_latencies(iolat, now);
 			}
 		}
+		/*一个bio已经完成了, 所以wakeup 一个*/
 		wake_up(&rqw->wait);
 		blkg = blkg->parent;
 	}
@@ -753,6 +799,7 @@ static void blkiolatency_timer_fn(struct timer_list *t)
 		 * We could be exiting, don't access the pd unless we have a
 		 * ref on the blkg.
 		 */
+		 /*rcu锁住了, 只能保证blkg不会被释放, 但是blkg可能refcount 已经为0了*/
 		if (!blkg_tryget(blkg))
 			continue;
 
@@ -868,6 +915,7 @@ static void iolatency_clear_scaling(struct blkcg_gq *blkg)
 	}
 }
 
+/*latency 配置文件接口*/
 static ssize_t iolatency_set_limit(struct kernfs_open_file *of, char *buf,
 			     size_t nbytes, loff_t off)
 {
@@ -994,6 +1042,13 @@ static size_t iolatency_ssd_stat(struct iolatency_grp *iolat, char *buf,
 			 iolat->rq_depth.max_depth);
 }
 
+
+/*
+.name = "stat",
+
+.seq_show = blkcg_print_stat,
+
+*/
 static size_t iolatency_pd_stat(struct blkg_policy_data *pd, char *buf,
 				size_t size)
 {

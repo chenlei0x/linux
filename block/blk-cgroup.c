@@ -1535,7 +1535,7 @@ static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 	 * the accumulated delay as we've already throttled enough that
 	 * everybody is happy with their IO latencies.
 	 */
-	/*delay开始至今已经超过1秒*/
+	/*delay开始至今已经超过1秒, 每一秒执行一次*/
 	if (time_before64(old + NSEC_PER_SEC, now) &&
 	    atomic64_cmpxchg(&blkg->delay_start, old, now) == old) {
 		u64 cur = atomic64_read(&blkg->delay_nsec);

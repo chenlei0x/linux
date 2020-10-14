@@ -206,6 +206,8 @@ EXPORT_SYMBOL_GPL(blk_mq_unfreeze_queue);
 /*
  * FIXME: replace the scsi_internal_device_*block_nowait() calls in the
  * mpt3sas driver such that this function can be removed.
+ *
+ * 执行完之后 blk_queue_quiesced 返回true
  */
 void blk_mq_quiesce_queue_nowait(struct request_queue *q)
 {
