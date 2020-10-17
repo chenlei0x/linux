@@ -1517,10 +1517,12 @@ bool __blkcg_punt_bio_submit(struct bio *bio)
  * the delay.  We only call this when we are adding delay, in case it's been a
  * while since we added delay, and when we are checking to see if we need to
  * delay a task, to account for any delays that may have occurred.
+ *
+ * 主要用来计算 blkg->delay_nsec
  */
 static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 {
-	u64 old = atomic64_read(&blkg->delay_start);
+	u64 old = atomic64_read(&blkg->delay_start);/*初始化 delay_start = 0*/
 
 	/*
 	 * We only want to scale down every second.  The idea here is that we
@@ -1539,7 +1541,8 @@ static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 	if (time_before64(old + NSEC_PER_SEC, now) &&
 	    atomic64_cmpxchg(&blkg->delay_start, old, now) == old) {
 		u64 cur = atomic64_read(&blkg->delay_nsec);
-		u64 sub = min_t(u64, blkg->last_delay, now - old);/*这次delay时间和上次delay 取最小*/
+		/*这次delay时间和上次delay 取最小 , 第一次计算为now*/
+		u64 sub = min_t(u64, blkg->last_delay, now - old);
 		int cur_use = atomic_read(&blkg->use_delay);
 
 		/*
@@ -1583,6 +1586,7 @@ static void blkcg_maybe_throttle_blkg(struct blkcg_gq *blkg, bool use_memdelay)
 	while (blkg->parent) {
 		if (atomic_read(&blkg->use_delay)) {
 			blkcg_scale_delay(blkg, now);
+			/*从blkg 树往上找, 找到最大的delay_nsec*/
 			delay_nsec = max_t(u64, delay_nsec,
 					   atomic64_read(&blkg->delay_nsec));
 		}

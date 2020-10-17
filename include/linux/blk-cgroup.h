@@ -134,6 +134,8 @@ struct blkcg_gq {
 	struct bio_list			async_bios;
 	struct work_struct		async_bio_work; /*blkg_async_bio_workfn*/
 
+	/*blkg_create 初始化以下字段为0*/
+	/*blkcg_use_delay blkcg_unuse_delay blkcg_clear_delay*/
 	atomic_t			use_delay;
 	/*blkcg_add_delay*/
 	atomic64_t			delay_nsec;

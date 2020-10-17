@@ -567,6 +567,11 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 				  struct bio_issue *issue, u64 now,
 				  bool issue_as_root)
 {
+	/*
+	generic_make_request_checks
+		blkcg_bio_issue_check
+			blkcg_bio_issue_init 这里设置了issue time
+	*/
 	u64 start = bio_issue_time(issue);
 	u64 req_time;
 
