@@ -483,6 +483,7 @@ struct block_device {
 #ifdef CONFIG_SYSFS
 	struct list_head	bd_holder_disks;
 #endif
+	/*指向与整个磁盘相关的block_device对象*/
 	struct block_device *	bd_contains;
 	unsigned		bd_block_size;
 	u8			bd_partno;

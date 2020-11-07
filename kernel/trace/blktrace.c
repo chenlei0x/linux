@@ -1111,6 +1111,7 @@ static void blk_register_tracepoints(void)
 {
 	int ret;
 
+	/*register_trace_xxxxx 是通过__DECLARE_TRACE定义的*/
 	ret = register_trace_block_rq_insert(blk_add_trace_rq_insert, NULL);
 	WARN_ON(ret);
 	ret = register_trace_block_rq_issue(blk_add_trace_rq_issue, NULL);

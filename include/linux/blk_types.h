@@ -144,10 +144,19 @@ static inline void bio_issue_init(struct bio_issue *issue,
 struct bio {
 	struct bio		*bi_next;	/* request queue link */
 	struct gendisk		*bi_disk;
+
+	/*REQ_OP + REQ_FLAGS*/
+	/*blk_mq_make_request
+		data.cmd_flags = bio->bi_opf
+			rq = blk_mq_get_request(q, bio, &data)
+				blk_mq_rq_ctx_init
+					bi_opf ===> q->cmd_flags
+	*/
 	unsigned int		bi_opf;		/* bottom bits req flags,
 						 * top bits REQ_OP. Use
 						 * accessors.
 						 */
+	/*BIO_NO_PAGE_REF*/
 	unsigned short		bi_flags;	/* status, etc and bvec pool number */
 	unsigned short		bi_ioprio;
 	unsigned short		bi_write_hint;
@@ -168,6 +177,10 @@ struct bio {
 	 * on release of the bio.
 	 */
 	struct blkcg_gq		*bi_blkg;
+	/*throttle 之后
+	 * generic_make_request_checks
+	 *     blkcg_bio_issue_init
+	 */
 	struct bio_issue	bi_issue;
 #ifdef CONFIG_BLK_CGROUP_IOCOST
 	u64			bi_iocost_cost;

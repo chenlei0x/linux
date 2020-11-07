@@ -136,11 +136,21 @@ struct blkcg_gq {
 
 	/*blkg_create 初始化以下字段为0*/
 	/*blkcg_use_delay blkcg_unuse_delay blkcg_clear_delay*/
+	/*决定是否需要延迟*/
 	atomic_t			use_delay;
 	/*blkcg_add_delay*/
 	atomic64_t			delay_nsec;
-	/* 只有 blkcg_scale_delay 会改动*/
+	/*
+	 * 对应use-delay 决定延迟多久
+	 * 只有 blkcg_scale_delay 会改动
+	 * use_delay 机制的时间窗口的起始
+	 * 我们希望随着时间的增长, delay的时间能够慢慢变短
+	 */
 	atomic64_t			delay_start;
+	/*
+	 * last_delay 记录这次scale之后的delay_nsec值, 
+	 * 因为之后可能又被blkcg_add_delay了
+	 */
 	u64				last_delay; /*上次delay 的nsec */
 	int				last_use;
 

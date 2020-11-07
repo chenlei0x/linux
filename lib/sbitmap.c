@@ -11,6 +11,8 @@
 
 /*
  * See if we have deferred clears that we can batch move
+ *
+ * return false 表示没有clear 任何bit
  */
 static inline bool sbitmap_deferred_clear(struct sbitmap *sb, int index)
 {
@@ -25,11 +27,16 @@ static inline bool sbitmap_deferred_clear(struct sbitmap *sb, int index)
 
 	/*
 	 * First get a stable cleared mask, setting the old mask to 0.
+	 *
+	 * mask =cleared  
+	 cleared = 0
+	 
 	 */
 	mask = xchg(&sb->map[index].cleared, 0);
 
 	/*
 	 * Now clear the masked bits in our free word
+	 * clear中为1 的bit 在word中对应位置清空
 	 */
 	do {
 		val = sb->map[index].word;
@@ -41,6 +48,11 @@ out_unlock:
 	return ret;
 }
 
+
+/*
+ * @depth 总共需要多少个bit
+ * @shift 一个bitmap word 含有多少个bit
+ */
 int sbitmap_init_node(struct sbitmap *sb, unsigned int depth, int shift,
 		      gfp_t flags, int node)
 {
@@ -104,6 +116,7 @@ void sbitmap_resize(struct sbitmap *sb, unsigned int depth)
 }
 EXPORT_SYMBOL_GPL(sbitmap_resize);
 
+/*在word中找到zero bit， 返回bit index*/
 static int __sbitmap_get_word(unsigned long *word, unsigned long depth,
 			      unsigned int hint, bool wrap)
 {
@@ -136,6 +149,10 @@ static int __sbitmap_get_word(unsigned long *word, unsigned long depth,
 	return nr;
 }
 
+/*
+ * 在index 指向的word中找到zero bit， 返回word内的zero bit index
+ * @index 第几个word
+ */
 static int sbitmap_find_bit_in_index(struct sbitmap *sb, int index,
 				     unsigned int alloc_hint, bool round_robin)
 {
@@ -147,6 +164,7 @@ static int sbitmap_find_bit_in_index(struct sbitmap *sb, int index,
 					!round_robin);
 		if (nr != -1)
 			break;
+		/*把defer clear 的bit 在word中清空， 然后再搜索一把*/
 		if (!sbitmap_deferred_clear(sb, index))
 			break;
 	} while (1);
@@ -154,6 +172,9 @@ static int sbitmap_find_bit_in_index(struct sbitmap *sb, int index,
 	return nr;
 }
 
+/*
+ * 在整个bitmap中寻找一个zero bit， 返回整个bitmap中的zero bit index
+ */
 int sbitmap_get(struct sbitmap *sb, unsigned int alloc_hint, bool round_robin)
 {
 	unsigned int i, index;
@@ -172,9 +193,11 @@ int sbitmap_get(struct sbitmap *sb, unsigned int alloc_hint, bool round_robin)
 		alloc_hint = 0;
 
 	for (i = 0; i < sb->map_nr; i++) {
+		/*在某个word中找*/
 		nr = sbitmap_find_bit_in_index(sb, index, alloc_hint,
 						round_robin);
 		if (nr != -1) {
+			/*将nr 从word内index 转换为bitmap bit index*/
 			nr += index << sb->shift;
 			break;
 		}
@@ -188,7 +211,10 @@ int sbitmap_get(struct sbitmap *sb, unsigned int alloc_hint, bool round_robin)
 	return nr;
 }
 EXPORT_SYMBOL_GPL(sbitmap_get);
-
+/*
+ * 在整个bitmap中寻找一个zero bit， 返回整个bitmap中的zero bit index，
+ * 这里多一个限制，就是在寻找过程中限制搜索整个bitmap 的搜索 depth
+ */
 int sbitmap_get_shallow(struct sbitmap *sb, unsigned int alloc_hint,
 			unsigned long shallow_depth)
 {
@@ -206,7 +232,7 @@ again:
 			nr += index << sb->shift;
 			break;
 		}
-
+		/*没有zero bit， 清空一下deferred clear bit，再尝试一下/
 		if (sbitmap_deferred_clear(sb, index))
 			goto again;
 
@@ -223,19 +249,24 @@ again:
 	return nr;
 }
 EXPORT_SYMBOL_GPL(sbitmap_get_shallow);
-
+/*
+ * 有没有一个任意一个bit 为1
+ */
 bool sbitmap_any_bit_set(const struct sbitmap *sb)
 {
 	unsigned int i;
 
 	for (i = 0; i < sb->map_nr; i++) {
-		if (sb->map[i].word & ~sb->map[i].cleared)
+		if (sb->map[i].word & ~sb->map[i].cleared) /*注意这里是位与运算*/
 			return true;
 	}
 	return false;
 }
 EXPORT_SYMBOL_GPL(sbitmap_any_bit_set);
 
+/*
+ * 多有少个bit 为1
+ */
 static unsigned int __sbitmap_weight(const struct sbitmap *sb, bool set)
 {
 	unsigned int i, weight = 0;
@@ -485,6 +516,8 @@ void sbitmap_queue_min_shallow_depth(struct sbitmap_queue *sbq,
 }
 EXPORT_SYMBOL_GPL(sbitmap_queue_min_shallow_depth);
 
+/*指定下一次需要wake up 的ws*/
+/*和 sbq_wait_ptr 相对*/
 static struct sbq_wait_state *sbq_wake_ptr(struct sbitmap_queue *sbq)
 {
 	int i, wake_index;
@@ -497,6 +530,7 @@ static struct sbq_wait_state *sbq_wake_ptr(struct sbitmap_queue *sbq)
 		struct sbq_wait_state *ws = &sbq->ws[wake_index];
 
 		if (waitqueue_active(&ws->wait)) {
+			/*wake index 指向的ws 可能已经inactive了*/
 			if (wake_index != atomic_read(&sbq->wake_index))
 				atomic_set(&sbq->wake_index, wake_index);
 			return ws;
@@ -517,7 +551,10 @@ static bool __sbq_wake_up(struct sbitmap_queue *sbq)
 	ws = sbq_wake_ptr(sbq);
 	if (!ws)
 		return false;
-
+	/*
+	 * 前wait_cnt次 调用该函数只是用来对该值进行减一
+	 * 直到wait_cnt <= 0 时, 一次性唤醒wake_batch个
+	 */
 	wait_cnt = atomic_dec_return(&ws->wait_cnt);
 	if (wait_cnt <= 0) {
 		int ret;
@@ -538,6 +575,7 @@ static bool __sbq_wake_up(struct sbitmap_queue *sbq)
 		 */
 		ret = atomic_cmpxchg(&ws->wait_cnt, wait_cnt, wake_batch);
 		if (ret == wait_cnt) {
+			/*xchg成功了*/
 			sbq_index_atomic_inc(&sbq->wake_index);
 			wake_up_nr(&ws->wait, wake_batch);
 			return false;
@@ -551,6 +589,12 @@ static bool __sbq_wake_up(struct sbitmap_queue *sbq)
 
 void sbitmap_queue_wake_up(struct sbitmap_queue *sbq)
 {
+	/* 
+	 * 针对一个ws 一直wakeup, 如果第一次就返回false, 说明wait cnt >0
+	 * 如果第一次返回true,说明 wait cnt <= 0 但是因为atomic xchg竞争
+	 * 没能成功唤醒,那么继续调用
+	 * 不需要真的wake up 或者完成一次wake up之后while 结束返回
+     */
 	while (__sbq_wake_up(sbq))
 		;
 }
@@ -570,6 +614,7 @@ void sbitmap_queue_clear(struct sbitmap_queue *sbq, unsigned int nr,
 	 * is in use.
 	 */
 	smp_mb__before_atomic();
+	/*bit清零*/
 	sbitmap_deferred_clear_bit(&sbq->sb, nr);
 
 	/*
@@ -579,6 +624,7 @@ void sbitmap_queue_clear(struct sbitmap_queue *sbq, unsigned int nr,
 	 * waiter. See the comment on waitqueue_active().
 	 */
 	smp_mb__after_atomic();
+	/*可能有人在等, 唤醒他*/
 	sbitmap_queue_wake_up(sbq);
 
 	if (likely(!sbq->round_robin && nr < sbq->sb.depth))
@@ -593,6 +639,8 @@ void sbitmap_queue_wake_all(struct sbitmap_queue *sbq)
 	/*
 	 * Pairs with the memory barrier in set_current_state() like in
 	 * sbitmap_queue_wake_up().
+	 *
+	 * 从 sbq->wake_index 开始, 对每个ws 进行wake up
 	 */
 	smp_mb();
 	wake_index = atomic_read(&sbq->wake_index);

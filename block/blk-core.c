@@ -49,6 +49,8 @@
 #include "blk-rq-qos.h"
 
 #ifdef CONFIG_DEBUG_FS
+/* /sys/kernel/debug/block
+*/
 struct dentry *blk_debugfs_root;
 #endif
 
@@ -1329,6 +1331,21 @@ unsigned int blk_rq_err_bytes(const struct request *rq)
 }
 EXPORT_SYMBOL_GPL(blk_rq_err_bytes);
 
+
+/*
+ * req 完成了一部分 @bytes
+ * blk_update_request 调用
+ */
+ /*
+blk_mq_end_request
+	blk_update_request
+		blk_account_io_completion
+			part_stat_add(part, sectors[sgrp], bytes >> 9);
+	__blk_mq_end_request
+		blk_account_io_done
+			part_stat_add(part, nsecs[sgrp], now - req->start_time_ns);
+			art_stat_add(part, time_in_queue, nsecs_to_jiffies64(now - req->start_time_ns))
+ */
 void blk_account_io_completion(struct request *req, unsigned int bytes)
 {
 	if (req->part && blk_do_io_stat(req)) {
@@ -1342,6 +1359,17 @@ void blk_account_io_completion(struct request *req, unsigned int bytes)
 	}
 }
 
+
+/*
+blk_mq_end_request
+	blk_update_request
+		blk_account_io_completion
+			part_stat_add(part, sectors[sgrp], bytes >> 9);
+	__blk_mq_end_request
+		blk_account_io_done
+			part_stat_add(part, nsecs[sgrp], now - req->start_time_ns);
+			art_stat_add(part, time_in_queue, nsecs_to_jiffies64(now - req->start_time_ns))
+ */
 void blk_account_io_done(struct request *req, u64 now)
 {
 	/*
@@ -1368,6 +1396,7 @@ void blk_account_io_done(struct request *req, u64 now)
 	}
 }
 
+/* bio 合入req 后调用， 用来更新merge*/
 void blk_account_io_start(struct request *rq, bool new_io)
 {
 	struct hd_struct *part;
@@ -1451,6 +1480,7 @@ EXPORT_SYMBOL_GPL(blk_steal_bios);
  *     %false - this request doesn't have any more data
  *     %true  - this request has more data
  **/
+ /*@req 完成了一部分 @nr_bytes*/
 bool blk_update_request(struct request *req, blk_status_t error,
 		unsigned int nr_bytes)
 {

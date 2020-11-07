@@ -92,6 +92,16 @@ extern struct css_set init_css_set;
  * cgroup_subsys_on_dfl - fast test on whether a subsys is on default hierarchy
  * @ss: subsystem in question
  */
+
+/*
+在rebind_subsystem 中有如下语句, 如果通过mount 将subsys 挂载到别的hierachy上
+后, subsys 就脱离了default root了
+	static_branch_enable(cgroup_subsys_on_dfl_key[ssid]);
+} else {
+	dcgrp->subtree_control |= 1 << ssid;
+	static_branch_disable(cgroup_subsys_on_dfl_key[ssid]);
+
+*/
 #define cgroup_subsys_on_dfl(ss)						\
 	static_branch_likely(&ss ## _on_dfl_key)
 

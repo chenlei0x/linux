@@ -416,6 +416,7 @@ struct request_queue {
 	/* sw queues */
 	struct blk_mq_ctx __percpu	*queue_ctx;
 
+	/*默认是0 可以通过blk_set_queue_depth 设置*/
 	unsigned int		queue_depth;
 
 	/* hw dispatch queues 硬件派发队列map
@@ -503,6 +504,7 @@ struct request_queue {
 	struct list_head	icq_list;
 #ifdef CONFIG_BLK_CGROUP
 	DECLARE_BITMAP		(blkcg_pols, BLKCG_MAX_POLS);
+	/*对应 blkcg_root*/
 	struct blkcg_gq		*root_blkg;
 	struct list_head	blkg_list;
 #endif

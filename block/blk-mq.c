@@ -504,6 +504,18 @@ static void __blk_mq_free_request(struct request *rq)
 	blk_queue_exit(q);
 }
 
+/*驱动调用, 或者
+nvme_handle_cqe
+	nvme_end_request
+		blk_mq_complete_request
+			q->mq_ops->complete
+				nvme_pci_complete_rq
+					nvme_complete_rq
+						blk_mq_end_request
+							blk_mq_free_request
+
+
+*/
 void blk_mq_free_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
@@ -560,6 +572,18 @@ inline void __blk_mq_end_request(struct request *rq, blk_status_t error)
 	}
 }
 EXPORT_SYMBOL(__blk_mq_end_request);
+
+
+/*
+blk_mq_end_request
+	blk_update_request
+		blk_account_io_completion
+			part_stat_add(part, sectors[sgrp], bytes >> 9);
+	__blk_mq_end_request
+		blk_account_io_done
+			part_stat_add(part, nsecs[sgrp], now - req->start_time_ns);
+			art_stat_add(part, time_in_queue, nsecs_to_jiffies64(now - req->start_time_ns))
+*/
 
 void blk_mq_end_request(struct request *rq, blk_status_t error)
 {
@@ -622,7 +646,7 @@ static void __blk_mq_complete_request(struct request *rq)
 		rq->csd.flags = 0;
 		smp_call_function_single_async(ctx->cpu, &rq->csd);
 	} else {
-		q->mq_ops->complete(rq);
+		q->mq_ops->complete(rq); /*核心！*/
 	}
 	put_cpu();
 }
@@ -1140,6 +1164,7 @@ static bool blk_mq_mark_tag_wait(struct blk_mq_hw_ctx *hctx,
 		return blk_mq_get_driver_tag(rq);
 	}
 
+	/*blk_mq_dispatch_wake*/
 	wait = &hctx->dispatch_wait;
 	if (!list_empty_careful(&wait->entry))
 		return false;
@@ -1156,6 +1181,11 @@ static bool blk_mq_mark_tag_wait(struct blk_mq_hw_ctx *hctx,
 
 	atomic_inc(&sbq->ws_active);
 	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
+	/* 
+	 * 这里讨了个巧, 这里并不是用来将该task 挂到等待队列, 
+	 * 而是构造了一个wait queue entry然后就返回, 返回之后,等bitmap有
+	 * zero bit时, 开始执行wakeup,
+	 */
 	__add_wait_queue(wq, wait);
 
 	/*
@@ -1319,6 +1349,8 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 	/*
 	 * Any items that need requeuing? Stuff them into hctx->dispatch,
 	 * that is where we will continue on next queue run.
+	 *
+	 * 可能拿不到tag， 所以@list中还有内容
 	 */
 	if (!list_empty(list)) {
 		bool needs_restart;
@@ -1328,11 +1360,12 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		 * the driver there was more coming, but that turned out to
 		 * be a lie.
 		 *
-		 * nvme_commit_rqs 用来nvmd door bell
+		 * nvme_commit_rqs 用来nvmd door bell， 指让驱动触发开始进行io
 		 */
 		if (q->mq_ops->commit_rqs)
 			q->mq_ops->commit_rqs(hctx);
 
+		/*把list 接入到 hctx->dispatch上*/
 		spin_lock(&hctx->lock);
 		list_splice_init(list, &hctx->dispatch);
 		spin_unlock(&hctx->lock);

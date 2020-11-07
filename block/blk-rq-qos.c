@@ -267,11 +267,19 @@ void rq_qos_wait(struct rq_wait *rqw, void *private_data,
 		return;
 
 	prepare_to_wait_exclusive(&rqw->wait, &data.wq, TASK_UNINTERRUPTIBLE);
+	/*我已经被挂到队列上了，这时候有几种可能
+	case1： 队列上排队的任务有0 个， 因为只有我一个人睡眠，然后排队之后立刻被唤醒
+	case2： 队列上有1个，那就是我自己
+	case3： 队列上有多个， 那就是我和别的正在排队的任务
+	对于case1 和case 3， has sleeper = true
+	对于case2： has sleeper = false
+	*/
 	has_sleeper = !wq_has_single_sleeper(&rqw->wait);
 	do {
 		/* The memory barrier in set_task_state saves us here. */
 		if (data.got_token)
 			break;
+		/*对于case2： 只有我一个人睡眠？ 尝试acquire一下*/
 		if (!has_sleeper && acquire_inflight_cb(rqw, private_data)) {
 			finish_wait(&rqw->wait, &data.wq);
 

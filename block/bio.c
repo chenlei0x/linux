@@ -1775,6 +1775,9 @@ again:
 	}
 }
 
+/*
+ * 有些驱动从bio 进入make_request_fn 开始就调用， 比较少
+ */
 void generic_start_io_acct(struct request_queue *q, int op,
 			   unsigned long sectors, struct hd_struct *part)
 {

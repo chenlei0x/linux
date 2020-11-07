@@ -90,7 +90,7 @@ static int __wake_up_common(struct wait_queue_head *wq_head, unsigned int mode,
 		if (flags & WQ_FLAG_BOOKMARK)
 			continue;
 
-		ret = curr->func(curr, mode, wake_flags, key);
+		ret = curr->func(curr, mode, wake_flags, key); /*重点*/
 		if (ret < 0)
 			break;
 		if (ret && (flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive)

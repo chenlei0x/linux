@@ -63,6 +63,16 @@
  * group is using so much memory that it is pushing us into swap.
  *
  * Copyright (C) 2018 Josef Bacik
+ *
+ * cookie ===> direction ===> max_depth
+ * scale_cookie_change ===> check_scale_change ===> scale_change
+ *
+	iolatency_check_latencies
+ 		scale_cookie_change
+ 		
+	blkcg_iolatency_throttl
+ 		check_scale_change
+ 			scale_change
  */
 #include <linux/kernel.h>
 #include <linux/blk_types.h>
@@ -357,8 +367,12 @@ static inline unsigned long scale_amount(unsigned long qd, bool up)
  * the global scale cookie goes up or down they know which way they need to go
  * based on their last knowledge of it.
  *
+ * 这里说的copy 就是 iolat->scale_cookie
+ *
  * @lat_info 为parent -> child_lat
- * 调整lat_info 的 scale_cookie
+ * 调整lat_info->scale_cookie
+ *
+ * iolatency_check_latencies 会调用该函数
  */
 static void scale_cookie_change(struct blk_iolatency *blkiolat,
 				struct child_latency_info *lat_info,
@@ -390,6 +404,11 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
 			/*
 			 * 当前cookie 和 DEFAULT 相差过大,大于rqos.q->nr_requests,
 			 * 说明之前情况极度恶劣, 那么scale_cookie 慢慢往上涨
+			 *
+			 * 如果一下子涨太多，会造成过多blkg 满足
+			 * lat_info->scale_cookie > iolat->scale_cookie
+			 * 这样在checke_scale_change 时会通过up 操作增大max depth
+			 * 放行太多iolat
 			 */
 			atomic_inc(&lat_info->scale_cookie);
 		else
@@ -416,7 +435,8 @@ static void scale_cookie_change(struct blk_iolatency *blkiolat,
  * queue depth at a time so we don't get wild swings and hopefully dial in to
  * fairer distribution of the overall queue depth.
  *
- * 根据up 还是down 调整max_depth
+ * 根据up 还是down 调整该blkg->iolat->max_depth
+ * 只有 check_scale_change 会调用
  *
  */
 static void scale_change(struct iolatency_grp *iolat, bool up)
@@ -449,6 +469,10 @@ static void scale_change(struct iolatency_grp *iolat, bool up)
 /*
  * Check our parent and see if the scale cookie has changed. 
  * @iolat 我所属于的iolat， 对应一个blkg
+ *
+ * 只有 blkcg_iolatency_throttle 函数会调用该函数, 从当前任务对应的blkg开始一直往上,
+ * 针对每个blkg 调用该函数, 根据cookie 调整该blkg->depth
+ * blkcg_iolatency_throttle 之后会调用 __blkcg_iolatency_throttle, 这里会因为max_depth 阻塞
  */
 static void check_scale_change(struct iolatency_grp *iolat)
 {
@@ -480,7 +504,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	else
 		return;
 
-	/*不管怎样 lat_info->scale_cookie 都会被赋值给 &iolat->scale_cookie*/
+	/*!!!! iolat->scale_cookie = lat_info->scale_cookie */
 	old = atomic_cmpxchg(&iolat->scale_cookie, our_cookie, cur_cookie);
 
 	/* Somebody beat us to the punch, just bail. */
@@ -512,6 +536,7 @@ static void check_scale_change(struct iolatency_grp *iolat)
 	/* We're as low as we can go. */
 	if (iolat->rq_depth.max_depth == 1 && direction < 0) {
 		/*use_delay ++*/
+		/*没法scale down了, 只能通过返回用户态阻塞的手段来惩罚该进程了*/
 		blkcg_use_delay(lat_to_blkg(iolat));
 		return;
 	}
@@ -525,7 +550,10 @@ static void check_scale_change(struct iolatency_grp *iolat)
 		return;
 	}
 
-	/*调整该blkcg->iolat->max_depth, 根据需求看是否唤醒, max_depth决定了可以用多少带宽*/
+	/*
+	 * 调整该blkcg->iolat->max_depth, 根据需求看是否唤醒, 
+	 * max_depth决定了可以用多少带宽
+	 */
 	scale_change(iolat, direction > 0);
 }
 
@@ -547,7 +575,7 @@ static void blkcg_iolatency_throttle(struct rq_qos *rqos, struct bio *bio)
 			continue;
 		}
 		/*调整max path 以及 scale_cookie*/
-		check_scale_change(iolat);
+		check_scale_change(iolat); /*调整parent->scale_cookie*/
 		__blkcg_iolatency_throttle(rqos, iolat, issue_as_root,
 				     (bio->bi_opf & REQ_SWAP) == REQ_SWAP);
 		blkg = blkg->parent;
@@ -584,6 +612,7 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 	if (now <= start)
 		return;
 
+	/*req_time为整个io的时间*/
 	req_time = now - start;
 
 	/*
@@ -593,6 +622,9 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 	 * issue_as_root由于没有限制,所以会拉低 blkg ->iolat-> latency mean值
 	 * 所以这里需要单独处理
 	 * issue_as_root 肯定是meta 或者swap io, 如果此时iolat 有限制,那么可能需要惩罚一下
+	 * 这个blkg 的设定延迟是min_lat_nsec 实际完成时间是req_time, 如果req_time < min_lat_nsec,
+	 * 我们让他睡一个差值 min_lat_nsec - req_time, 这样依然保证了他的延迟设定,同时可以惩罚一下该进程
+	 * 我们得稍微惩罚一下他
 	 */
 	if (unlikely(issue_as_root && iolat->rq_depth.max_depth != UINT_MAX)) {
 		u64 sub = iolat->min_lat_nsec;
@@ -613,6 +645,7 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
  * @iolat blkg 对应的 latency policy data
  *
  * blkcg_iolatency_done_bio 会调用, 每个bio完成后就会调用他
+ * 调整cookie
  */
 static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 {
@@ -686,7 +719,7 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
 		if (lat_info->scale_grp == iolat) {
 			/*@iolat 就是那个最小的min_lat_nsec, 既然他都是ok的, 那么放大depth*/
 			lat_info->last_scale_event = now;
-			/*放大depth*/
+			/*调整cookie*/
 			scale_cookie_change(iolat->blkiolat, lat_info, true);
 		}
 
@@ -784,7 +817,7 @@ static struct rq_qos_ops blkcg_iolatency_ops = {
 	.done_bio = blkcg_iolatency_done_bio,
 	.exit = blkcg_iolatency_exit,
 };
-
+/*1s 一次*/
 static void blkiolatency_timer_fn(struct timer_list *t)
 {
 	struct blk_iolatency *blkiolat = from_timer(blkiolat, t, timer);
@@ -826,7 +859,7 @@ static void blkiolatency_timer_fn(struct timer_list *t)
 		 * We scaled down but don't have a scale_grp, scale up and carry
 		 * on.
 		 *
-		 * scale_grp 记录是谁设置的scale_lat, 记录最小的min_latency
+		 * scale_grp 记录是谁设置的scale_lat, scale_lat 记录最小的min_latency
 		 * 调整lat_info的scale_cookie
 		 */
 		if (lat_info->scale_grp == NULL) {

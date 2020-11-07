@@ -105,12 +105,19 @@ struct blk_mq_hw_ctx {
 	/**
 	 * @dispatch_wait: Waitqueue to put requests when there is no tag
 	 * available at the moment, to wait for another try in the future.
+	 *
+	 * init_waitqueue_func_entry(&hctx->dispatch_wait, blk_mq_dispatch_wake)
 	 */
 	wait_queue_entry_t	dispatch_wait;
 
 	/**
 	 * @wait_index: Index of next available dispatch_wait queue to insert
 	 * requests.
+	 *
+	 * 这里对应的是 sbitmap_queue::wake_index
+	 * wait_index 指定我要被挂在哪个index上
+	 * 而 wake_index指定 sbitmap_queue 有zero bit之后唤醒哪个ws
+	 * 两个字段都是分别自加的,防止一次唤醒太多
 	 */
 	atomic_t		wait_index;
 
@@ -420,6 +427,7 @@ struct blk_mq_ops {
 
 enum {
 	BLK_MQ_F_SHOULD_MERGE	= 1 << 0,
+		/*多个queue 共享同一个set, 应该不太可能, nvme 就是一个set 对应一个queue*/
 	BLK_MQ_F_TAG_SHARED	= 1 << 1,
 	/*
 	 * queue_rq的时候可能会被阻塞

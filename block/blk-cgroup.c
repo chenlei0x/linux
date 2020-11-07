@@ -1519,6 +1519,7 @@ bool __blkcg_punt_bio_submit(struct bio *bio)
  * delay a task, to account for any delays that may have occurred.
  *
  * 主要用来计算 blkg->delay_nsec
+ * add_delay 和 真正delay 时会调用
  */
 static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 {
@@ -1537,9 +1538,17 @@ static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 	 * the accumulated delay as we've already throttled enough that
 	 * everybody is happy with their IO latencies.
 	 */
-	/*delay开始至今已经超过1秒, 每一秒执行一次*/
+	/*
+	 * delay开始至今已经超过1秒, 每一秒执行一次
+	 * delay_nsec 是一个累加值，如果不衰减，越来越大
+	 * 我们每秒对delay_nsec进行一次衰减 衰减方式为
+	 * delay_nsec = delay_nsec - last_delay
+	 * last_delay 记录在上一个窗口的延迟值
+	 * 对衰减之后的delay_nsec在1s内继续进行累加
+	 * last_delay 记录上一次
+	 */
 	if (time_before64(old + NSEC_PER_SEC, now) &&
-	    atomic64_cmpxchg(&blkg->delay_start, old, now) == old) {
+	    atomic64_cmpxchg(&blkg->delay_start, old, now) == old) {/**/
 		u64 cur = atomic64_read(&blkg->delay_nsec);
 		/*这次delay时间和上次delay 取最小 , 第一次计算为now*/
 		u64 sub = min_t(u64, blkg->last_delay, now - old);
@@ -1562,8 +1571,15 @@ static void blkcg_scale_delay(struct blkcg_gq *blkg, u64 now)
 			atomic64_set(&blkg->delay_nsec, 0);
 			blkg->last_delay = 0;
 		} else {
+			/* 这里是重点 衰减delay_nsec值！！*/
 			atomic64_sub(sub, &blkg->delay_nsec);
-			blkg->last_delay = cur - sub;
+			/*
+			 * last_delay 记录这次scale之后的delay_nsec值, 
+			 * 因为之后可能又被blkcg_add_delay了
+			 *
+			 * blkg->delay_nsec - sub 其实就是现在的 delay_nsec值
+			 */
+			blkg->last_delay = cur - sub; 
 		}
 		blkg->last_use = cur_use;
 	}

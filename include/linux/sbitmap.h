@@ -64,7 +64,7 @@ struct sbitmap {
 	/**
 	 * @map: Allocated bitmap.
 	 */
-	struct sbitmap_word *map;
+	struct sbitmap_word *map;/*数组长度 map_nr*/
 };
 
 #define SBQ_WAIT_QUEUES 8
@@ -94,6 +94,7 @@ struct sbq_wait_state {
  * scalability wall when we run out of free bits and have to start putting tasks
  * to sleep.
  */
+ /*sbitmap_queue_init_node*/
 struct sbitmap_queue {
 	/**
 	 * @sb: Scalable bitmap.
@@ -116,13 +117,16 @@ struct sbitmap_queue {
 
 	/**
 	 * @wake_index: Next wait queue in @ws to wake up.
+	 * 为了保证公平性, 这个字段表明下次要唤醒哪个ws
+	 * 成功唤醒一个ws之后,该字段加一
+	 * __sbq_wake_up
 	 */
 	atomic_t wake_index;
 
 	/**
 	 * @ws: Wait queues.
 	 */
-	struct sbq_wait_state *ws;
+	struct sbq_wait_state *ws; /*数组长度 SBQ_WAIT_QUEUES */
 
 	/*
 	 * @ws_active: count of currently active ws waitqueues
@@ -504,6 +508,8 @@ static inline void sbq_index_atomic_inc(atomic_t *index)
  * sbitmap_queue.
  * @sbq: Bitmap queue to wait on.
  * @wait_index: A counter per "user" of @sbq.
+ *
+ * sbq_wake_ptr
  */
 static inline struct sbq_wait_state *sbq_wait_ptr(struct sbitmap_queue *sbq,
 						  atomic_t *wait_index)
