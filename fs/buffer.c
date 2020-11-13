@@ -1573,6 +1573,7 @@ void create_empty_buffers(struct page *page,
 	tail->b_this_page = head;
 
 	spin_lock(&page->mapping->private_lock);
+	/*page 包含多个buffer， page脏就置buffer 脏， uptodate 同理*/
 	if (PageUptodate(page) || PageDirty(page)) {
 		bh = head;
 		do {
@@ -1674,7 +1675,7 @@ static inline int block_size_bits(unsigned int blocksize)
 {
 	return ilog2(blocksize);
 }
-
+/*给page创建buffer*/
 static struct buffer_head *create_page_buffers(struct page *page, struct inode *inode, unsigned int b_state)
 {
 	BUG_ON(!PageLocked(page));
@@ -1744,6 +1745,7 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 	bbits = block_size_bits(blocksize);
 
 	block = (sector_t)page->index << (PAGE_SHIFT - bbits);
+	/*size - 1 >> bits 换算为block# 从0 开始*/
 	last_block = (i_size_read(inode) - 1) >> bbits;
 
 	/*
@@ -1765,13 +1767,16 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 		} else if ((!buffer_mapped(bh) || buffer_delay(bh)) &&
 			   buffer_dirty(bh)) {
 			WARN_ON(bh->b_size != blocksize);
+			/*对这个bh进行映射， block为逻辑blk#*/
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				goto recover;
+			/*已经映射了就去掉delay*/
 			clear_buffer_delay(bh);
 			if (buffer_new(bh)) {
 				/* blockdev mappings never come here */
 				clear_buffer_new(bh);
+				/*从快设备中拿掉这个bh 对应的buffer*/
 				clean_bdev_bh_alias(bh);
 			}
 		}

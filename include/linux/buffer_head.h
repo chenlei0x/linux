@@ -269,7 +269,7 @@ void buffer_init(void);
 /*
  * inline definitions
  */
-
+/*把buffer 绑定到page 上*/
 static inline void attach_page_buffers(struct page *page,
 		struct buffer_head *head)
 {
