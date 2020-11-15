@@ -140,6 +140,10 @@ static inline void bio_issue_init(struct bio_issue *issue,
 /*
  * main unit of I/O for the block layer and lower layers (ie drivers and
  * stacking drivers)
+ *
+ * bio 的构成:
+ bio_alloc_bioset
+
  */
 struct bio {
 	struct bio		*bi_next;	/* request queue link */

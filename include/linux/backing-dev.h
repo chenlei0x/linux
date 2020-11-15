@@ -402,7 +402,7 @@ static inline void unlocked_inode_to_wb_end(struct inode *inode,
 }
 
 #else	/* CONFIG_CGROUP_WRITEBACK */
-
+/*没有配置 CONFIG_CGROUP_WRITEBACK*/
 static inline bool inode_cgwb_enabled(struct inode *inode)
 {
 	return false;

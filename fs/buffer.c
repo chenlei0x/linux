@@ -1797,11 +1797,13 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 		if (wbc->sync_mode != WB_SYNC_NONE) {/*WB_SYNC_NONE 不允许发生任何阻塞*/
 			lock_buffer(bh);
 		} else if (!trylock_buffer(bh)) {
+			/*重新把page 置脏, 等待下次bdi 去回刷*/
 			redirty_page_for_writepage(wbc, page);
 			continue;
 		}
 		if (test_clear_buffer_dirty(bh)) {
 			/*end_bio_bh_io_sync 会调用handler*/
+		/*buffer dirty 标记被清除, 打上async_write			标记*/
 			mark_buffer_async_write_endio(bh, handler);
 		} else {
 			unlock_buffer(bh);
@@ -1828,6 +1830,9 @@ int __block_write_full_page(struct inode *inode, struct page *page,
 
 	err = 0;
 done:
+	/*page 为脏, 但是所有的bh 的dirty标记都被清除, 说明是一种竞争情况, 说明有人已经把脏页提交了
+	 那么page应该还原为干净, 防止重新走入提交页的过程
+	 */
 	if (nr_underway == 0) {
 		/*
 		 * The page was marked dirty, but the buffers were
