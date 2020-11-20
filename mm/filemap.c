@@ -417,6 +417,7 @@ int __filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 	    !mapping_tagged(mapping, PAGECACHE_TAG_DIRTY))
 		return 0;
 
+	/*初始化wbc, 以及内部的inode 和wb*/
 	wbc_attach_fdatawrite_inode(&wbc, mapping->host);
 	ret = do_writepages(mapping, &wbc);
 	wbc_detach_inode(&wbc);
@@ -773,6 +774,9 @@ EXPORT_SYMBOL(file_check_and_advance_wb_err);
  *
  * Return: %0 on success, negative error code otherwise.
  */
+ /*
+  * 这里会调用aops::writepages 或者writepage的接口
+  */
 int file_write_and_wait_range(struct file *file, loff_t lstart, loff_t lend)
 {
 	int err = 0, err2;
@@ -3265,6 +3269,7 @@ struct page *grab_cache_page_write_begin(struct address_space *mapping,
 }
 EXPORT_SYMBOL(grab_cache_page_write_begin);
 
+/*把脏页提交到page cache中*/
 ssize_t generic_perform_write(struct file *file,
 				struct iov_iter *i, loff_t pos)
 {
@@ -3274,6 +3279,7 @@ ssize_t generic_perform_write(struct file *file,
 	ssize_t written = 0;
 	unsigned int flags = 0;
 
+	/*以下是一个大循环，把一个iter分成很多个页进行处理*/
 	do {
 		struct page *page;
 		unsigned long offset;	/* Offset into pagecache page */
@@ -3305,7 +3311,12 @@ again:
 			status = -EINTR;
 			break;
 		}
-
+		/*
+		 * 写之前需要，如果涉及到一个block的一部分，那么需要把这个block读上来
+		 * 或者分配block
+		 * delay alloc 这里不会分配block, 而是打上delay 标记,在bdi调用writepages
+		 * 时开始分配
+		 */
 		status = a_ops->write_begin(file, mapping, pos, bytes, flags,
 						&page, &fsdata);
 		if (unlikely(status < 0))
@@ -3313,10 +3324,11 @@ again:
 
 		if (mapping_writably_mapped(mapping))
 			flush_dcache_page(page);
-
+		/*把@i 拷贝到page中的 [offset， +bytes]中*/
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
 		flush_dcache_page(page);
 
+		/*bh page mapping 等都置脏*/
 		status = a_ops->write_end(file, mapping, pos, bytes, copied,
 						page, fsdata);
 		if (unlikely(status < 0))
@@ -3342,6 +3354,7 @@ again:
 		pos += copied;
 		written += copied;
 
+		/*平衡一下脏页的速度*/
 		balance_dirty_pages_ratelimited(mapping);
 	} while (iov_iter_count(i));
 
@@ -3466,6 +3479,7 @@ ssize_t generic_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 
 	inode_lock(inode);
 	ret = generic_write_checks(iocb, from);
+	/*提交脏页到page cache*/
 	if (ret > 0)
 		ret = __generic_file_write_iter(iocb, from);
 	inode_unlock(inode);

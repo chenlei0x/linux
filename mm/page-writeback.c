@@ -98,6 +98,8 @@ unsigned long vm_dirty_bytes;
 
 /*
  * The interval between `kupdate'-style writebacks
+ *
+ * 5s
  */
 unsigned int dirty_writeback_interval = 5 * 100; /* centiseconds */
 
@@ -128,7 +130,7 @@ struct wb_domain global_wb_domain;
 /* consolidated parameters for balance_dirty_pages() and its subroutines */
 struct dirty_throttle_control {
 #ifdef CONFIG_CGROUP_WRITEBACK
-	struct wb_domain	*dom;
+	struct wb_domain	*dom;/*代表当前 @wb_completions 的总计*/
 	struct dirty_throttle_control *gdtc;	/* only set in memcg dtc's */
 #endif
 	struct bdi_writeback	*wb;
@@ -136,7 +138,9 @@ struct dirty_throttle_control {
 
 	unsigned long		avail;		/* dirtyable */
 	unsigned long		dirty;		/* file_dirty + write + nfs */
+	/*达到这个线,就开始产生脏页的时候写入*/
 	unsigned long		thresh;		/* dirty threshold */
+	/*开始异步写入*/
 	unsigned long		bg_thresh;	/* dirty background threshold */
 
 	unsigned long		wb_dirty;	/* per-wb counterparts */
@@ -358,6 +362,8 @@ static unsigned long highmem_dirtyable_memory(unsigned long total)
  *
  * Return: the global number of pages potentially available for dirty
  * page cache.  This is the base value for the global dirty limits.
+ *
+ * 所有可以能称为脏页的页数量
  */
 static unsigned long global_dirtyable_memory(void)
 {
@@ -425,12 +431,12 @@ static void domain_dirty_limits(struct dirty_throttle_control *dtc)
 
 	if (bytes)
 		thresh = DIV_ROUND_UP(bytes, PAGE_SIZE);
-	else
+	else /*memcg domain 的情况*/
 		thresh = (ratio * available_memory) / PAGE_SIZE;
 
 	if (bg_bytes)
 		bg_thresh = DIV_ROUND_UP(bg_bytes, PAGE_SIZE);
-	else
+	else/*memcg domain 的情况*/
 		bg_thresh = (bg_ratio * available_memory) / PAGE_SIZE;
 
 	if (bg_thresh >= thresh)
@@ -480,6 +486,7 @@ static unsigned long node_dirty_limit(struct pglist_data *pgdat)
 	struct task_struct *tsk = current;
 	unsigned long dirty;
 
+	/*vm_dirty_bytes * node 占总内存的比例*/
 	if (vm_dirty_bytes)
 		dirty = DIV_ROUND_UP(vm_dirty_bytes, PAGE_SIZE) *
 			node_memory / global_dirtyable_memory();
@@ -596,6 +603,15 @@ static void wb_domain_writeout_inc(struct wb_domain *dom,
 /*
  * Increment @wb's writeout completion count and the global writeout
  * completion count. Called from test_clear_page_writeback().
+ *
+ * 这个函数在 test_clear_page_writeback 中调用, 这样就可以计算当前wb
+ * 和 总体之间写入页的比例
+ *
+ * 一个bdi 对应多个wb, 系统内有多个bdi, global_wb_domain
+ * 是这些所有bdi的所有wb的总计
+ * 一个memcg 在一个bdi中有对应的wb, 当有多个bdi时, 一个memcg 就有多个wb
+ * 那么memcg中的domain也充当了这些wb的总计
+ * 
  */
 static inline void __wb_writeout_inc(struct bdi_writeback *wb)
 {
@@ -634,6 +650,7 @@ static void writeout_period(struct timer_list *t)
 	if (fprop_new_period(&dom->completions, miss_periods + 1)) {
 		dom->period_time = wp_next_time(dom->period_time +
 				miss_periods * VM_COMPLETIONS_PERIOD_LEN);
+		/*writeout_period*/
 		mod_timer(&dom->period_timer, dom->period_time);
 	} else {
 		/*
@@ -763,22 +780,30 @@ static void mdtc_calc_avail(struct dirty_throttle_control *mdtc,
  */
 static unsigned long __wb_calc_thresh(struct dirty_throttle_control *dtc)
 {
-	struct wb_domain *dom = dtc_dom(dtc);
+	struct wb_domain *dom = dtc_dom(dtc);/*global wb domain*/
 	unsigned long thresh = dtc->thresh;
 	u64 wb_thresh;
 	unsigned long numerator, denominator;
 	unsigned long wb_min_ratio, wb_max_ratio;
 
+/*
+					.wb = (__wb),
+					.wb_completions = &(__wb)->completions
+					.dom = &global_wb_domain,
+	*/
 	/*
 	 * Calculate this BDI's share of the thresh ratio.
+	 * 计算该 dtc->wb_completions 脏页下刷速度 占 dom->completions 下刷速度的比例
 	 */
 	fprop_fraction_percpu(&dom->completions, dtc->wb_completions,
 			      &numerator, &denominator);
 
+	/*总体脏页水平*/
 	wb_thresh = (thresh * (100 - bdi_min_ratio)) / 100;
 	wb_thresh *= numerator;
 	wb_thresh = div64_ul(wb_thresh, denominator);
 
+	/*按照探测到的带宽计算wb的 min max ratio*/
 	wb_min_max_ratio(dtc->wb, &wb_min_ratio, &wb_max_ratio);
 
 	wb_thresh += (thresh * wb_min_ratio) / 100;
@@ -2188,6 +2213,7 @@ int write_cache_pages(struct address_space *mapping,
 	else
 		tag = PAGECACHE_TAG_DIRTY;
 	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
+		/*这里为 PAGECACHE_TAG_DIRTY page 新增标记 PAGECACHE_TAG_TOWRITE*/
 		tag_pages_for_writeback(mapping, index, end);
 	done_index = index;
 	while (!done && (index <= end)) {
@@ -2315,6 +2341,7 @@ static int __writepage(struct page *page, struct writeback_control *wbc,
  * address_space_operation.
  *
  * Return: %0 on success, negative error code otherwise
+ * 通过aops writepage 回调对每个页进行写入
  */
 int generic_writepages(struct address_space *mapping,
 		       struct writeback_control *wbc)
@@ -2341,6 +2368,11 @@ int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	if (wbc->nr_to_write <= 0)
 		return 0;
 	while (1) {
+		/*
+		 * 根据文件系统是否实现writepages 回调来决定用哪个
+		 * 有些文件系统实现了这个结构为了对多页写入有优化, 
+		 * 比如尽可能分配大的extent等,连续磁盘io等
+	     */
 		if (mapping->a_ops->writepages)
 			ret = mapping->a_ops->writepages(mapping, wbc);
 		else
@@ -2549,6 +2581,7 @@ EXPORT_SYMBOL(redirty_page_for_writepage);
  * just fall through and assume that it wants buffer_heads.
  *
  * 处理page buffer 以及inode 脏的情况
+ * 主要最后会调用__mark_inode_dirty
  */
 int set_page_dirty(struct page *page)
 {
@@ -2780,7 +2813,7 @@ int __test_set_page_writeback(struct page *page, bool keep_write)
 		xas_lock_irqsave(&xas, flags);
 		xas_load(&xas);
 		ret = TestSetPageWriteback(page);
-		if (!ret) {
+		if (!ret) {/*设置成功了*/
 			bool on_wblist;
 
 			on_wblist = mapping_tagged(mapping,

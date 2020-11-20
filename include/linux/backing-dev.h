@@ -192,7 +192,9 @@ static inline bool bdi_cap_stable_pages_required(struct backing_dev_info *bdi)
 {
 	return bdi->capabilities & BDI_CAP_STABLE_WRITES;
 }
-
+/*
+ * 只有 noop_backing_dev_info.capabilities	= BDI_CAP_NO_ACCT_AND_WRITEBACK,
+ */
 static inline bool bdi_cap_writeback_dirty(struct backing_dev_info *bdi)
 {
 	return !(bdi->capabilities & BDI_CAP_NO_WRITEBACK);

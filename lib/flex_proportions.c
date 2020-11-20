@@ -60,6 +60,7 @@ void fprop_global_destroy(struct fprop_global *p)
  * The function returns true if the proportions are still defined and false
  * if aging zeroed out all events. This can be used to detect whether declaring
  * further periods has any effect.
+ * global proportion 进入新周期
  */
 bool fprop_new_period(struct fprop_global *p, int periods)
 {
@@ -77,7 +78,7 @@ bool fprop_new_period(struct fprop_global *p, int periods)
 	}
 	write_seqcount_begin(&p->sequence);
 	if (periods < 64)
-		events -= events >> periods;
+		events -= events >> periods;/*按比例缩小*/
 	/* Use addition to avoid losing events happening between sum and set */
 	percpu_counter_add(&p->events, -events);
 	p->period += periods;
@@ -186,15 +187,17 @@ void fprop_local_destroy_percpu(struct fprop_local_percpu *pl)
 	percpu_counter_destroy(&pl->events);
 }
 
+/*主要处理local proportion 的历史值*/
 static void fprop_reflect_period_percpu(struct fprop_global *p,
 					struct fprop_local_percpu *pl)
 {
-	unsigned int period = p->period;
+	unsigned int period = p->period; /*global period*/
 	unsigned long flags;
 
 	/* Fast path - period didn't change */
 	if (pl->period == period)
 		return;
+	/*同步period*/
 	raw_spin_lock_irqsave(&pl->lock, flags);
 	/* Someone updated pl->period while we were spinning? */
 	if (pl->period >= period) {
@@ -202,16 +205,19 @@ static void fprop_reflect_period_percpu(struct fprop_global *p,
 		return;
 	}
 	/* Aging zeroed our fraction? */
+	/*因为要除以2 也就是右移, 如果右移超过BITS_PER_LONG 就为0了*/
 	if (period - pl->period < BITS_PER_LONG) {
 		s64 val = percpu_counter_read(&pl->events);
 
 		if (val < (nr_cpu_ids * PROP_BATCH))
 			val = percpu_counter_sum(&pl->events);
 
+		/*把历史数据处理以下, 向右移period-pl->period 位*/
 		percpu_counter_add_batch(&pl->events,
 			-val + (val >> (period-pl->period)), PROP_BATCH);
 	} else
 		percpu_counter_set(&pl->events, 0);
+	/*同步period*/
 	pl->period = period;
 	raw_spin_unlock_irqrestore(&pl->lock, flags);
 }
@@ -261,12 +267,16 @@ void __fprop_inc_percpu_max(struct fprop_global *p,
 {
 	if (unlikely(max_frac < FPROP_FRAC_BASE)) {
 		unsigned long numerator, denominator;
-
+		/*
+		 * 先计算 pl 的比例是不是大于@max_frac, 如果大于就
+		 * 不要加pl event了
+		 */
 		fprop_fraction_percpu(p, pl, &numerator, &denominator);
 		if (numerator >
 		    (((u64)denominator) * max_frac) >> FPROP_FRAC_SHIFT)
 			return;
-	} else
+	} else/*如果 max_frac >= FPROP_FRAC_BASE, 
+	  那么就是正常的__fprop_inc_percpu流程*/
 		fprop_reflect_period_percpu(p, pl);
 	percpu_counter_add_batch(&pl->events, 1, PROP_BATCH);
 	percpu_counter_add(&p->events, 1);

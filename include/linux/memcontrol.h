@@ -309,6 +309,10 @@ struct mem_cgroup {
 #endif
 
 #ifdef CONFIG_CGROUP_WRITEBACK
+	/*
+	 * bdi中每个memcg 对应一个wb， 一个memcg的所有wb(来自不同的bdi) 都挂在这里
+	 */
+
 	struct list_head cgwb_list;
 	struct wb_domain cgwb_domain;
 	struct memcg_cgwb_frn cgwb_frn[MEMCG_CGWB_FRN_CNT];

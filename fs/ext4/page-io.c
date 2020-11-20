@@ -410,9 +410,11 @@ static void io_submit_init_bio(struct ext4_io_submit *io,
 	bio->bi_private = ext4_get_io_end(io->io_end);
 	io->io_bio = bio;
 	io->io_next_block = bh->b_blocknr;
+	/*bio 中的blkcg*/
 	wbc_init_bio(io->io_wbc, bio);
 }
 
+/*暂存连续bio, 如果遇到bio和之前的不连续,那么进行提交*/
 static void io_submit_add_bh(struct ext4_io_submit *io,
 			     struct inode *inode,
 			     struct page *page,
@@ -425,16 +427,19 @@ submit_and_retry:
 		ext4_io_submit(io);
 	}
 	if (io->io_bio == NULL) {
+		/*bh 转为bio*/
 		io_submit_init_bio(io, bh);
 		io->io_bio->bi_write_hint = inode->i_write_hint;
 	}
 	ret = bio_add_page(io->io_bio, page, bh->b_size, bh_offset(bh));
+	/*bio最大长度是有限制的, 加不进去了,就需要submit*/
 	if (ret != bh->b_size)
 		goto submit_and_retry;
 	wbc_account_cgroup_owner(io->io_wbc, page, bh->b_size);
 	io->io_next_block++;
 }
 
+/*针对一个页的每个bio进行暂存式下发*/
 int ext4_bio_write_page(struct ext4_io_submit *io,
 			struct page *page,
 			int len,

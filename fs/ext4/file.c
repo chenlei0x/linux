@@ -250,6 +250,7 @@ static ssize_t ext4_buffered_write_iter(struct kiocb *iocb,
 		goto out;
 
 	current->backing_dev_info = inode_to_bdi(inode);
+	/*先提交脏页*/
 	ret = generic_perform_write(iocb->ki_filp, from, iocb->ki_pos);
 	current->backing_dev_info = NULL;
 
@@ -257,6 +258,7 @@ out:
 	inode_unlock(inode);
 	if (likely(ret > 0)) {
 		iocb->ki_pos += ret;
+		/*再写入*/
 		ret = generic_write_sync(iocb, ret);
 	}
 

@@ -192,8 +192,9 @@ int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 
 	if (!file->f_op->fsync)
 		return -EINVAL;
+	/*data + meta 都需要sync， 且时间dirty了*/
 	if (!datasync && (inode->i_state & I_DIRTY_TIME))
-		mark_inode_dirty_sync(inode);
+		mark_inode_dirty_sync(inode);/*不重要的sync I_DIRTY_SYNC*/
 	return file->f_op->fsync(file, start, end, datasync);
 }
 EXPORT_SYMBOL(vfs_fsync_range);

@@ -497,6 +497,7 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 		      void *data)
 {
 	struct mpage_data *mpd = data;
+	/*bio 会跨页一直合并新的page*/
 	struct bio *bio = mpd->bio;
 	struct address_space *mapping = page->mapping;
 	struct inode *inode = page->mapping->host;
@@ -525,8 +526,10 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 
 		/* If they're all mapped and dirty, do it */
 		page_block = 0;
+		/**/
 		do {
 			BUG_ON(buffer_locked(bh));
+			/*每个bh 都必须map过*/
 			if (!buffer_mapped(bh)) {
 				/*
 				 * unmapped dirty buffers are created by
@@ -538,13 +541,19 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 					first_unmapped = page_block;
 				continue;
 			}
-
+			/*
+			 * 如果有一些bh 没有被映射, 那么这个肯定会成立
+			 * 因为page_block 的取值范围是 [0, blocks_per_page -1]
+			 * 部分mapped, goto confused
+			 */
 			if (first_unmapped != blocks_per_page)
 				goto confused;	/* hole -> non-hole */
 
+			/*dirty uptodate 标记必须都存在*/
 			if (!buffer_dirty(bh) || !buffer_uptodate(bh))
 				goto confused;
 			if (page_block) {
+				/*磁盘位置不连续*/
 				if (bh->b_blocknr != blocks[page_block-1] + 1)
 					goto confused;
 			}
@@ -556,8 +565,8 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 			}
 			bdev = bh->b_bdev;
 		} while ((bh = bh->b_this_page) != head);
-
-		if (first_unmapped)
+		/*全部都mapped*/
+		if (first_unmapped)/*第一个没有被映射的blk 不是0*/
 			goto page_is_mapped;
 
 		/*
@@ -580,6 +589,7 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 
 		map_bh.b_state = 0;
 		map_bh.b_size = 1 << blkbits;
+		/*!!!! 这里需要映射*/
 		if (mpd->get_block(inode, block_in_file, &map_bh, 1))
 			goto confused;
 		if (buffer_new(&map_bh))
@@ -589,6 +599,7 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 			boundary_bdev = map_bh.b_bdev;
 		}
 		if (page_block) {
+			/*映射到的blk# 和page中的前一个bh->blk# 不连续了*/
 			if (map_bh.b_blocknr != blocks[page_block-1] + 1)
 				goto confused;
 		}
@@ -602,7 +613,7 @@ static int __mpage_writepage(struct page *page, struct writeback_control *wbc,
 	BUG_ON(page_block == 0);
 
 	first_unmapped = page_block;
-
+	/*走到这里,说明页中的每个block 在磁盘上也是连续的*/
 page_is_mapped:
 	end_index = i_size >> PAGE_SHIFT;
 	if (page->index >= end_index) {
@@ -628,12 +639,18 @@ page_is_mapped:
 		bio = mpage_bio_submit(REQ_OP_WRITE, op_flags, bio);
 
 alloc_new:
+	/*bio 中包含的是一个或者多个完整的page*/
 	if (bio == NULL) {
 		if (first_unmapped == blocks_per_page) {
+			/*
+			 * 有些设备驱动实现了rw_page 操作, 可以直接写下去页,不通过bio,
+			 * 成功的话就 goto out
+			 */
 			if (!bdev_write_page(bdev, blocks[0] << (blkbits - 9),
 								page, wbc))
 				goto out;
 		}
+		/*rw_page 不支持, 没办法,只能用bio了*/
 		bio = mpage_alloc(bdev, blocks[0] << (blkbits - 9),
 				BIO_MAX_PAGES, GFP_NOFS|__GFP_HIGH);
 		if (bio == NULL)
@@ -649,16 +666,18 @@ alloc_new:
 	 * it finds all bh marked clean (i.e. it will not write anything)
 	 */
 	wbc_account_cgroup_owner(wbc, page, PAGE_SIZE);
+	/*length = 前几个已经映射了的block 的长度*/
 	length = first_unmapped << blkbits;
 	if (bio_add_page(bio, page, length, 0) < length) {
+		/*这里直接submit_bio了*/
 		bio = mpage_bio_submit(REQ_OP_WRITE, op_flags, bio);
 		goto alloc_new;
 	}
 
 	clean_buffers(page, first_unmapped);
-
 	BUG_ON(PageWriteback(page));
 	set_page_writeback(page);
+
 	unlock_page(page);
 	if (boundary || (first_unmapped != blocks_per_page)) {
 		bio = mpage_bio_submit(REQ_OP_WRITE, op_flags, bio);
@@ -672,9 +691,11 @@ alloc_new:
 	goto out;
 
 confused:
+	/*先提交已经构造好的bio*/
 	if (bio)
 		bio = mpage_bio_submit(REQ_OP_WRITE, op_flags, bio);
 
+	/*然后用	writepage回调*/
 	if (mpd->use_writepage) {
 		ret = mapping->a_ops->writepage(page, wbc);
 	} else {
@@ -708,6 +729,8 @@ out:
  * the call was made get new I/O started against them.  If wbc->sync_mode is
  * WB_SYNC_ALL then we were called for data integrity and we must wait for
  * existing IO to complete.
+ *
+ * 一些文件系统的writepages 靠这个实现
  */
 int
 mpage_writepages(struct address_space *mapping,
@@ -727,7 +750,7 @@ mpage_writepages(struct address_space *mapping,
 			.get_block = get_block,
 			.use_writepage = 1,
 		};
-
+		/*针对每个page 进行调用 __mpage_writepage */
 		ret = write_cache_pages(mapping, wbc, __mpage_writepage, &mpd);
 		if (mpd.bio) {
 			int op_flags = (wbc->sync_mode == WB_SYNC_ALL ?

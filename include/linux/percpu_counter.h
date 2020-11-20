@@ -61,11 +61,12 @@ static inline s64 percpu_counter_sum_positive(struct percpu_counter *fbc)
 	return ret < 0 ? 0 : ret;
 }
 
+/*每个cpu的值 + 汇总值*/
 static inline s64 percpu_counter_sum(struct percpu_counter *fbc)
 {
 	return __percpu_counter_sum(fbc);
 }
-
+/*汇总值*/
 static inline s64 percpu_counter_read(struct percpu_counter *fbc)
 {
 	return fbc->count;

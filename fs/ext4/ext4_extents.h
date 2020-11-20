@@ -122,7 +122,7 @@ struct ext4_ext_path {
 	struct ext4_extent		*p_ext;
 	struct ext4_extent_idx		*p_idx;
 	struct ext4_extent_header	*p_hdr;
-	struct buffer_head		*p_bh;
+	struct buffer_head		*p_bh; /* 指向extent block*/
 };
 
 /*

@@ -55,6 +55,9 @@ struct blkcg {
 
 	struct list_head		all_blkcgs_node;
 #ifdef CONFIG_CGROUP_WRITEBACK
+/*
+ * bdi中每个memcg 对应一个wb， 一个blkcg的所有wb(来自不同的bdi) 都挂在这里
+ */
 	struct list_head		cgwb_list;
 	refcount_t			cgwb_refcnt;
 #endif

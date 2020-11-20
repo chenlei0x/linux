@@ -40,6 +40,7 @@ struct backing_dev_info;
  */
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
+		/*如果是WB_SYNC_ALL模式，就等待数据回写完成*/
 	WB_SYNC_ALL,	/* Wait on every mapping */
 };
 
@@ -147,6 +148,7 @@ struct wb_domain {
 	 * of this period itself is measured in page writeback completions.
 	 */
 	struct fprop_global completions;
+	/*writeout_period*/
 	struct timer_list period_timer;	/* timer for aging of completions */
 	unsigned long period_time;
 
@@ -212,8 +214,7 @@ static inline void wait_on_inode(struct inode *inode)
 
 void __inode_attach_wb(struct inode *inode, struct page *page);
 void wbc_attach_and_unlock_inode(struct writeback_control *wbc,
-				 struct inode *inode)
-	__releases(&inode->i_lock);
+				 struct inode *inode);
 void wbc_detach_inode(struct writeback_control *wbc);
 void wbc_account_cgroup_owner(struct writeback_control *wbc, struct page *page,
 			      size_t bytes);
@@ -264,7 +265,9 @@ static inline void wbc_attach_fdatawrite_inode(struct writeback_control *wbc,
 					       struct inode *inode)
 {
 	spin_lock(&inode->i_lock);
+	/*如果i_wb 为空, 绑定当前进程的memcg 对应的wb*/
 	inode_attach_wb(inode, NULL);
+	/*wbc 绑定 wb 和 inode*/
 	wbc_attach_and_unlock_inode(wbc, inode);
 }
 

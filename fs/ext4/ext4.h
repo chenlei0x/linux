@@ -181,7 +181,7 @@ struct ext4_allocation_request {
 struct ext4_map_blocks {
 	ext4_fsblk_t m_pblk; /*磁盘上的物理block，  开始block 为0*/
 	ext4_lblk_t m_lblk; /*文件的logic block*/
-	unsigned int m_len;
+	unsigned int m_len; /*单位 block*/
 	unsigned int m_flags;
 };
 

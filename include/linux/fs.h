@@ -306,11 +306,33 @@ enum rw_hint {
 	WRITE_LIFE_EXTREME	= RWH_WRITE_LIFE_EXTREME,
 };
 
+
+/*
+static inline int iocb_flags(struct file *file)
+{
+	int res = 0;
+	if (file->f_flags & O_APPEND)
+		res |= IOCB_APPEND;
+	if (io_is_direct(file))
+		res |= IOCB_DIRECT;
+	if ((file->f_flags & O_DSYNC) || IS_SYNC(file->f_mapping->host))
+		res |= IOCB_DSYNC;
+	if (file->f_flags & __O_SYNC)
+		res |= IOCB_SYNC;
+	return res;
+}
+
+*/
 #define IOCB_EVENTFD		(1 << 0)
 #define IOCB_APPEND		(1 << 1)
 #define IOCB_DIRECT		(1 << 2)
 #define IOCB_HIPRI		(1 << 3)
+/*
+ * 有sync需求， 具体sync的是纯data 还是meta + data 
+ * 取决于IOCB_SYNC 是否设置
+ */
 #define IOCB_DSYNC		(1 << 4)
+/*sync 数据 + meta*/
 #define IOCB_SYNC		(1 << 5)
 #define IOCB_WRITE		(1 << 6)
 #define IOCB_NOWAIT		(1 << 7)
@@ -364,6 +386,10 @@ struct address_space_operations {
 	int (*readpage)(struct file *, struct page *);
 
 	/* Write back some dirty pages from this mapping. */
+	/*有些文件系统没有实现这个接口, 那么就通过 generic_writepages
+	  对每个page 调用 aops->writepage 接口
+	  有些文件系统实现了该接口, 可能会借助mpage_writepages
+	 */
 	int (*writepages)(struct address_space *, struct writeback_control *);
 
 	/* Set a page dirty.  Return true if this dirtied it */
@@ -460,6 +486,12 @@ struct address_space {
 	unsigned long		flags;
 	errseq_t		wb_err;
 	spinlock_t		private_lock;
+	/*
+	 * mark_buffer_dirty_inode 函数中会把
+	 * 元数据的 bh->b_assoc_buffers 连接到
+	 * inode 数据的address space 中的这个域上
+	 *
+	 */
 	struct list_head	private_list;
 	void			*private_data; /*mark_buffer_dirty_inode*/
 } __attribute__((aligned(sizeof(long)))) __randomize_layout;
@@ -510,6 +542,7 @@ struct block_device {
 } __randomize_layout;
 
 /* XArray tags, for tagging dirty and writeback pages in the pagecache. */
+/*tag_pages_for_writeback*/
 #define PAGECACHE_TAG_DIRTY	XA_MARK_0
 #define PAGECACHE_TAG_WRITEBACK	XA_MARK_1
 #define PAGECACHE_TAG_TOWRITE	XA_MARK_2
@@ -699,15 +732,31 @@ struct inode {
 	struct hlist_node	i_hash;
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
+/*
+初始化为 NULL
+
+第一次设置
+mark_inode_dirty
+	__mark_inode_dirty
+		inode_attach_wb
+		
+之后做转换到别的wb上		
+inode_switch_wbs
+	inode_switch_wbs_rcu_fn
+		inode_switch_wbs_work_fn
+
+*/
 	struct bdi_writeback	*i_wb;		/* the associated cgroup wb */
 
 	/* foreign inode detection, see wbc_detach_inode() */
+	/*初始为0*/
 	int			i_wb_frn_winner;
 	u16			i_wb_frn_avg_time;
 	u16			i_wb_frn_history;
 #endif
 	struct list_head	i_lru;		/* inode LRU list */
 	struct list_head	i_sb_list;
+	/*&sb->s_inode_wblist_lock 链表的anchor*/
 	struct list_head	i_wb_list;	/* backing dev writeback list */
 	union {
 		struct hlist_head	i_dentry;
@@ -1561,7 +1610,12 @@ struct super_block {
 	/* s_inode_list_lock protects s_inodes */
 	spinlock_t		s_inode_list_lock ____cacheline_aligned_in_smp;
 	struct list_head	s_inodes;	/* all inodes */
-
+	
+	/*
+	 * 链接 inode->i_wb_list
+	 * sb_mark_inode_writeback
+	 * sb_clear_inode_writeback
+	 */
 	spinlock_t		s_inode_wblist_lock;
 	struct list_head	s_inodes_wb;	/* writeback inodes */
 } __randomize_layout;
@@ -2165,7 +2219,8 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 /*
  * 表示inode 结构体有重要数据脏了,比如文件长度等
  * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。
- * 当fdatasync发现了I_DIRTY_DATASYNC被设置，
+ * 当fdatasync 系统调用本意是只把用户数据刷盘刷下去，在必要时才刷meta data
+ * 这个必要时就是发现了I_DIRTY_DATASYNC被设置，
  * 就知道metadata需要马上回写了
  */
 
@@ -2177,6 +2232,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_FREEING		(1 << 5)
 #define I_CLEAR			(1 << 6)
 #define __I_SYNC		7
+/*这个inode 正在被回写，也就是处于wb路径*/
 #define I_SYNC			(1 << __I_SYNC)
 #define I_REFERENCED		(1 << 8)
 #define __I_DIO_WAKEUP		9
@@ -2190,7 +2246,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_OVL_INUSE		(1 << 14)
 #define I_CREATING		(1 << 15)
 
-/*inode 有重要或者不重要的改动或者有脏页*/
+/*inode 有重要且不重要的改动或者有脏页*/
 #define I_DIRTY_INODE (I_DIRTY_SYNC | I_DIRTY_DATASYNC)
 #define I_DIRTY (I_DIRTY_INODE | I_DIRTY_PAGES)
 #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)
@@ -2881,9 +2937,14 @@ extern int sync_file_range(struct file *file, loff_t offset, loff_t nbytes,
  */
 static inline ssize_t generic_write_sync(struct kiocb *iocb, ssize_t count)
 {
+/*
+ * 有sync需求， 具体sync的是纯data 还是meta + data 
+ * 取决于IOCB_SYNC 是否设置
+ */
 	if (iocb->ki_flags & IOCB_DSYNC) {
 		int ret = vfs_fsync_range(iocb->ki_filp,
 				iocb->ki_pos - count, iocb->ki_pos - 1,
+				/*IOCB_SYNC 设置了，就说明是meta + data 都需要sync*/
 				(iocb->ki_flags & IOCB_SYNC) ? 0 : 1);
 		if (ret)
 			return ret;

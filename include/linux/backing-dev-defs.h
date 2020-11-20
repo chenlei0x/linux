@@ -146,7 +146,10 @@ struct bdi_writeback {
 	unsigned long bw_time_stamp;	/* last time write bw is updated */
 	unsigned long dirtied_stamp;
 	unsigned long written_stamp;	/* pages written at bw_time_stamp */
+
+	/*wb_update_write_bandwidth 中计算得出以下两个字段*/
 	unsigned long write_bandwidth;	/* the estimated write bandwidth */
+	/*用于计算wb本次该写入多少 wb_split_bdi_pages */
 	unsigned long avg_write_bandwidth; /* further smoothed write bw, > 0 */
 
 	/*

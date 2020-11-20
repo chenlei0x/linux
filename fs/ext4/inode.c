@@ -2072,6 +2072,8 @@ static int mpage_submit_page(struct mpage_da_data *mpd, struct page *page)
 		len = size & ~PAGE_MASK;
 	else
 		len = PAGE_SIZE;
+	
+	/*针对@page的每个bio进行暂存式下发*/
 	err = ext4_bio_write_page(&mpd->io_submit, page, len, mpd->wbc, false);
 	if (!err)
 		mpd->wbc->nr_to_write--;
@@ -2109,6 +2111,10 @@ static bool mpage_add_bh_to_extent(struct mpage_da_data *mpd, ext4_lblk_t lblk,
 	struct ext4_map_blocks *map = &mpd->map;
 
 	/* Buffer that doesn't need mapping for writeback? */
+	/*
+	 * 如果bh  此时为clean 而且没有映射,说明里面的内容是空, 没有读上来, 所以更
+	 * 没有必要写下去
+	 */
 	if (!buffer_dirty(bh) || !buffer_mapped(bh) ||
 	    (!buffer_delay(bh) && !buffer_unwritten(bh))) {
 		/* So far no extent to map => we write the buffer right away */
@@ -2129,10 +2135,15 @@ static bool mpage_add_bh_to_extent(struct mpage_da_data *mpd, ext4_lblk_t lblk,
 	}
 
 	/* Don't go larger than mballoc is willing to allocate */
-	if (map->m_len >= MAX_WRITEPAGES_EXTENT_LEN)
+	/*整数个页*/
+	if (map->m_len >= MAX_WRITEPAGES_EXTENT_LEN) /*8M*/
 		return false;
 
 	/* Can we merge the block to our big extent? */
+	/*
+	 * 一个页中的每个bh 他们做如下运算 结果都是相同的吗??
+	 * bh->b_state & BH_FLAGS
+	 */
 	if (lblk == map->m_lblk + map->m_len &&
 	    (bh->b_state & BH_FLAGS) == map->m_flags) {
 		map->m_len++;

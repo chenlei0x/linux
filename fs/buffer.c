@@ -592,7 +592,8 @@ void write_boundary_block(struct block_device *bdev,
 void mark_buffer_dirty_inode(struct buffer_head *bh, struct inode *inode)
 {
 	struct address_space *mapping = inode->i_mapping;
-	struct address_space *buffer_mapping = bh->b_page->mapping;/*这个应该是blkdev 的mapping*/
+	/*buffer_mapping应该是blkdev 的mapping*/
+	struct address_space *buffer_mapping = bh->b_page->mapping;
 
 	mark_buffer_dirty(bh);
 	if (!mapping->private_data) {
@@ -618,6 +619,7 @@ EXPORT_SYMBOL(mark_buffer_dirty_inode);
  * not been truncated.
  *
  * The caller must hold lock_page_memcg().
+ * 主要是给pagecache 对应的@page 打上 PAGECACHE_TAG_DIRTY
  */
 void __set_page_dirty(struct page *page, struct address_space *mapping,
 			     int warn)
@@ -666,7 +668,7 @@ int __set_page_dirty_buffers(struct page *page)
 	struct address_space *mapping = page_mapping(page);
 
 	if (unlikely(!mapping))
-		return !TestSetPageDirty(page);
+		return !TestSetPageDirty(page);/*是否是newly dirty*/
 
 	spin_lock(&mapping->private_lock);
 	if (page_has_buffers(page)) {
@@ -805,6 +807,8 @@ static int fsync_buffers_list(spinlock_t *lock, struct list_head *list)
  * NOTE: we take the inode's blockdev's mapping's private_lock.  Which
  * assumes that all the buffers are against the blockdev.  Not true
  * for reiserfs.
+ *
+ * 把所有的脏buffer 全部删除掉
  */
 void invalidate_inode_buffers(struct inode *inode)
 {
@@ -1130,6 +1134,8 @@ __getblk_slow(struct block_device *bdev, sector_t block,
  *
  * mark_buffer_dirty() is atomic.  It takes bh->b_page->mapping->private_lock,
  * i_pages lock and mapping->host->i_lock.
+ *
+ * buffer 脏 ===> page 脏 ===> mapping 脏 ===> inode 脏 ===> 挂wb
  */
 void mark_buffer_dirty(struct buffer_head *bh)
 {
@@ -1150,16 +1156,20 @@ void mark_buffer_dirty(struct buffer_head *bh)
 	}
 
 	if (!test_set_buffer_dirty(bh)) {
+		/*set 成功了， 从非dirty 变为dirty*/
 		struct page *page = bh->b_page;
 		struct address_space *mapping = NULL;
 
 		lock_page_memcg(page);
 		if (!TestSetPageDirty(page)) {
+			/*把page成功置为dirty*/
 			mapping = page_mapping(page);
+			/*再把mapping 中的对应index置为PAGECACHE_TAG_DIRTY*/
 			if (mapping)
 				__set_page_dirty(page, mapping, 0);
 		}
 		unlock_page_memcg(page);
+		/*再把inode 打上脏页标记*/
 		if (mapping)
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
@@ -1910,12 +1920,13 @@ void page_zero_new_buffers(struct page *page, unsigned from, unsigned to)
 
 		if (buffer_new(bh)) {
 			if (block_end > from && block_start < to) {
+				/*和 from to 有交集的block*/
 				if (!PageUptodate(page)) {
 					unsigned start, size;
 
 					start = max(from, block_start);
 					size = min(to, block_end) - start;
-
+					/*清空 from ~ to*/
 					zero_user(page, start, size);
 					set_buffer_uptodate(bh);
 				}
@@ -1986,6 +1997,11 @@ iomap_to_bh(struct inode *inode, sector_t block, struct buffer_head *bh,
 	}
 }
 
+/*
+* @page 从pagecache中拿到的page
+* @pos page中的其实地方
+* @len  page中的长度
+*/
 int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 		get_block_t *get_block, struct iomap *iomap)
 {
@@ -2009,10 +2025,19 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 
 	block = (sector_t)page->index << (PAGE_SHIFT - bbits);
 
+	/*
+	 * 对这个页的每个block开始进行遍历， @block 为磁盘上的物理block#
+	 * 遍历完之后 有一些bh 是uptodate 的， 有一些依然不是
+	 */
 	for(bh = head, block_start = 0; bh != head || !block_start;
 	    block++, block_start=block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
+			/*
+			 * 一个block中，如果没有任何一部分在 from ~ to 中，
+			 * 就continue，所以最多只需要读两个block即可
+			 * @wait 数组为2
+		     */
 			if (PageUptodate(page)) {
 				if (!buffer_uptodate(bh))
 					set_buffer_uptodate(bh);
@@ -2024,14 +2049,20 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 		if (!buffer_mapped(bh)) {
 			WARN_ON(bh->b_size != blocksize);
 			if (get_block) {
+				/*这里是做映射*/
 				err = get_block(inode, block, bh, 1);
 				if (err)
 					break;
 			} else {
 				iomap_to_bh(inode, block, bh, iomap);
 			}
-
+			/*
+			 * iomap_to_bh 或者有些fs的 get_block 中可能会把buffer 置为new
+			 * 设置为new 主要是为了一些清空操作,比如在最后commit之前会做
+			 * page_zero_new_buffers操作
+			 */
 			if (buffer_new(bh)) {
+				/*把bdev中的mapping 中的相同block# 的bh 全部清除掉*/
 				clean_bdev_bh_alias(bh);
 				if (PageUptodate(page)) {
 					clear_buffer_new(bh);
@@ -2054,6 +2085,11 @@ int __block_write_begin_int(struct page *page, loff_t pos, unsigned len,
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
 		    !buffer_unwritten(bh) &&
 		     (block_start < from || block_end > to)) {
+		     /* 
+		      * 结合 2019行的代码，没有涉及到的block 也不会读上来
+		      * 如果一个block 刚好完整处于 from ~ to之内，就不读了
+		      * 因为from ~ to之后会被覆盖
+			  */
 			ll_rw_block(REQ_OP_READ, 0, 1, &bh);
 			*wait_bh++=bh;
 		}
@@ -2078,6 +2114,10 @@ int __block_write_begin(struct page *page, loff_t pos, unsigned len,
 }
 EXPORT_SYMBOL(__block_write_begin);
 
+/*@inode 的 @page 从 from 到 to 这部分脏了 ，需要提交
+* 这里主要是更新 buffer  page mapping 以及inode 的flags, 以及调用
+* mark_inode_dirty
+*/
 static int __block_commit_write(struct inode *inode, struct page *page,
 		unsigned from, unsigned to)
 {
@@ -2090,12 +2130,14 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 	blocksize = bh->b_size;
 
 	block_start = 0;
-	do {
+	do {/*遍历每一个bh*/
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
+			/*和 from to 完全没有交集的block*/
 			if (!buffer_uptodate(bh))
 				partial = 1;
 		} else {
+		/*bh 这时候 既是uptodate 也是 dirty*/
 			set_buffer_uptodate(bh);
 			mark_buffer_dirty(bh);
 		}
@@ -2129,6 +2171,7 @@ int block_write_begin(struct address_space *mapping, loff_t pos, unsigned len,
 	struct page *page;
 	int status;
 
+	/*在pagecache中给@index 分配一个页， 这个页可能已经存在*/
 	page = grab_cache_page_write_begin(mapping, index, flags);
 	if (!page)
 		return -ENOMEM;
@@ -2175,6 +2218,7 @@ int block_write_end(struct file *file, struct address_space *mapping,
 	flush_dcache_page(page);
 
 	/* This could be a short (even 0-length) commit */
+	/*提交脏数据, 如果之前没有挂到wb上, 挂上去*/
 	__block_commit_write(inode, page, start, start+copied);
 
 	return copied;

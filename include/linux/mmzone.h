@@ -708,6 +708,7 @@ struct deferred_split {
  * per-zone basis.
  */
 struct bootmem_data;
+/*每个node 有一个 pg_data_t*/
 typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES];
 	struct zonelist node_zonelists[MAX_ZONELISTS];

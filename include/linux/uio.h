@@ -31,7 +31,10 @@ enum iter_type {
 	ITER_DISCARD = 64,
 };
 
-/*iter 中包含了vec数组*/
+/*
+ * iter 中包含了vec数组
+ * 
+ */
 struct iov_iter {
 	/*
 	 * Bit 0 is the read/write bit, set if we're writing.
