@@ -161,6 +161,7 @@ struct dentry_operations {
 #define DCACHE_OP_HASH			0x00000001
 #define DCACHE_OP_COMPARE		0x00000002
 #define DCACHE_OP_REVALIDATE		0x00000004
+/*d_op->d_delete*/
 #define DCACHE_OP_DELETE		0x00000008
 #define DCACHE_OP_PRUNE			0x00000010
 

@@ -26,6 +26,7 @@
  * sub-page uptodate status and I/O completions.
  */
 struct iomap_page {
+/*这个值为0时才可以 unlock_page*/
 	atomic_t		read_count;
 	atomic_t		write_count;
 	spinlock_t		uptodate_lock;
@@ -65,6 +66,7 @@ iomap_page_create(struct inode *inode, struct page *page)
 	return iop;
 }
 
+/*释放 iomap_page*/
 static void
 iomap_page_release(struct page *page)
 {
@@ -82,6 +84,11 @@ iomap_page_release(struct page *page)
 
 /*
  * Calculate the range inside the page that we actually need to read.
+ * 找出first 到last之间第一段 非 uptodate的block
+ * [pos, +length) 之间第一段非 uptodate的block
+ * 最终用来更新@offp @lenp
+ * @offp 是页内offset
+ * @lenp 页内长度
  */
 static void
 iomap_adjust_read_range(struct inode *inode, struct iomap_page *iop,
@@ -104,8 +111,16 @@ iomap_adjust_read_range(struct inode *inode, struct iomap_page *iop,
 	if (iop) {
 		unsigned int i;
 
+		/* 
+		 * 找出first 到last之间第一段 非 uptodate的block
+		 *
+		 * 是否能保证 非uptodate 只有唯一的一段?
+		 * | ---- 1111  0   0   0    11 ---|
+		 *            first   last
+	     */
 		/* move forward for each leading block marked uptodate */
 		for (i = first; i <= last; i++) {
+			/*第一个非uptodate的block*/
 			if (!test_bit(i, iop->uptodate))
 				break;
 			*pos += block_size;
@@ -116,6 +131,7 @@ iomap_adjust_read_range(struct inode *inode, struct iomap_page *iop,
 
 		/* truncate len if we find any trailing uptodate block(s) */
 		for ( ; i <= last; i++) {
+			/*基于118上的第一个非uptodate 往后找第一个uptodate的*/
 			if (test_bit(i, iop->uptodate)) {
 				plen -= (last - i + 1) * block_size;
 				last = i - 1;
@@ -130,8 +146,10 @@ iomap_adjust_read_range(struct inode *inode, struct iomap_page *iop,
 	 * page cache for blocks that are entirely outside of i_size.
 	 */
 	if (orig_pos <= isize && orig_pos + length > isize) {
+		/*@end 文件的最后一个逻辑block#*/
 		unsigned end = offset_in_page(isize - 1) >> block_bits;
 
+		/*fist , end 跨越了 最后一个block*/
 		if (first <= end && last > end)
 			plen -= (last - end) * block_size;
 	}
@@ -151,6 +169,7 @@ iomap_iop_set_range_uptodate(struct page *page, unsigned off, unsigned len)
 	unsigned long flags;
 	unsigned int i;
 
+	/*从 [first, last]之间的block设置喂uptodate*/
 	spin_lock_irqsave(&iop->uptodate_lock, flags);
 	for (i = 0; i < PAGE_SIZE / i_blocksize(inode); i++) {
 		if (i >= first && i <= last)
@@ -158,7 +177,7 @@ iomap_iop_set_range_uptodate(struct page *page, unsigned off, unsigned len)
 		else if (!test_bit(i, iop->uptodate))
 			uptodate = false;
 	}
-
+	/*页中所有block 都uptodate*/
 	if (uptodate)
 		SetPageUptodate(page);
 	spin_unlock_irqrestore(&iop->uptodate_lock, flags);
@@ -179,6 +198,7 @@ iomap_set_range_uptodate(struct page *page, unsigned off, unsigned len)
 static void
 iomap_read_finish(struct iomap_page *iop, struct page *page)
 {
+	/*atomic_dec_and_test 测试 是否dec之后是0*/
 	if (!iop || atomic_dec_and_test(&iop->read_count))
 		unlock_page(page);
 }
@@ -193,6 +213,7 @@ iomap_read_page_end_io(struct bio_vec *bvec, int error)
 		ClearPageUptodate(page);
 		SetPageError(page);
 	} else {
+		/*更新page->iomap_page中的 uptodate 标记*/
 		iomap_set_range_uptodate(page, bvec->bv_offset, bvec->bv_len);
 	}
 
@@ -216,7 +237,7 @@ struct iomap_readpage_ctx {
 	bool			cur_page_in_bio;
 	bool			is_readahead;
 	struct bio		*bio;
-	struct list_head	*pages;
+	struct list_head	*pages;/*涉及到的多个page*/
 };
 
 static void
@@ -233,6 +254,7 @@ iomap_read_inline_data(struct inode *inode, struct page *page,
 	BUG_ON(size > PAGE_SIZE - offset_in_page(iomap->inline_data));
 
 	addr = kmap_atomic(page);
+	/*iomap->inline_data 拷贝到page 的起始地方, 剩余部分清零*/
 	memcpy(addr, iomap->inline_data, size);
 	memset(addr + size, 0, PAGE_SIZE - size);
 	kunmap_atomic(addr);
@@ -281,6 +303,7 @@ iomap_readpage_actor(struct inode *inode, loff_t pos, loff_t length, void *data,
 	/*
 	 * Try to merge into a previous segment if we can.
 	 */
+	 /*文件pos 对应的sector#*/
 	sector = iomap_sector(iomap, pos);
 	if (ctx->bio && bio_end_sector(ctx->bio) == sector)
 		is_contig = true;
@@ -332,6 +355,7 @@ done:
 int
 iomap_readpage(struct page *page, const struct iomap_ops *ops)
 {
+	/*ctx 是作为iomap_readpage_actor 的data参数*/
 	struct iomap_readpage_ctx ctx = { .cur_page = page };
 	struct inode *inode = page->mapping->host;
 	unsigned poff;
@@ -340,6 +364,7 @@ iomap_readpage(struct page *page, const struct iomap_ops *ops)
 	trace_iomap_readpage(page->mapping->host, 1);
 
 	for (poff = 0; poff < PAGE_SIZE; poff += ret) {
+		/*page_offset 得到page 在文件中的逻辑偏移*/
 		ret = iomap_apply(inode, page_offset(page) + poff,
 				PAGE_SIZE - poff, 0, ops, &ctx,
 				iomap_readpage_actor);
@@ -403,6 +428,7 @@ iomap_readpages_actor(struct inode *inode, loff_t pos, loff_t length,
 	loff_t done, ret;
 
 	for (done = 0; done < length; done += ret) {
+		/*offset_in_page 表明这个page是否已经 被actor执行完*/
 		if (ctx->cur_page && offset_in_page(pos + done) == 0) {
 			if (!ctx->cur_page_in_bio)
 				unlock_page(ctx->cur_page);
@@ -431,6 +457,7 @@ iomap_readpages(struct address_space *mapping, struct list_head *pages,
 		.pages		= pages,
 		.is_readahead	= true,
 	};
+	/*添加page 的时候一直都是头插*/
 	loff_t pos = page_offset(list_entry(pages->prev, struct page, lru));
 	loff_t last = page_offset(list_entry(pages->next, struct page, lru));
 	loff_t length = last - pos + PAGE_SIZE, ret = 0;
@@ -614,7 +641,10 @@ __iomap_write_begin(struct inode *inode, loff_t pos, unsigned len, int flags,
 				block_end - block_start, &poff, &plen);
 		if (plen == 0)
 			break;
-
+		/*
+		 * poff 和 plen 代表页内从 block_start 到 block_end之间
+		 * 非 uptodate 的一段, 不断在迭代
+		 */
 		if (!(flags & IOMAP_WRITE_F_UNSHARE) &&
 		    (from <= poff || from >= poff + plen) &&
 		    (to <= poff || to >= poff + plen))
@@ -658,6 +688,7 @@ iomap_write_begin(struct inode *inode, loff_t pos, unsigned len, unsigned flags,
 			return status;
 	}
 
+	/*先给pagecache 申请一个page*/
 	page = grab_cache_page_write_begin(inode->i_mapping, pos >> PAGE_SHIFT,
 			AOP_FLAG_NOFS);
 	if (!page) {
@@ -669,7 +700,7 @@ iomap_write_begin(struct inode *inode, loff_t pos, unsigned len, unsigned flags,
 		iomap_read_inline_data(inode, page, srcmap);
 	else if (iomap->flags & IOMAP_F_BUFFER_HEAD)
 		status = __block_write_begin_int(page, pos, len, NULL, srcmap);
-	else
+	else/*把page中 pos, +len 部分都读上来? 是否合理?*/
 		status = __iomap_write_begin(inode, pos, len, flags, page,
 				srcmap);
 
@@ -803,13 +834,16 @@ iomap_write_actor(struct inode *inode, loff_t pos, loff_t length, void *data,
 	long status = 0;
 	ssize_t written = 0;
 
+	/*化解成一个个page 循环*/
 	do {
 		struct page *page;
 		unsigned long offset;	/* Offset into pagecache page */
 		unsigned long bytes;	/* Bytes to write to page */
 		size_t copied;		/* Bytes copied from user */
 
+		/*pos 转为 page中的offset*/
 		offset = offset_in_page(pos);
+		/*page 中的长度*/
 		bytes = min_t(unsigned long, PAGE_SIZE - offset,
 						iov_iter_count(i));
 again:
@@ -839,6 +873,7 @@ again:
 		if (mapping_writably_mapped(inode->i_mapping))
 			flush_dcache_page(page);
 
+		/*拷贝到这个page中*/
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
 
 		flush_dcache_page(page);
@@ -1321,6 +1356,8 @@ iomap_alloc_ioend(struct inode *inode, struct iomap_writepage_ctx *wpc,
  * Note that we have to do perform the chaining in this unintuitive order
  * so that the bi_private linkage is set up in the right direction for the
  * traversal in iomap_finish_ioend().
+ *
+ * 返回parent
  */
 static struct bio *
 iomap_chain_bio(struct bio *prev)
@@ -1332,13 +1369,14 @@ iomap_chain_bio(struct bio *prev)
 	new->bi_iter.bi_sector = bio_end_sector(prev);
 	new->bi_opf = prev->bi_opf;
 	new->bi_write_hint = prev->bi_write_hint;
-
+	/*@prev->bi_private = @new new 作为@parent*/
 	bio_chain(prev, new);
 	bio_get(prev);		/* for iomap_finish_ioend */
 	submit_bio(prev);
 	return new;
 }
 
+/*类型一直 文件逻辑连续 磁盘地址连续*/
 static bool
 iomap_can_add_to_ioend(struct iomap_writepage_ctx *wpc, loff_t offset,
 		sector_t sector)
@@ -1369,18 +1407,22 @@ iomap_add_to_ioend(struct inode *inode, loff_t offset, struct page *page,
 	unsigned poff = offset & (PAGE_SIZE - 1);
 	bool merged, same_page = false;
 
+	/*这个ioend 没法加入到wpc中了， 磁盘不连续或者文件内不连续*/
 	if (!wpc->ioend || !iomap_can_add_to_ioend(wpc, offset, sector)) {
-		if (wpc->ioend)
+		if (wpc->ioend)/*把ioend 加入到iolist中*/
 			list_add(&wpc->ioend->io_list, iolist);
 		wpc->ioend = iomap_alloc_ioend(inode, wpc, offset, sector, wbc);
 	}
 
+	/*磁盘连续，文件连续， 内存中是否连续？如果连续merge到最后一个bv中*/
 	merged = __bio_try_merge_page(wpc->ioend->io_bio, page, len, poff,
 			&same_page);
 	if (iop && !same_page)
 		atomic_inc(&iop->write_count);
 
+	/*内存不连续*/
 	if (!merged) {
+		/*bio满了， 所以连起来*/
 		if (bio_full(wpc->ioend->io_bio, len)) {
 			wpc->ioend->io_bio =
 				iomap_chain_bio(wpc->ioend->io_bio);
@@ -1389,6 +1431,7 @@ iomap_add_to_ioend(struct inode *inode, loff_t offset, struct page *page,
 	}
 
 	wpc->ioend->io_size += len;
+	/*即将要提交， 所以记账一下*/
 	wbc_account_cgroup_owner(wbc, page, len);
 }
 
@@ -1408,6 +1451,9 @@ iomap_add_to_ioend(struct inode *inode, loff_t offset, struct page *page,
  * At the end of a writeback pass, there will be a cached ioend remaining on the
  * writepage context that the caller will need to submit.
  */
+ /*
+  * 从@page开始file offset 到 @endoffset 写入
+  */
 static int
 iomap_writepage_map(struct iomap_writepage_ctx *wpc,
 		struct writeback_control *wbc, struct inode *inode,
@@ -1434,6 +1480,8 @@ iomap_writepage_map(struct iomap_writepage_ctx *wpc,
 		if (iop && !test_bit(i, iop->uptodate))
 			continue;
 
+		/*wpc 中也有文件的offset 这里file_offset 是这个页对应的offset*/
+		/*wpc->iomap 中的 offset length 会被改*/
 		error = wpc->ops->map_blocks(wpc, inode, file_offset);
 		if (error)
 			break;
@@ -1491,6 +1539,7 @@ iomap_writepage_map(struct iomap_writepage_ctx *wpc,
 	 * submission errors here and propagate into subsequent ioend
 	 * submissions.
 	 */
+	 /*把所有ioend提交*/
 	list_for_each_entry_safe(ioend, next, &submit_list, io_list) {
 		int error2;
 
@@ -1647,6 +1696,7 @@ iomap_writepages(struct address_space *mapping, struct writeback_control *wbc,
 	int			ret;
 
 	wpc->ops = ops;
+	/*对mapping中的每个脏页调用iomap_do_writepage, 其中data参数为wpc */
 	ret = write_cache_pages(mapping, wbc, iomap_do_writepage, wpc);
 	if (!wpc->ioend)
 		return ret;

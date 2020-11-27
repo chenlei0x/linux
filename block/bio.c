@@ -679,6 +679,7 @@ struct bio *bio_clone_fast(struct bio *bio, gfp_t gfp_mask, struct bio_set *bs)
 }
 EXPORT_SYMBOL(bio_clone_fast);
 
+/*page 强连续*/
 static inline bool page_is_mergeable(const struct bio_vec *bv,
 		struct page *page, unsigned int len, unsigned int off,
 		bool *same_page)
@@ -687,12 +688,18 @@ static inline bool page_is_mergeable(const struct bio_vec *bv,
 		bv->bv_offset + bv->bv_len - 1;
 	phys_addr_t page_addr = page_to_phys(page);
 
+	/*物理必须地址连续*/
 	if (vec_end_addr + 1 != page_addr + off)
 		return false;
 	if (xen_domain() && !xen_biovec_phys_mergeable(bv, page))
 		return false;
 
+	/*
+	 * @page 和 @bv 结尾是不是指向同一个page， 如果是同时又满足691行
+	 * 物理地址连续， 那么肯定可以合并
+	 */
 	*same_page = ((vec_end_addr & PAGE_MASK) == page_addr);
+	/*vec_end 所在的page 和 @page 还得处于同一个数组中 还得连续*/
 	if (!*same_page && pfn_to_page(PFN_DOWN(vec_end_addr)) + 1 != page)
 		return false;
 	return true;
@@ -711,6 +718,7 @@ static bool bio_try_merge_pc_page(struct request_queue *q, struct bio *bio,
 		return false;
 	if (bv->bv_len + len > queue_max_segment_size(q))
 		return false;
+	/*merge到bv上*/
 	return __bio_try_merge_page(bio, page, len, offset, same_page);
 }
 
@@ -746,6 +754,7 @@ static int __bio_add_pc_page(struct request_queue *q, struct bio *bio,
 		return 0;
 
 	if (bio->bi_vcnt > 0) {
+		/*merge 到最后一个bv上*/
 		if (bio_try_merge_pc_page(q, bio, page, len, offset, same_page))
 			return len;
 
@@ -763,7 +772,7 @@ static int __bio_add_pc_page(struct request_queue *q, struct bio *bio,
 
 	if (bio->bi_vcnt >= queue_max_segments(q))
 		return 0;
-
+	/*最后一个bv没法merge， 所以只能新建一个bv了*/
 	bvec = &bio->bi_io_vec[bio->bi_vcnt];
 	bvec->bv_page = page;
 	bvec->bv_len = len;
@@ -796,6 +805,8 @@ EXPORT_SYMBOL(bio_add_pc_page);
  * Warn if (@len, @off) crosses pages in case that @same_page is true.
  *
  * Return %true on success or %false on failure.
+ *
+ * merge 到最后一个bv上
  */
 bool __bio_try_merge_page(struct bio *bio, struct page *page,
 		unsigned int len, unsigned int off, bool *same_page)
@@ -2105,6 +2116,7 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
  * request_queue of the @bio.  This falls back to the queue's root_blkg if
  * the association fails with the css.
  */
+/* 给 bio->bi_blkg 寻找一个合适的值*/
 void bio_associate_blkg_from_css(struct bio *bio,
 				 struct cgroup_subsys_state *css)
 {
@@ -2134,6 +2146,7 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg_from_css);
  * request_queue.  If cgroup_e_css returns %NULL, fall back to the queue's
  * root_blkg.
  */
+/* 通过page 给 bio->bi_blkg 寻找一个合适的值*/
 void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
 {
 	struct cgroup_subsys_state *css;
@@ -2159,6 +2172,9 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
  * already associated, the css is reused and association redone as the
  * request_queue may have changed.
  */
+ /* generic_make_request_checks 中会调用, 
+  * 所以事先就应该给bi_blkg 赋值
+  */
 void bio_associate_blkg(struct bio *bio)
 {
 	struct cgroup_subsys_state *css;

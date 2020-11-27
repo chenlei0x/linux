@@ -92,6 +92,10 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
+			/*
+			 * page_private  set_page_private 两个宏
+			 * buffer head 头指针在这里
+			 */
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
@@ -336,6 +340,10 @@ struct vm_area_struct {
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
 	/* Function pointers to deal with this struct. */
+	/*
+	 * generic_file_mmap 函数只是把该域赋值, 应该是等缺页中断的时候再
+	 * 回调对应的ops 函数
+	 */
 	const struct vm_operations_struct *vm_ops;
 
 	/* Information about our backing store: */

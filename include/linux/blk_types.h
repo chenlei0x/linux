@@ -143,7 +143,8 @@ static inline void bio_issue_init(struct bio_issue *issue,
  *
  * bio 的构成:
  bio_alloc_bioset
-
+ * 内存连续， 磁盘连续位置连续(起始 bi_iter.bi_sector)的一段内存空间
+ * 由多个bv组成
  */
 struct bio {
 	struct bio		*bi_next;	/* request queue link */
@@ -180,6 +181,12 @@ struct bio {
 	 * not have a request_queue associated with it.  The reference is put
 	 * on release of the bio.
 	 */
+	 /*
+	  * blkcg_bio_issue_check 会基于这个字段调用
+	  * blk_throttle_bio
+	  *
+	  * bio_associate_blkg_xxxxx 会给该字段赋值
+      */
 	struct blkcg_gq		*bi_blkg;
 	/*throttle 之后
 	 * generic_make_request_checks

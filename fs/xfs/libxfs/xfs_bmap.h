@@ -17,6 +17,7 @@ extern kmem_zone_t	*xfs_bmap_free_item_zone;
 
 /*
  * Argument structure for xfs_bmap_alloc.
+ * block malloc argument
  */
 struct xfs_bmalloca {
 	struct xfs_trans	*tp;	/* transaction pointer */

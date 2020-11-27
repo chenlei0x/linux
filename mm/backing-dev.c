@@ -182,6 +182,9 @@ static ssize_t min_ratio_store(struct device *dev,
 }
 BDI_SHOW(min_ratio, bdi->min_ratio)
 
+/*
+ * /sys/block/vdX/bdi/min_raito
+ */
 static ssize_t max_ratio_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -504,6 +507,7 @@ static void cgwb_release(struct percpu_ref *refcnt)
 {
 	struct bdi_writeback *wb = container_of(refcnt, struct bdi_writeback,
 						refcnt);
+	/*cgwb_release_workfn*/
 	queue_work(cgwb_release_wq, &wb->release_work);
 }
 

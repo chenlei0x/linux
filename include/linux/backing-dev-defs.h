@@ -161,12 +161,14 @@ struct bdi_writeback {
 	unsigned long dirty_ratelimit;
 	unsigned long balanced_dirty_ratelimit;
 
+	/*__wb_writeout_inc*/
 	struct fprop_local_percpu completions;
 	int dirty_exceeded;
 	enum wb_reason start_all_reason;
 
 	spinlock_t work_lock;		/* protects work_list & dwork scheduling */
 	struct list_head work_list;
+	/*wb_workfn*/
 	struct delayed_work dwork;	/* work item used for writeback */
 
 	unsigned long dirty_sleep;	/* last wait */
@@ -174,7 +176,9 @@ struct bdi_writeback {
 	struct list_head bdi_node;	/* anchored at bdi->wb_list */
 
 #ifdef CONFIG_CGROUP_WRITEBACK
+/*wb_get  wb_put*/
 	struct percpu_ref refcnt;	/* used only for !root wb's */
+	/*__wb_writeout_inc*/
 	struct fprop_local_percpu memcg_completions;
 	struct cgroup_subsys_state *memcg_css; /* the associated memcg */
 	struct cgroup_subsys_state *blkcg_css; /* and blkcg */
@@ -182,6 +186,7 @@ struct bdi_writeback {
 	struct list_head blkcg_node;	/* anchored at blkcg->cgwb_list */
 
 	union {
+		/*cgwb_release_workfn*/
 		struct work_struct release_work;
 		struct rcu_head rcu;
 	};
@@ -201,6 +206,7 @@ struct backing_dev_info {
 
 	struct kref refcnt;	/* Reference counter for the structure */
 	unsigned int capabilities; /* Device capabilities */
+	/*bdi_min_ratio*/
 	unsigned int min_ratio;
 	unsigned int max_ratio, max_prop_frac;
 

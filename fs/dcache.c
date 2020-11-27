@@ -2036,6 +2036,7 @@ static struct dentry *__d_instantiate_anon(struct dentry *dentry,
 	return res;
 }
 
+/*anon 没有名字*/
 struct dentry *d_instantiate_anon(struct dentry *dentry, struct inode *inode)
 {
 	return __d_instantiate_anon(dentry, inode, true);

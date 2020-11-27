@@ -20,6 +20,11 @@
  * resources they require in the iomap_begin call, and release them in the
  * iomap_end call.
  */
+ /*
+	ops->iomap_begin
+	actor
+	ops->iomap_end
+*/
 loff_t
 iomap_apply(struct inode *inode, loff_t pos, loff_t length, unsigned flags,
 		const struct iomap_ops *ops, void *data, iomap_actor_t actor)
@@ -36,12 +41,15 @@ iomap_apply(struct inode *inode, loff_t pos, loff_t length, unsigned flags,
 	 * span multiple pages - it is only guaranteed to return a range of a
 	 * single type of pages (e.g. all into a hole, all mapped or all
 	 * unwritten). Failure at this point has nothing to undo.
+	 * @iomap 是同一类型的一段ext
 	 *
 	 * If allocation is required for this range, reserve the space now so
 	 * that the allocation is guaranteed to succeed later on. Once we copy
 	 * the data into the page cache pages, then we cannot fail otherwise we
 	 * expose transient stale data. If the reserve fails, we can safely
 	 * back out at this point as there is nothing to undo.
+	 * 如果需要预留磁盘空间, 这里就要预留,以保证后面在刷盘时调用
+	 * aops->writepages 可以分配成功
 	 */
 	ret = ops->iomap_begin(inode, pos, length, flags, &iomap, &srcmap);
 	if (ret)

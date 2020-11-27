@@ -73,6 +73,7 @@ struct buffer_head {
 
 	sector_t b_blocknr;		/* start block number */
 	size_t b_size;			/* size of mapping */
+	/*页内地址*/
 	char *b_data;			/* pointer to data within the page */
 
 	struct block_device *b_bdev;

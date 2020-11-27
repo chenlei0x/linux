@@ -59,6 +59,8 @@ EXPORT_SYMBOL(lockref_get);
  * lockref_get_not_zero - Increments count unless the count is 0 or dead
  * @lockref: pointer to lockref structure
  * Return: 1 if count updated successfully or 0 if count was zero
+ * 如果count > 0 count ++ 返回1
+ * 否则返回0
  */
 int lockref_get_not_zero(struct lockref *lockref)
 {
@@ -87,6 +89,9 @@ EXPORT_SYMBOL(lockref_get_not_zero);
  * lockref_put_not_zero - Decrements count unless count <= 1 before decrement
  * @lockref: pointer to lockref structure
  * Return: 1 if count updated successfully or 0 if count would become zero
+ *
+ * 如果 count > 1 count-- 返回1
+ * 否则返回0
  */
 int lockref_put_not_zero(struct lockref *lockref)
 {
@@ -116,6 +121,9 @@ EXPORT_SYMBOL(lockref_put_not_zero);
  * @lockref: pointer to lockref structure
  * Return: 1 if count updated successfully or 0 if count was zero
  * and we got the lock instead.
+ *
+ * 如果count != 0, count++ 返回1
+ * 否则返回0
  */
 int lockref_get_or_lock(struct lockref *lockref)
 {
@@ -187,6 +195,7 @@ EXPORT_SYMBOL(lockref_put_or_lock);
 void lockref_mark_dead(struct lockref *lockref)
 {
 	assert_spin_locked(&lockref->lock);
+	/*这样old.count < 0了*/
 	lockref->count = -128;
 }
 EXPORT_SYMBOL(lockref_mark_dead);

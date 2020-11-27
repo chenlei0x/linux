@@ -5782,6 +5782,8 @@ void io_schedule_finish(int token)
 /*
  * This task is about to go to sleep on IO. Increment rq->nr_iowait so
  * that process accounting knows that this is a task in IO wait state.
+ *
+ * 单位 tick
  */
 long __sched io_schedule_timeout(long timeout)
 {

@@ -432,8 +432,8 @@ static void inode_switch_wbs_work_fn(struct work_struct *work)
 	 */
 	if (!list_empty(&inode->i_io_list)) {
 		struct inode *pos;
-	/*执行切换*/
-	/*从 old wb上摘除*/
+		/*执行切换*/
+		/*从 old wb上摘除*/
 		inode_io_list_del_locked(inode, old_wb);
 		inode->i_wb = new_wb;
 		list_for_each_entry(pos, &new_wb->b_dirty, i_io_list)
@@ -1628,6 +1628,7 @@ static int writeback_single_inode(struct inode *inode,
 	    (wbc->sync_mode != WB_SYNC_ALL ||
 	     !mapping_tagged(inode->i_mapping, PAGECACHE_TAG_WRITEBACK)))
 		goto out;
+	/*打上SYNC标记, 下面inode_sync_complete 去除掉这个标记*/
 	inode->i_state |= I_SYNC;
 	/*初始化一下wbc, 绑定inode 和 wb*/
 	wbc_attach_and_unlock_inode(wbc, inode);
@@ -1824,6 +1825,7 @@ static long writeback_sb_inodes(struct super_block *sb,
 		if (!(inode->i_state & I_DIRTY_ALL))
 			wrote++;
 		requeue_inode(inode, tmp_wb, &wbc);
+		/*去掉SYNC 标记*/
 		inode_sync_complete(inode);
 		spin_unlock(&inode->i_lock);
 
@@ -2523,6 +2525,7 @@ static void wait_sb_inodes(struct super_block *sb)
 		 * applications can catch the writeback error using fsync(2).
 		 * See filemap_fdatawait_keep_errors() for details.
 		 */
+		 /*等mapping 中的所有页都刷下去*/
 		filemap_fdatawait_keep_errors(mapping);
 
 		cond_resched();
@@ -2615,6 +2618,8 @@ EXPORT_SYMBOL(try_to_writeback_inodes_sb);
  *
  * This function writes and waits on any dirty inode belonging to this
  * super_block.
+ *
+ * 把sb的所有脏inode 的所有页都刷下去
  */
 void sync_inodes_sb(struct super_block *sb)
 {
@@ -2640,11 +2645,14 @@ void sync_inodes_sb(struct super_block *sb)
 	WARN_ON(!rwsem_is_locked(&sb->s_umount));
 
 	/* protect against inode wb switch, see inode_switch_wbs_work_fn() */
+	/*这里开始禁止wb 变换*/
 	bdi_down_write_wb_switch_rwsem(bdi);
+	/*给每个wb下发work*/
 	bdi_split_work_to_wbs(bdi, &work, false);
 	wb_wait_for_completion(&done);
 	bdi_up_write_wb_switch_rwsem(bdi);
 
+	/*等每个inode 的mapping 中的所有页都刷写下去*/
 	wait_sb_inodes(sb);
 }
 EXPORT_SYMBOL(sync_inodes_sb);

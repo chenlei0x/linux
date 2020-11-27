@@ -41,6 +41,8 @@ struct backing_dev_info;
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
 		/*如果是WB_SYNC_ALL模式，就等待数据回写完成*/
+
+	/*wbc_to_write_flags 会打上REQ_SYNC过程*/
 	WB_SYNC_ALL,	/* Wait on every mapping */
 };
 
@@ -64,8 +66,10 @@ struct writeback_control {
 
 	enum writeback_sync_modes sync_mode;
 
+	/*wbc_to_write_flags 会对bio 打上REQ_BACKGROUND*/
 	unsigned for_kupdate:1;		/* A kupdate writeback */
 	unsigned for_background:1;	/* A background writeback */
+	
 	unsigned tagged_writepages:1;	/* tag-and-write to avoid livelock */
 	unsigned for_reclaim:1;		/* Invoked from the page allocator */
 	unsigned range_cyclic:1;	/* range_start is cyclic */
@@ -163,6 +167,11 @@ struct wb_domain {
 	 * Both fields are protected by ->lock.
 	 */
 	unsigned long dirty_limit_tstamp;
+	/*
+	 * update_dirty_limit 中会通过dtc->thresh 更新dirty_limit字段, 主要是
+	 * 为了平滑
+	 * 这个字段决定了回写多少个页 writeback_chunk_size
+	 */
 	unsigned long dirty_limit;
 };
 
@@ -242,6 +251,17 @@ static inline void inode_attach_wb(struct inode *inode, struct page *page)
  * @inode: inode of interest
  *
  * @inode is being freed.  Detach from its wb.
+ *
+iput_final
+ 	evict
+		destroy_inode
+			__destroy_inode 调用
+		 		inode_detach_wb
+		 	ops->destroy_inode
+evict_inodes
+	dispose_list
+		evict
+		
  */
 static inline void inode_detach_wb(struct inode *inode)
 {

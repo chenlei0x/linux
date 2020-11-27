@@ -807,6 +807,7 @@ static void init_once(void *foo)
 	mutex_init(&bdev->bd_fsfreeze_mutex);
 }
 
+/*block dev 的 evict_inode 回调*/
 static void bdev_evict_inode(struct inode *inode)
 {
 	struct block_device *bdev = &BDEV_I(inode)->bdev;

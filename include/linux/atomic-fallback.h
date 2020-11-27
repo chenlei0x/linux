@@ -1104,6 +1104,10 @@ atomic_fetch_add_unless(atomic_t *v, int a, int u)
  *
  * Atomically adds @a to @v, if @v was not already @u.
  * Returns true if the addition was done.
+ *
+ * 如果v!= u
+ 		v += a return true
+ * 否则 return false
  */
 static inline bool
 atomic_add_unless(atomic_t *v, int a, int u)

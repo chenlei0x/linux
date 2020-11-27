@@ -22,6 +22,10 @@
 	(IS_ENABLED(CONFIG_ARCH_USE_CMPXCHG_LOCKREF) && \
 	 IS_ENABLED(CONFIG_SMP) && SPINLOCK_SIZE <= 4)
 
+/*
+ * lock 和 count 共同组成一个atomic 类型, 通过cmpxchg
+ * 
+ */
 struct lockref {
 	union {
 #if USE_CMPXCHG_LOCKREF

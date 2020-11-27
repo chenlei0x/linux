@@ -1551,6 +1551,7 @@ static struct dentry *__lookup_hash(const struct qstr *name,
 	if (unlikely(IS_DEADDIR(dir)))
 		return ERR_PTR(-ENOENT);
 
+	/*base 作为parent*/
 	dentry = d_alloc(base, name);
 	if (unlikely(!dentry))
 		return ERR_PTR(-ENOMEM);

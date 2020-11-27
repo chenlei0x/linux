@@ -382,7 +382,10 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *,
 		unsigned long, unsigned long);
 
 struct address_space_operations {
+	/*因为bufferio 中write 操作是异步的, read 是同步的, 所以
+	 * 只有writepage 有wbc控制*/
 	int (*writepage)(struct page *page, struct writeback_control *wbc);
+	/*readpage 是同步的, 所以比较好处理*/
 	int (*readpage)(struct file *, struct page *);
 
 	/* Write back some dirty pages from this mapping. */
@@ -730,6 +733,7 @@ struct inode {
 	unsigned long		dirtied_time_when;
 
 	struct hlist_node	i_hash;
+	/*挂在wb中的某个链表上*/
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
 /*
@@ -754,6 +758,7 @@ inode_switch_wbs
 	u16			i_wb_frn_avg_time;
 	u16			i_wb_frn_history;
 #endif
+/*干净 且 i_icount = 0 的inode 才会通过这个域挂到sb 的lru 链表上*/
 	struct list_head	i_lru;		/* inode LRU list */
 	struct list_head	i_sb_list;
 	/*&sb->s_inode_wblist_lock 链表的anchor*/
@@ -1596,6 +1601,10 @@ struct super_block {
 	 * There is no need to put them into separate cachelines.
 	 */
 	struct list_lru		s_dentry_lru;
+	/* inode_add_lru
+	 * 		inode_lru_list_add
+	 * 不脏且inode 没有引用了, 才放到lru list中
+	 */
 	struct list_lru		s_inode_lru;
 	struct rcu_head		rcu;
 	struct work_struct	destroy_work;
@@ -1609,6 +1618,7 @@ struct super_block {
 
 	/* s_inode_list_lock protects s_inodes */
 	spinlock_t		s_inode_list_lock ____cacheline_aligned_in_smp;
+	/*inode_sb_list_add 函数会把所有的inode 挂在这里*/
 	struct list_head	s_inodes;	/* all inodes */
 	
 	/*
@@ -1895,9 +1905,12 @@ struct file_operations {
 	ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
 	ssize_t (*read_iter) (struct kiocb *, struct iov_iter *);
 	ssize_t (*write_iter) (struct kiocb *, struct iov_iter *);
+	/*iouring 用*/
 	int (*iopoll)(struct kiocb *kiocb, bool spin);
+	/*iterate_dir用*/
 	int (*iterate) (struct file *, struct dir_context *);
 	int (*iterate_shared) (struct file *, struct dir_context *);
+	/*epoll 用 file_can_poll*/
 	__poll_t (*poll) (struct file *, struct poll_table_struct *);
 	long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
 	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
@@ -2212,7 +2225,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
  
-/*表示inode 有不重要的数据脏了,虽然脏了,但是不一定需要刷下去,比如inode的属性(如:访问时间)改变*/
+/*
+ * 表示inode 有不重要的数据脏了,虽然脏了,但是不一定需要刷下去,
+ * 比如inode的属性(如:访问时间)改变
+ */
 #define I_DIRTY_SYNC		(1 << 0)
 
 
@@ -3113,6 +3129,7 @@ extern int inode_needs_sync(struct inode *inode);
 extern int generic_delete_inode(struct inode *inode);
 static inline int generic_drop_inode(struct inode *inode)
 {
+	/*nlink = 0 或者已经不在hash表中了*/
 	return !inode->i_nlink || inode_unhashed(inode);
 }
 

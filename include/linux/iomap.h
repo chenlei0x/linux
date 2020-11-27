@@ -51,6 +51,7 @@ struct vm_fault;
  */
 #define IOMAP_F_NEW		0x01
 #define IOMAP_F_DIRTY		0x02
+/*这段映射被多个文件共享 cow机制下 修改之前一个ext可能被多个文件共享*/
 #define IOMAP_F_SHARED		0x04
 #define IOMAP_F_MERGED		0x08
 #define IOMAP_F_BUFFER_HEAD	0x10
@@ -89,6 +90,7 @@ struct iomap {
 	const struct iomap_page_ops *page_ops;
 };
 
+/*计算@pos 文件逻辑长度对应的 物理sector#*/
 static inline sector_t
 iomap_sector(struct iomap *iomap, loff_t pos)
 {
@@ -128,6 +130,7 @@ struct iomap_ops {
 	 * pos for up to length, as long as we can do it as a single mapping.
 	 * The actual length is returned in iomap->length.
 	 */
+	 /*iomap_apply 中actor之前*/
 	int (*iomap_begin)(struct inode *inode, loff_t pos, loff_t length,
 			unsigned flags, struct iomap *iomap,
 			struct iomap *srcmap);
@@ -138,6 +141,7 @@ struct iomap_ops {
 	 * needs to be commited, while the rest needs to be unreserved.
 	 * Written might be zero if no data was written.
 	 */
+	  /*iomap_apply 中actor之后调用*/
 	int (*iomap_end)(struct inode *inode, loff_t pos, loff_t length,
 			ssize_t written, unsigned flags, struct iomap *iomap);
 };
@@ -206,6 +210,9 @@ struct iomap_writeback_ops {
 	 * Required, maps the blocks so that writeback can be performed on
 	 * the range starting at offset.
 	 */
+	/*
+	 * iomap_writepage_map
+	 */
 	int (*map_blocks)(struct iomap_writepage_ctx *wpc, struct inode *inode,
 				loff_t offset);
 
@@ -214,6 +221,13 @@ struct iomap_writeback_ops {
 	 * submitting the bio and/or override the bio end_io handler for complex
 	 * operations like copy on write extent manipulation or unwritten extent
 	 * conversions.
+	 */
+	/*
+	 	iomap_writepage
+		iomap_writepages
+		iomap_writepage_map
+			iomap_submit_ioend
+				wpc->ops->prepare_ioend
 	 */
 	int (*prepare_ioend)(struct iomap_ioend *ioend, int status);
 

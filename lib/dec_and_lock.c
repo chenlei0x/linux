@@ -21,12 +21,15 @@
 int _atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
 {
 	/* Subtract 1 from counter unless that drops it to 0 (ie. it was 1) */
+	/*如果 atmoic != 1, atomic -= 1*/
 	if (atomic_add_unless(atomic, -1, 1))
 		return 0;
 
+	/*atomic = 1 的情况*/
 	/* Otherwise do it the slow way */
 	spin_lock(lock);
 	if (atomic_dec_and_test(atomic))
+		/*atomic = 0 了, 直接带锁返回*/
 		return 1;
 	spin_unlock(lock);
 	return 0;

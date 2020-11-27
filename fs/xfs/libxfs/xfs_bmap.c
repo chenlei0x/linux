@@ -3480,6 +3480,11 @@ xfs_bmap_btalloc_accounting(
 		args->len);
 }
 
+/*
+ * xfs_bmalloca ap ===> xfs_alloc_arg_t args
+ * xfs_alloc_vextent
+ * args ===> ap
+ */
 STATIC int
 xfs_bmap_btalloc(
 	struct xfs_bmalloca	*ap)	/* bmap alloc argument struct */
@@ -3659,6 +3664,7 @@ xfs_bmap_btalloc(
 	args.resv = XFS_AG_RESV_NONE;
 	args.datatype = ap->datatype;
 
+	/*重点了！！！*/
 	error = xfs_alloc_vextent(&args);
 	if (error)
 		return error;
@@ -4549,6 +4555,7 @@ error0:
  * invocations to allocate the target offset if a large enough physical extent
  * is not available.
  */
+ /*iomap 进来的时候可能是全0*/
 int
 xfs_bmapi_convert_delalloc(
 	struct xfs_inode	*ip,
@@ -4629,6 +4636,7 @@ xfs_bmapi_convert_delalloc(
 	XFS_STATS_INC(mp, xs_xstrat_quick);
 
 	ASSERT(!isnullstartblock(bma.got.br_startblock));
+	/* 转为iomap, iomap作为入参是全空*/
 	xfs_bmbt_to_iomap(ip, iomap, &bma.got, flags);
 	*seq = READ_ONCE(ifp->if_seq);
 

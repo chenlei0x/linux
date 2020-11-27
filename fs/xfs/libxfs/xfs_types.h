@@ -159,9 +159,11 @@ typedef enum {
 	XFS_EXT_NORM, XFS_EXT_UNWRITTEN,
 } xfs_exntst_t;
 
+/*文件 tree的 leaf节点的一个 extent*/
 typedef struct xfs_bmbt_irec
 {
 	xfs_fileoff_t	br_startoff;	/* starting file offset */
+	/*磁盘块地址*/
 	xfs_fsblock_t	br_startblock;	/* starting block number */
 	xfs_filblks_t	br_blockcount;	/* number of blocks */
 	xfs_exntst_t	br_state;	/* extent state */

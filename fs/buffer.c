@@ -1685,7 +1685,9 @@ static inline int block_size_bits(unsigned int blocksize)
 {
 	return ilog2(blocksize);
 }
-/*给page创建buffer*/
+/*给page创建buffer
+ * try_to_free_buffers
+ */
 static struct buffer_head *create_page_buffers(struct page *page, struct inode *inode, unsigned int b_state)
 {
 	BUG_ON(!PageLocked(page));
@@ -3334,6 +3336,7 @@ failed:
 	return 0;
 }
 
+/*需要事先锁住page*/
 int try_to_free_buffers(struct page *page)
 {
 	struct address_space * const mapping = page->mapping;

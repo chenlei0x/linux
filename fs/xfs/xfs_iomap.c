@@ -49,6 +49,7 @@ xfs_alert_fsblock_zero(
 	return -EFSCORRUPTED;
 }
 
+/*根据imap 转义成标准的iomap*/
 int
 xfs_bmbt_to_iomap(
 	struct xfs_inode	*ip,

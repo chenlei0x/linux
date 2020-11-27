@@ -439,6 +439,7 @@ void inode_add_lru(struct inode *inode)
 	if (!(inode->i_state & (I_DIRTY_ALL | I_SYNC |
 				I_FREEING | I_WILL_FREE)) &&
 	    !atomic_read(&inode->i_count) && inode->i_sb->s_flags & SB_ACTIVE)
+	    /*不脏且inode 没有引用了, 才放到lru list中*/
 		inode_lru_list_add(inode);
 }
 
@@ -517,6 +518,7 @@ void __remove_inode_hash(struct inode *inode)
 }
 EXPORT_SYMBOL(__remove_inode_hash);
 
+/*I_FREEING | I_CLEAR*/
 void clear_inode(struct inode *inode)
 {
 	/*
@@ -550,6 +552,11 @@ EXPORT_SYMBOL(clear_inode);
  * the cache. This should occur atomically with setting the I_FREEING state
  * flag, so no inodes here should ever be on the LRU when being evicted.
  */
+/*
+ * 当 i_nlink 和 i_icount 都位0时调用这个函数
+ * So it is only then that the local disk file system can actually
+ * release the inode and blocks associated with that inode.
+ */
 static void evict(struct inode *inode)
 {
 	const struct super_operations *op = inode->i_sb->s_op;
@@ -568,6 +575,8 @@ static void evict(struct inode *inode)
 	 * the inode has I_FREEING set, flusher thread won't start new work on
 	 * the inode.  We just have to wait for running writeback to finish.
 	 */
+	/*等I_SYNC标记*/
+	/*等待回写完毕*/
 	inode_wait_for_writeback(inode);
 
 	if (op->evict_inode) {
@@ -1553,7 +1562,7 @@ static void iput_final(struct inode *inode)
 		return;
 	}
 
-	if (!drop) {
+	if (!drop) { /*无法drop*/
 		inode->i_state |= I_WILL_FREE;
 		spin_unlock(&inode->i_lock);
 		write_inode_now(inode, 1);
@@ -1586,6 +1595,10 @@ void iput(struct inode *inode)
 	BUG_ON(inode->i_state & I_CLEAR);
 retry:
 	if (atomic_dec_and_lock(&inode->i_count, &inode->i_lock)) {
+		/*
+		 * i_count 由 1 ===> 0, 现在 i_lock已经被锁住
+		 * 
+	     */
 		if (inode->i_nlink && (inode->i_state & I_DIRTY_TIME)) {
 			atomic_inc(&inode->i_count);
 			spin_unlock(&inode->i_lock);

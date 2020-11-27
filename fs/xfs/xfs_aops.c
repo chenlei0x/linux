@@ -414,11 +414,13 @@ retry:
 	 * offset.  This will convert delayed allocations (including COW ones)
 	 * into real extents.
 	 */
+	 /*没有对应的extent 或者说 block*/
 	if (!xfs_iext_lookup_extent(ip, &ip->i_df, offset_fsb, &icur, &imap))
 		imap.br_startoff = end_fsb;	/* fake a hole past EOF */
 	XFS_WPC(wpc)->data_seq = READ_ONCE(ip->i_df.if_seq);
 	xfs_iunlock(ip, XFS_ILOCK_SHARED);
 
+	/*hole 意味着没有对应的extent*/
 	/* landed in a hole or beyond EOF? */
 	if (imap.br_startoff > offset_fsb) {
 		imap.br_blockcount = imap.br_startoff - offset_fsb;
@@ -442,6 +444,7 @@ retry:
 	    isnullstartblock(imap.br_startblock))
 		goto allocate_blocks;
 
+	/*xfs_bmbt_irec 类型的imap 转为标准的iomap*/
 	xfs_bmbt_to_iomap(ip, &wpc->iomap, &imap, 0);
 	trace_xfs_map_blocks_found(ip, offset, count, whichfork, &imap);
 	return 0;
