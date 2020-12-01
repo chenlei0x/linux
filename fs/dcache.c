@@ -2432,6 +2432,35 @@ if(NULL == next.dentry->d_inode)
 
 2.再到d_delete()中dentry的引用计数大于1的情况时，因为别的进程仍在使用dentry，所以此时不能对dentry进行处理，更不能将dentry的->d_inode设为NULL。如果仍然把它留在dentry_hashtable中，那么另外的进程就可以找到这个dentry，所以要把他从dentry_hashtable中删除。这样当另外的进程要查找dentry时，是无法从dentry_hashtable中找到，只能调用dir->i_op->lookup，如ext2_lookup()来从磁盘中读出相应信息来新组装一个dentry，但vfs_unlink()函数在调用d_delete()前，已经调用了dir->i_op->unlink，如ext2_unlink()来将要删除的节点从其父目录的磁盘信息中删除，所以走这条路也是找不到该节点的。
 
+
+
+文件打开时:
+crash> struct file.f_count ffff888425bcd500
+  f_count = {
+    counter = 1
+  }
+crash> struct dentry.d_lockref.count ffff88842a947f00
+  d_lockref.count = 1
+crash> struct ^Cfff88842a947f00
+crash> struct inode.i_count ffff88842aabd548
+  i_count = {
+    counter = 1
+  }
+
+文件关闭后:
+crash> struct dentry.d_lockref.count ffff88842a947f00
+  d_lockref.count = 0
+crash> struct inode.i_count ffff88842aabd548
+  i_count = {
+    counter = 1
+  }
+crash> struct dentry.d_lockref.count ffff88842a947f00
+  d_lockref.count = 1
+crash> struct inode.i_count ffff88842aabd548
+  i_count = {
+    counter = 1
+  }
+
 */
 /*
  * When a file is deleted, we have two options:
