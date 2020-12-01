@@ -2417,6 +2417,22 @@ struct dentry *d_hash_and_lookup(struct dentry *dir, struct qstr *name)
 }
 EXPORT_SYMBOL(d_hash_and_lookup);
 
+
+
+/*
+1. 当dentry的引用计数为1时，将dentry加入到dentry_unused链表，转为negative状态，并调用dentry_iput()。dentry_iput()负责将dentry和它的inode脱钩，调用iput()处理inode，及将dentry->d_inode设为NULL。
+    虽然dentry仍保留在了dentry_hashtable哈希表中，但这样却能保证别的进程无法访问这个dentry，这是因为在进程打开文件所调用的open() ==> sys_open() ==> do_sys_open() ==> do_filp_open ==> open_namei() ==> path_lookup() ==> do_path_lookup() ==> link_path_walk() ==> __link_path_walk()里，对路径中的每一个部分，都是大体上这样处理：
+do_lookup(nd, &this, &next);
+if(NULL == next.dentry->d_inode)
+{
+    err = -ENOENT;
+    return err;
+}
+这样就保证了虽然dentry还在dentry_hashtable哈希表中，但因为dentry->d_inode为NULL，所以无法访问。
+
+2.再到d_delete()中dentry的引用计数大于1的情况时，因为别的进程仍在使用dentry，所以此时不能对dentry进行处理，更不能将dentry的->d_inode设为NULL。如果仍然把它留在dentry_hashtable中，那么另外的进程就可以找到这个dentry，所以要把他从dentry_hashtable中删除。这样当另外的进程要查找dentry时，是无法从dentry_hashtable中找到，只能调用dir->i_op->lookup，如ext2_lookup()来从磁盘中读出相应信息来新组装一个dentry，但vfs_unlink()函数在调用d_delete()前，已经调用了dir->i_op->unlink，如ext2_unlink()来将要删除的节点从其父目录的磁盘信息中删除，所以走这条路也是找不到该节点的。
+
+*/
 /*
  * When a file is deleted, we have two options:
  * - turn this dentry into a negative dentry
