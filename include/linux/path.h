@@ -5,7 +5,12 @@
 struct dentry;
 struct vfsmount;
 
-/*一个dentry 可能被多个mnt引用*/
+/*
+ * 一个mnt下的哪个文件dentry
+ * mnt用来区分哪个mount point 因为mnt可以被用来转换为
+ * struct mount
+ * 一个mnt_root 可能被多个mount结构体引用
+ */
 struct path {
 	struct vfsmount *mnt;
 	struct dentry *dentry;

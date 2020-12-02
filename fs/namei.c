@@ -1490,17 +1490,34 @@ static int path_parent_directory(struct path *path)
 	return 0;
 }
 
+/*
+ * /a/b/c/..
+ * 如果c 是一个mount point， 这里需要找到/a/b 使得nd->path = /a/b
+ * 如果/a/b/c 此时被mount了多层 /a/b/c ===> fs_a ==> fs_b ===> fs_c
+ * 那么我们首先需要找到 /a/b/c 就是一个mount point
+ * 然后再找到 /a/b
+ */
 static int follow_dotdot(struct nameidata *nd)
 {
 	while(1) {
 		if (path_equal(&nd->path, &nd->root))
 			break;
+		/*
+		 * 如果/a/b/c 被mount 了多次， 
+		 * 那么path.dentry 就会一直和mnt_root相等
+		 */
 		if (nd->path.dentry != nd->path.mnt->mnt_root) {
 			int ret = path_parent_directory(&nd->path);
 			if (ret)
 				return ret;
 			break;
 		}
+		/*
+		 * 如果/a/b/c 被mount 了多次， 
+		 * 那么就会一直调用follow_up 从fs_c 开始 一直找到fs_a
+		 * 最后找到 /a/b/c 然后进入下一次循环， 然后此时/a/b/c 不再是
+		 * 一个mount root 所以会走入1509行的分支， 最后找到/a/b/c
+		 */
 		if (!follow_up(&nd->path))
 			break;
 	}
@@ -3280,6 +3297,7 @@ static int do_last(struct nameidata *nd,
 		inode_lock(dir->d_inode);
 	else
 		inode_lock_shared(dir->d_inode);
+	/*!!!!*/
 	error = lookup_open(nd, &path, file, op, got_write);
 	if (open_flag & O_CREAT)
 		inode_unlock(dir->d_inode);
@@ -3369,6 +3387,7 @@ finish_open_created:
 	if (error)
 		goto out;
 	BUG_ON(file->f_mode & FMODE_OPENED); /* once it's opened, it's opened */
+	/*!!!!!!!*/
 	error = vfs_open(&nd->path, file);
 	if (error)
 		goto out;

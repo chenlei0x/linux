@@ -143,7 +143,7 @@ static inline void bio_issue_init(struct bio_issue *issue,
  *
  * bio 的构成:
  bio_alloc_bioset
- * 内存连续， 磁盘连续位置连续(起始 bi_iter.bi_sector)的一段内存空间
+ * 磁盘连续位置连续(起始 bi_iter.bi_sector)的多段内存空间 vector
  * 由多个bv组成
  */
 struct bio {

@@ -1450,7 +1450,7 @@ extern int send_sigurg(struct fown_struct *fown);
 #define SB_NOSEC	(1<<28)
 #define SB_BORN		(1<<29)
 #define SB_ACTIVE	(1<<30)
-#define SB_NOUSER	(1<<31)
+#define SB_NOUSER	(1<<31) /*不可以被mount*/
 
 /*
  *	Umount options

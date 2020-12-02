@@ -79,16 +79,18 @@ struct throtl_service_queue {
 	 * children throtl_grp's.
 	 *
 	 * 我这个tg中所有需要派发的bio 通过一个个qnode形式链接起来, 每个qnode代表一个tg
-	 * children tg->qnode_on_parent以及 的qnode 以及自己的queue_on_self 都挂在这里
+	 * children tg->qnode_on_parent以及自己的queue_on_self 都挂在这里
 	 */
 	struct list_head	queued[2];	/* throtl_qnode [READ/WRITE] */
+	/*本sq中 所有的qn的所有的bio数量*/
 	unsigned int		nr_queued[2];	/* number of queued bios */
 
 	/*
 	 * RB tree of active children throtl_grp's, which are sorted by
 	 * their ->disptime.
 	 *
-	 * 所有有io 的children tg 都挂在这里, 这些children tg 的bio都存在在child tg->sq->queued中
+	 * 所有有io 的children tg 都挂在这里, 这些children tg 
+	 * 的bio都存在在child tg->sq->queued中
 	 * 后续会通过派发转移到自己的qnode_on_parent 上面的@queued中
 	 */
 	struct rb_root_cached	pending_tree;	/* RB tree of active tgs */
@@ -1110,6 +1112,7 @@ static void throtl_charge_bio(struct throtl_grp *tg, struct bio *bio)
 static void throtl_add_bio_tg(struct bio *bio, struct throtl_qnode *qn,
 			      struct throtl_grp *tg)
 {
+	/*注意此处@sq 是tg 的sq*/
 	struct throtl_service_queue *sq = &tg->service_queue;
 	bool rw = bio_data_dir(bio);
 
@@ -1125,6 +1128,7 @@ static void throtl_add_bio_tg(struct bio *bio, struct throtl_qnode *qn,
 	if (!sq->nr_queued[rw])
 		tg->flags |= THROTL_TG_WAS_EMPTY;
 
+	/*把qn加到自己的sq中*/
 	throtl_qnode_add_bio(bio, qn, &sq->queued[rw]);
 
 	sq->nr_queued[rw]++;
@@ -1268,6 +1272,7 @@ static int throtl_select_dispatch(struct throtl_service_queue *parent_sq)
 
 		throtl_dequeue_tg(tg);
 
+		/*派发了多少个bio*/
 		nr_disp += throtl_dispatch_tg(tg);
 
 		sq = &tg->service_queue;
@@ -2334,7 +2339,12 @@ again:
 	 * its @tg's disptime is not in the future.
 	 */
 	if (tg->flags & THROTL_TG_WAS_EMPTY) {
+		/*更新tg的disptime ，然后重新加入parent sq*/
 		tg_update_disptime(tg);
+		/*
+		 * 当前的tg已经被挂载到父亲sq的pending tree上了，
+		 * 让tg的父亲节点的sq 去派发
+		 */
 		throtl_schedule_next_dispatch(tg->service_queue.parent_sq, true);
 	}
 

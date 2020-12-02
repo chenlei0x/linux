@@ -2381,7 +2381,7 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
 		if (!d_same_name(dentry, parent, name))
 			goto next;
 
-		dentry->d_lockref.count++;
+		dentry->d_lockref.count++; /*这里count++*/
 		found = dentry;
 		spin_unlock(&dentry->d_lock);
 		break;

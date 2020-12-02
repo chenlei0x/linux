@@ -919,7 +919,7 @@ bool
 xfs_iext_lookup_extent(
 	struct xfs_inode	*ip,
 	struct xfs_ifork	*ifp,
-	xfs_fileoff_t		offset,
+	xfs_fileoff_t		offset, /*fsb*/
 	struct xfs_iext_cursor	*cur,
 	struct xfs_bmbt_irec	*gotp)
 {

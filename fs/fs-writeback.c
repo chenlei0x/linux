@@ -1564,7 +1564,7 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	 * necessary.  This guarantees that either __mark_inode_dirty()
 	 * sees clear I_DIRTY_PAGES or we see PAGECACHE_TAG_DIRTY.
 	 *
-	 * smp_mb 用来强制更新i_state
+	 * smp_mb 用来强制刷新i_state
 	 */
 	smp_mb();
 
