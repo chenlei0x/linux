@@ -877,6 +877,7 @@ xfs_buffered_write_iomap_begin(
 	 * iomap code so that the higher level write code can read data in to
 	 * perform read-modify-write cycles for unaligned writes.
 	 */
+	/*eof: offset_fsb 后面没有extent了， 自己也处于一个hole*/
 	eof = !xfs_iext_lookup_extent(ip, &ip->i_df, offset_fsb, &icur, &imap);
 	if (eof)
 		imap.br_startoff = end_fsb; /* fake hole until the end */
@@ -961,7 +962,7 @@ xfs_buffered_write_iomap_begin(
 	error = xfs_qm_dqattach_locked(ip, false);
 	if (error)
 		goto out_unlock;
-
+	/*offset 所处的位置没有extent， 后面没有extent了*/
 	if (eof) {
 		prealloc_blocks = xfs_iomap_prealloc_size(ip, allocfork, offset,
 				count, &icur);

@@ -21,9 +21,15 @@
  * iomap_end call.
  */
  /*
-	ops->iomap_begin
+  ops的一个例子为 xfs_buffered_write_iomap_ops
+	ops->iomap_begin 文件系统预留磁盘空间
 	actor
-	ops->iomap_end
+		iomap_write_begin pagecache 分配页,或者读上来
+		iomap_write_end 提交脏页, 各种置脏,inode等
+	ops->iomap_end 出错处理
+
+	后期不管是通过sync 还是 write back 会调用writepages 然后实际分配磁盘空间
+	回刷脏页
 */
 loff_t
 iomap_apply(struct inode *inode, loff_t pos, loff_t length, unsigned flags,

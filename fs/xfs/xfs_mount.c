@@ -1230,6 +1230,7 @@ xfs_mod_ifree(
  * we get near to ENOSPC and we have to be very accurate with our updates.
  */
 #define XFS_FDBLOCKS_BATCH	1024
+/*从总的里面减去延迟分配需要的block*/
 int
 xfs_mod_fdblocks(
 	struct xfs_mount	*mp,

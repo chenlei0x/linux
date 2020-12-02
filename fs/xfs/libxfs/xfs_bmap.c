@@ -2585,6 +2585,9 @@ done:
 /*
  * Convert a hole to a delayed allocation.
  */
+ /* hole 代表着这个区域没有对应的extent结构，当对他写入时，
+  * 需要转换为delay allocation
+  */
 STATIC void
 xfs_bmap_add_extent_hole_delay(
 	xfs_inode_t		*ip,	/* incore inode pointer */
@@ -2652,9 +2655,14 @@ xfs_bmap_add_extent_hole_delay(
 		temp = left.br_blockcount + new->br_blockcount +
 			right.br_blockcount;
 
+		/*
+		 * 此时left new right 三个连续的delay ext， 他们的br_startblock
+		 * 被初始化为当初每个ext的 nullstartblock(indlen)
+		 */
 		oldlen = startblockval(left.br_startblock) +
 			startblockval(new->br_startblock) +
 			startblockval(right.br_startblock);
+		/*重新计算nullstartblock*/
 		newlen = XFS_FILBLKS_MIN(xfs_bmap_worst_indlen(ip, temp),
 					 oldlen);
 		left.br_startblock = nullstartblock(newlen);
@@ -4060,6 +4068,7 @@ xfs_bmapi_reserve_delalloc(
 	indlen = (xfs_extlen_t)xfs_bmap_worst_indlen(ip, alen);
 	ASSERT(indlen > 0);
 
+	/*从总的里面减去延迟分配需要的block*/
 	error = xfs_mod_fdblocks(mp, -((int64_t)alen), false);
 	if (error)
 		goto out_unreserve_quota;
@@ -4077,6 +4086,7 @@ xfs_bmapi_reserve_delalloc(
 	got->br_blockcount = alen;
 	got->br_state = XFS_EXT_NORM;
 
+	/*插入这个delay ext*/
 	xfs_bmap_add_extent_hole_delay(ip, whichfork, icur, got);
 
 	/*

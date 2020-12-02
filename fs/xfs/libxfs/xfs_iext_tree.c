@@ -37,6 +37,7 @@ struct xfs_iext_rec {
 /*
  * Given that the length can't be a zero, only an empty hi value indicates an
  * unused record.
+ * @hi 囊括了length 所以length不为0， @hi就不为0
  */
 static bool xfs_iext_rec_is_empty(struct xfs_iext_rec *rec)
 {
@@ -858,6 +859,7 @@ xfs_iext_free_last_leaf(
 	ifp->if_u1.if_root = NULL;
 }
 
+/*删除cur指向的ext rec， leaf 和 ext rec 都可以从@cur 找到*/
 void
 xfs_iext_remove(
 	struct xfs_inode	*ip,

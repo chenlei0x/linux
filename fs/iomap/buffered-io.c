@@ -917,6 +917,7 @@ iomap_file_buffered_write(struct kiocb *iocb, struct iov_iter *iter,
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
 	loff_t pos = iocb->ki_pos, ret = 0, written = 0;
 
+	/*只要iter中还有内容,就一直进行写入 iomap apply*/
 	while (iov_iter_count(iter)) {
 		ret = iomap_apply(inode, pos, iov_iter_count(iter),
 				IOMAP_WRITE, ops, iter, iomap_write_actor);

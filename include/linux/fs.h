@@ -343,6 +343,9 @@ struct kiocb {
 	/* The 'ki_filp' pointer is shared in a union for aio */
 	randomized_struct_fields_start
 
+	/* kiocb 通常和 iov_iter 一起连用, kiocb中包含了文件的写入控制
+	 * 比如写入的pos, iter中表明了写入的内容
+	 */
 	loff_t			ki_pos;
 	void (*ki_complete)(struct kiocb *iocb, long ret, long ret2);
 	void			*private;

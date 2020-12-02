@@ -288,6 +288,7 @@ int invalidate_inode_page(struct page *page)
  * truncate_inode_pages_range is able to handle cases where lend + 1 is not
  * page aligned properly.
  */
+ /*lstart lend 都是字节*/
 void truncate_inode_pages_range(struct address_space *mapping,
 				loff_t lstart, loff_t lend)
 {
@@ -897,8 +898,8 @@ EXPORT_SYMBOL(pagecache_isize_extended);
 /**
  * truncate_pagecache_range - unmap and remove pagecache that is hole-punched
  * @inode: inode
- * @lstart: offset of beginning of hole
- * @lend: offset of last byte of hole
+ * @lstart: offset of beginning of hole (字节)
+ * @lend: offset of last byte of hole (字节)
  *
  * This function should typically be called before the filesystem
  * releases resources associated with the freed range (eg. deallocates

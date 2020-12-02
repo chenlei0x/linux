@@ -33,7 +33,10 @@ enum iter_type {
 
 /*
  * iter 中包含了vec数组
- * 
+ * iter中通过多个vec来描述文件中连续的一段内容
+ */
+/* kiocb 通常和iov_iter 一起连用, kiocb中包含了文件的写入控制
+ * 比如写入的pos, iter中表明了写入的内容
  */
 struct iov_iter {
 	/*

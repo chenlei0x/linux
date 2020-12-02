@@ -159,11 +159,21 @@ typedef enum {
 	XFS_EXT_NORM, XFS_EXT_UNWRITTEN,
 } xfs_exntst_t;
 
-/*文件 tree的 leaf节点的一个 extent*/
+/*
+ *文件 tree的 leaf节点的一个 extent，这里是内存中的形式，
+ * 硬盘中的形式为 xfs_iext_rec
+ * 该函数用来转义
+ * xfs_iext_get
+ *
+ */
 typedef struct xfs_bmbt_irec
 {
 	xfs_fileoff_t	br_startoff;	/* starting file offset */
 	/*磁盘块地址*/
+	/*
+	 * 如果这是一个delay ext的化
+	 * br_startblock= nullstartblock(indlen);
+	 */
 	xfs_fsblock_t	br_startblock;	/* starting block number */
 	xfs_filblks_t	br_blockcount;	/* number of blocks */
 	xfs_exntst_t	br_state;	/* extent state */
