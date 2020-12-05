@@ -21,6 +21,7 @@
  * The inode must be locked, and it cannot be associated with any transaction.
  * If lock_flags is non-zero the inode will be unlocked on transaction commit.
  */
+ /*把inode 加入到事务中*/
 void
 xfs_trans_ijoin(
 	struct xfs_trans	*tp,

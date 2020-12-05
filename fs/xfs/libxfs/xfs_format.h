@@ -96,6 +96,7 @@ struct xfs_ifork;
 typedef struct xfs_sb {
 	uint32_t	sb_magicnum;	/* magic number == XFS_SB_MAGIC */
 	uint32_t	sb_blocksize;	/* logical block size, bytes */
+	/*整个文件系统的结尾*/
 	xfs_rfsblock_t	sb_dblocks;	/* number of data blocks */
 	xfs_rfsblock_t	sb_rblocks;	/* number of realtime blocks */
 	xfs_rtblock_t	sb_rextents;	/* number of realtime extents */
@@ -867,6 +868,12 @@ typedef struct xfs_dinode {
 	__be32		di_extsize;	/* basic/minimum extent size for file */
 	__be32		di_nextents;	/* number of extents in data fork */
 	__be16		di_anextents;	/* number of extents in attribute fork*/
+	/*
+	extended attribute fork的起始地址通过inode core中的di_forkoff域指定，
+	该值是相对于inode的literal area的，也就是datafork的起始地址的。
+	如果di_forkoff的值为0，表明该inode没有扩展属性，
+	如果非零，起始地址为di_forkoff * 8（以字节为单位），其最大值为2048 byte。
+	*/
 	__u8		di_forkoff;	/* attr fork offs, <<3 for 64b align */
 	__s8		di_aformat;	/* format of attr fork's data */
 	__be32		di_dmevmask;	/* DMIG event mask */
@@ -920,8 +927,10 @@ static inline uint xfs_dinode_size(int version)
  * This enum is used in string mapping in xfs_trace.h; please keep the
  * TRACE_DEFINE_ENUMs for it up to date.
  */
+ /*数据的组织方式， local？ extent 数组 还是  ext btree？*/
 enum xfs_dinode_fmt {
 	XFS_DINODE_FMT_DEV,		/* xfs_dev_t */
+		/*symlink inode*/
 	XFS_DINODE_FMT_LOCAL,		/* bulk data */
 	XFS_DINODE_FMT_EXTENTS,		/* struct xfs_bmbt_rec */
 	XFS_DINODE_FMT_BTREE,		/* struct xfs_bmdr_block */

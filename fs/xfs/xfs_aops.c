@@ -335,6 +335,10 @@ xfs_convert_blocks(
 	return 0;
 }
 
+
+/*
+ * @offset  page 要写入的文件offset
+ */
 static int
 xfs_map_blocks(
 	struct iomap_writepage_ctx *wpc,
@@ -389,6 +393,7 @@ retry:
 	 * Check if this is offset is covered by a COW extents, and if yes use
 	 * it directly instead of looking up anything in the data fork.
 	 */
+	 /*下面两个if 如果没有ioctl 进行cow 操作是不会走入的*/
 	if (xfs_inode_has_cow_data(ip) &&
 	    xfs_iext_lookup_extent(ip, ip->i_cowfp, offset_fsb, &icur, &imap))
 		cow_fsb = imap.br_startoff;
@@ -440,6 +445,7 @@ retry:
 		imap.br_blockcount = cow_fsb - imap.br_startoff;
 
 	/* got a delalloc extent? */
+		/*在write begin中已经插入了一个 delay extent*/
 	if (imap.br_startblock != HOLESTARTBLOCK &&
 	    isnullstartblock(imap.br_startblock))
 		goto allocate_blocks;

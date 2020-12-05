@@ -1494,6 +1494,12 @@ xfs_bmap_one_block(
 /*
  * Convert a delayed allocation to a real allocation.
  */
+/*
+ * PREV 是之前的delay extent, new 是申请到的extent, 用new 替换PREV的部分
+ * 这里需要注意 LEFT 和 RIGHT  这两个extent 指的是 PREV 左右的两个extent
+ * 由于new 需要替换PREV的部分或者全部(这取决于new 的startoff 和 blockcount
+ * 和 PREV是否完全吻合), 如果部分替换,那么可能产生新的LEFT和 RIGHT
+ */
 STATIC int				/* error */
 xfs_bmap_add_extent_delay_real(
 	struct xfs_bmalloca	*bma,
@@ -4143,6 +4149,8 @@ xfs_bmap_alloc_userdata(
 	return xfs_bmap_btalloc(bma);
 }
 
+
+/*申请块, 处理extent*/
 static int
 xfs_bmapi_allocate(
 	struct xfs_bmalloca	*bma)
@@ -4166,6 +4174,10 @@ xfs_bmapi_allocate(
 			bma->prev.br_startoff = NULLFILEOFF;
 	} else {
 		bma->length = XFS_FILBLKS_MIN(bma->length, MAXEXTLEN);
+		/*
+		 * got 是右边的extent,  got.br_startoff - bma->offset 是为了尽量和右边的
+		 * extent 连续
+		 */
 		if (!bma->eof)
 			bma->length = XFS_FILBLKS_MIN(bma->length,
 					bma->got.br_startoff - bma->offset);
@@ -4176,6 +4188,7 @@ xfs_bmapi_allocate(
 	else
 		bma->minlen = 1;
 
+	/*申请块*/
 	if (bma->flags & XFS_BMAPI_METADATA)
 		error = xfs_bmap_btalloc(bma);
 	else
@@ -4219,6 +4232,10 @@ xfs_bmapi_allocate(
 	    (bma->flags & XFS_BMAPI_PREALLOC))
 		bma->got.br_state = XFS_EXT_UNWRITTEN;
 
+	/*
+	 * 我们申请到了一些连续的块, 那么就可以把delay extent(部分或者全部) 
+	 * 转化成 real extent
+	 */
 	if (bma->wasdel)
 		error = xfs_bmap_add_extent_delay_real(bma, whichfork);
 	else
@@ -4351,10 +4368,10 @@ xfs_bmapi_finish(
 {
 	if ((bma->logflags & xfs_ilog_fext(whichfork)) &&
 	    XFS_IFORK_FORMAT(bma->ip, whichfork) != XFS_DINODE_FMT_EXTENTS)
-		bma->logflags &= ~xfs_ilog_fext(whichfork);
+		bma->logflags &= ~ xfs_ilog_fext(whichfork);
 	else if ((bma->logflags & xfs_ilog_fbroot(whichfork)) &&
 		 XFS_IFORK_FORMAT(bma->ip, whichfork) != XFS_DINODE_FMT_BTREE)
-		bma->logflags &= ~xfs_ilog_fbroot(whichfork);
+		bma->logflags &= ~ xfs_ilog_fbroot(whichfork);
 
 	if (bma->logflags)
 		xfs_trans_log_inode(bma->tp, bma->ip, bma->logflags);
@@ -4566,6 +4583,25 @@ error0:
  * is not available.
  */
  /*iomap 进来的时候可能是全0*/
+/*
+                                                                                          +
+ +                                                                                        |
+ |                                                                                        |
+ |                                                                                        |
+ +--------------------------------------------------+-------------------------------------+
+ |                                                  |                                     |
+ |                                                  |                                     +
+ |                                                  |
+ |                                                  |
+ |                                                  |
+ v                                                  |
+                                                    |
+got.br_startoffset                                  v
+                                                 offset
+
+从 offset 所在的delay extent 起始开始 不断的分配block, 由于多次分配,所以可能造成这个delay ext
+分裂成多个extent
+*/
 int
 xfs_bmapi_convert_delalloc(
 	struct xfs_inode	*ip,
@@ -4622,6 +4658,7 @@ xfs_bmapi_convert_delalloc(
 	bma.tp = tp;
 	bma.ip = ip;
 	bma.wasdel = true;
+	/*需要申请的文件offset 和 length*/
 	bma.offset = bma.got.br_startoff;
 	bma.length = max_t(xfs_filblks_t, bma.got.br_blockcount, MAXEXTLEN);
 	bma.minleft = xfs_bmapi_minleft(tp, ip, whichfork);
@@ -4631,6 +4668,7 @@ xfs_bmapi_convert_delalloc(
 	if (!xfs_iext_peek_prev_extent(ifp, &bma.icur, &bma.prev))
 		bma.prev.br_startoff = NULLFILEOFF;
 
+	/*!!!!!申请块, 并处理extent*/
 	error = xfs_bmapi_allocate(&bma);
 	if (error)
 		goto out_finish;

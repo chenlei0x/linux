@@ -2238,6 +2238,7 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 /*
  * 表示inode 结构体有重要数据脏了,比如文件长度等
  * 以I_DIRTY_DATASYNC就是用来标记在metadata中是否有重要数据被修改。
+ *
  * 当fdatasync 系统调用本意是只把用户数据刷盘刷下去，在必要时才刷meta data
  * 这个必要时就是发现了I_DIRTY_DATASYNC被设置，
  * 就知道metadata需要马上回写了
@@ -2267,17 +2268,20 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 
 /*inode 有重要且不重要的改动或者有脏页*/
 #define I_DIRTY_INODE (I_DIRTY_SYNC | I_DIRTY_DATASYNC)
-#define I_DIRTY (I_DIRTY_INODE | I_DIRTY_PAGES)
+#define I_DIRTY (I_DIRTY_INODE | I_DIRTY_PAGES)  /*对应 wb->b_dirty 队列*/
+/*I_DIRTY_TIME 对应 wb->b_dirty_time*/
 #define I_DIRTY_ALL (I_DIRTY | I_DIRTY_TIME)
 
 extern void __mark_inode_dirty(struct inode *, int);
 static inline void mark_inode_dirty(struct inode *inode)
 {
+	/*有脏页, inode 有重要和不重要的脏项*/
 	__mark_inode_dirty(inode, I_DIRTY);
 }
 
 static inline void mark_inode_dirty_sync(struct inode *inode)
 {
+	/*inode 有不重要的脏项*/
 	__mark_inode_dirty(inode, I_DIRTY_SYNC);
 }
 

@@ -471,6 +471,7 @@ static inline uint xfs_log_dinode_size(int version)
 typedef struct xfs_buf_log_format {
 	unsigned short	blf_type;	/* buf log item type indicator */
 	unsigned short	blf_size;	/* size of this item */
+	/*XFS_BLFT_*** */
 	unsigned short	blf_flags;	/* misc state */
 	unsigned short	blf_len;	/* number of blocks in this buf */
 	int64_t		blf_blkno;	/* starting blkno of this buf */
@@ -490,6 +491,7 @@ typedef struct xfs_buf_log_format {
 #define XFS_BLFT_SHIFT	11
 #define XFS_BLFT_MASK	(((1 << XFS_BLFT_BITS) - 1) << XFS_BLFT_SHIFT)
 
+/*buf log format type*/
 enum xfs_blft {
 	XFS_BLFT_UNKNOWN_BUF = 0,
 	XFS_BLFT_UDQUOT_BUF,

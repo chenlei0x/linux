@@ -301,6 +301,10 @@ xfs_iext_rec_cmp(
 	return 0;
 }
 
+/*
+ * 在level层找到对应的node, 如果@level 为1 就是leaf node
+ * 所以如果当前fork只有一个node if_root 则if_height =1
+ */
 static void *
 xfs_iext_find_level(
 	struct xfs_ifork	*ifp,
@@ -313,6 +317,7 @@ xfs_iext_find_level(
 	if (!ifp->if_height)
 		return NULL;
 
+	/*如果当前fork 只有一层的话*/
 	for (height = ifp->if_height; height > level; height--) {
 		for (i = 1; i < KEYS_PER_NODE; i++)
 			if (xfs_iext_key_cmp(node, i, offset) > 0)
@@ -927,17 +932,20 @@ xfs_iext_lookup_extent(
 {
 	XFS_STATS_INC(ip->i_mount, xs_look_exlist);
 
+	/*先去找到leaf node*/
 	cur->leaf = xfs_iext_find_level(ifp, offset, 1);
 	if (!cur->leaf) {
 		cur->pos = 0;
 		return false;
 	}
 
+	/*遍历leaf中的每个rec*/
 	for (cur->pos = 0; cur->pos < xfs_iext_max_recs(ifp); cur->pos++) {
 		struct xfs_iext_rec *rec = cur_rec(cur);
 
 		if (xfs_iext_rec_is_empty(rec))
 			break;
+		/*注意这里是 >= 对应着注释中的前两种if情况*/
 		if (xfs_iext_rec_cmp(rec, offset) >= 0)
 			goto found;
 	}
@@ -950,6 +958,7 @@ xfs_iext_lookup_extent(
 	if (!xfs_iext_valid(ifp, cur))
 		return false;
 found:
+	/*把rec(ext 的磁盘形式) 转为 gotp*/
 	xfs_iext_get(gotp, cur_rec(cur));
 	return true;
 }

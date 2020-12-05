@@ -18,6 +18,7 @@
 /*
  * Check to see if a buffer matching the given parameters is already
  * a part of the given transaction.
+ * @map 是不是已经在transaction中了?
  */
 STATIC struct xfs_buf *
 xfs_trans_buf_item_match(
@@ -219,6 +220,7 @@ xfs_trans_getsb(
  * If the transaction pointer is NULL, make this just a normal
  * read_buf() call.
  */
+ /*map 数组代表的磁盘上的空间是连续的*/
 int
 xfs_trans_read_buf_map(
 	struct xfs_mount	*mp,

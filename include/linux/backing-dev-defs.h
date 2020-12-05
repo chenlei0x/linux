@@ -133,6 +133,10 @@ struct bdi_writeback {
 	unsigned long state;		/* Always use atomic bitops on this */
 	unsigned long last_old_flush;	/* last old data flush */
 
+	/*
+	 * 优先级  b_io --> b_more_io ---> b_dirty --> b_dirty_time
+	 * queue_io
+	 */
 	struct list_head b_dirty;	/* dirty inodes */
 	struct list_head b_io;		/* parked for writeback */
 	struct list_head b_more_io;	/* parked for more writeback */

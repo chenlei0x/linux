@@ -99,6 +99,7 @@ typedef void (*xfs_buf_iodone_t)(struct xfs_buf *);
 
 #define XB_PAGES	2
 
+/*map 数组 中代表的磁盘空间是连续的map[i].bm_bn + map[i].bm_len = map[i+1].bm_bn*/
 struct xfs_buf_map {
 	xfs_daddr_t		bm_bn;	/* block number for I/O */
 	int			bm_len;	/* size of I/O */
@@ -118,6 +119,7 @@ struct xfs_buf_ops {
 	xfs_failaddr_t (*verify_struct)(struct xfs_buf *bp);
 };
 
+/*一个buf 对应一个map 数组 每个map数组对应一个bio */
 typedef struct xfs_buf {
 	/*
 	 * first cacheline holds all the fields needed for an uncontended cache
@@ -147,6 +149,7 @@ typedef struct xfs_buf {
 	struct xfs_perag	*b_pag;		/* contains rbtree root */
 	struct xfs_mount	*b_mount;
 	xfs_buftarg_t		*b_target;	/* buffer target (device) */
+	/*!!!! */
 	void			*b_addr;	/* virtual address of buffer */
 	struct work_struct	b_ioend_work;
 	xfs_buf_iodone_t	b_iodone;	/* I/O completion function */
@@ -160,6 +163,7 @@ typedef struct xfs_buf {
 	struct xfs_buf_map	__b_map;	/* inline compound buffer map */
 	int			b_map_count;
 	atomic_t		b_pin_count;	/* pin count */
+	/*一个bp对应多个bio*/
 	atomic_t		b_io_remaining;	/* #outstanding I/O requests */
 	unsigned int		b_page_count;	/* size of page array */
 	unsigned int		b_offset;	/* page offset in first page */

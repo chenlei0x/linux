@@ -130,7 +130,7 @@ struct iomap_ops {
 	 * pos for up to length, as long as we can do it as a single mapping.
 	 * The actual length is returned in iomap->length.
 	 */
-	 /*iomap_apply 中actor之前*/
+	 /*iomap_apply 中actor之前      文件系统预留磁盘空间*/
 	int (*iomap_begin)(struct inode *inode, loff_t pos, loff_t length,
 			unsigned flags, struct iomap *iomap,
 			struct iomap *srcmap);
@@ -141,7 +141,7 @@ struct iomap_ops {
 	 * needs to be commited, while the rest needs to be unreserved.
 	 * Written might be zero if no data was written.
 	 */
-	  /*iomap_apply 中actor之后调用*/
+	  /*iomap_apply 中actor之后调用       提交脏页, 各种置脏,inode等*/
 	int (*iomap_end)(struct inode *inode, loff_t pos, loff_t length,
 			ssize_t written, unsigned flags, struct iomap *iomap);
 };

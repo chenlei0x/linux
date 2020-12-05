@@ -1576,6 +1576,7 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
 	if (dirty & I_DIRTY_TIME)
 		mark_inode_dirty_sync(inode);
 	/* Don't write the inode if only I_DIRTY_PAGES was set */
+	/* 如果只有页脏了就没必要写入inode 了*/
 	if (dirty & ~I_DIRTY_PAGES) {
 		int err = write_inode(inode, wbc);
 		if (ret == 0)
@@ -2366,6 +2367,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 		block_dump___mark_inode_dirty(inode);
 
 	spin_lock(&inode->i_lock);
+	/*inode 已经脏了, 不需要再打上标记I_DIRTY_TIME了 直接返回就好*/
 	if (dirtytime && (inode->i_state & I_DIRTY_INODE))
 		goto out_unlock_inode;
 	if ((inode->i_state & flags) != flags) {

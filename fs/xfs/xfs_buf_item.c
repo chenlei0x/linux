@@ -728,6 +728,7 @@ xfs_buf_item_init(
 	struct xfs_buf	*bp,
 	struct xfs_mount *mp)
 {
+	/*一个bp 对应一个 xfs_buf_log_item, 一个logitem 对应 多个format*/
 	struct xfs_buf_log_item	*bip = bp->b_log_item;
 	int			chunks;
 	int			map_size;
@@ -760,6 +761,7 @@ xfs_buf_item_init(
 	 * Discontiguous buffer support follows the layout of the underlying
 	 * buffer. This makes the implementation as simple as possible.
 	 */
+	 /*bli_formats 分配空间*/
 	error = xfs_buf_item_get_format(bip, bp->b_map_count);
 	ASSERT(error == 0);
 	if (error) {	/* to stop gcc throwing set-but-unused warnings */

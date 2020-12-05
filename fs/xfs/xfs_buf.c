@@ -198,6 +198,7 @@ xfs_buf_free_maps(
 	}
 }
 
+/*申请bp*/
 static struct xfs_buf *
 _xfs_buf_alloc(
 	struct xfs_buftarg	*target,
@@ -236,6 +237,7 @@ _xfs_buf_alloc(
 	 * I/O routines should use io_length, which will be the same in
 	 * most cases but may be reset (e.g. XFS recovery).
 	 */
+	 /*bp->b_maps 数组动态申请*/
 	error = xfs_buf_get_maps(bp, nmaps);
 	if (error)  {
 		kmem_cache_free(xfs_buf_zone, bp);
@@ -263,6 +265,7 @@ _xfs_buf_alloc(
  *	Allocate a page array capable of holding a specified number
  *	of pages, and point the page buf at it.
  */
+ /* 申请(page *) 数组*/
 STATIC int
 _xfs_buf_get_pages(
 	xfs_buf_t		*bp,
@@ -370,6 +373,7 @@ xfs_buf_allocate_memory(
 			goto use_alloc_page;
 		}
 
+		/*b_addr 跨页了*/
 		if (((unsigned long)(bp->b_addr + size - 1) & PAGE_MASK) !=
 		    ((unsigned long)bp->b_addr & PAGE_MASK)) {
 			/* b_addr spans two pages - use alloc_page instead */
@@ -393,7 +397,7 @@ use_alloc_page:
 	error = _xfs_buf_get_pages(bp, page_count);
 	if (unlikely(error))
 		return error;
-
+	/*这里 offset 肯定 = 0*/
 	offset = bp->b_offset;
 	bp->b_flags |= _XBF_PAGES;
 
@@ -605,6 +609,7 @@ xfs_buf_find(
 			    xfs_daddr_to_agno(btp->bt_mount, cmap.bm_bn));
 
 	spin_lock(&pag->pag_buf_lock);
+	/*这里寻找pag_buf_hash*/
 	bp = rhashtable_lookup_fast(&pag->pag_buf_hash, &cmap,
 				    xfs_buf_hash_params);
 	if (bp) {
@@ -818,6 +823,7 @@ xfs_buf_read_map(
 
 	flags |= XBF_READ;
 
+	/*构造新的bp*/
 	bp = xfs_buf_get_map(target, map, nmaps, flags);
 	if (!bp)
 		return NULL;
@@ -1255,6 +1261,9 @@ xfs_buf_bio_end_io(
 	bio_put(bio);
 }
 
+/*下发io
+@count 是bp的总长度
+*/
 static void
 xfs_buf_ioapply_map(
 	struct xfs_buf	*bp,
@@ -1314,7 +1323,7 @@ next_chunk:
 		size -= nbytes;
 		total_nr_pages--;
 	}
-
+	/*下发bio      bi_size在 bio_add_page 中改动*/
 	if (likely(bio->bi_iter.bi_size)) {
 		if (xfs_buf_is_vmapped(bp)) {
 			flush_kernel_vmap_range(bp->b_addr,

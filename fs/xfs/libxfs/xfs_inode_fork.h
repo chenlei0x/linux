@@ -16,6 +16,10 @@ struct xfs_ifork {
 	int64_t			if_bytes;	/* bytes in if_u1 */
 	struct xfs_btree_block	*if_broot;	/* file's incore btree root */
 	unsigned int		if_seq;		/* fork mod counter */
+	/*
+	 * =1 时 只有root node, 且该node 为 leaf
+	 * level = 1 时, 对应的是leaf node
+	 */
 	int			if_height;	/* height of the extent tree */
 	union {
 		void		*if_root;	/* extent tree root */
