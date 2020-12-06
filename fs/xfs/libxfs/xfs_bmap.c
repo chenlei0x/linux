@@ -3156,6 +3156,7 @@ xfs_bmap_extsize_align(
 
 #define XFS_ALLOC_GAP_UNITS	4
 
+/*调整 ap->blkno 期望的磁盘位置*/
 void
 xfs_bmap_adjacent(
 	struct xfs_bmalloca	*ap)	/* bmap alloc argument struct */
@@ -3306,6 +3307,7 @@ xfs_bmap_adjacent(
 #undef ISVALID
 }
 
+/*给定ag, 找到该ag的最长free extent*/
 static int
 xfs_bmap_longest_free_extent(
 	struct xfs_trans	*tp,
@@ -3330,9 +3332,11 @@ xfs_bmap_longest_free_extent(
 		}
 	}
 
+	/*找到该ag的最长free extent*/
 	longest = xfs_alloc_longest_free_extent(pag,
 				xfs_alloc_min_freelist(mp, pag),
 				xfs_ag_resv_needed(pag, XFS_AG_RESV_NONE));
+	/*更新blen blen作为输入是期望申请到的长度*/
 	if (*blen < longest)
 		*blen = longest;
 
@@ -3341,6 +3345,7 @@ out:
 	return error;
 }
 
+/*确定minlen*/
 static void
 xfs_bmap_select_minlen(
 	struct xfs_bmalloca	*ap,
@@ -3383,6 +3388,7 @@ xfs_bmap_btalloc_nullfb(
 	args->type = XFS_ALLOCTYPE_START_BNO;
 	args->total = ap->total;
 
+	/*期望的fsbno 所在的ag*/
 	startag = ag = XFS_FSB_TO_AGNO(mp, args->fsbno);
 	if (startag == NULLAGNUMBER)
 		startag = ag = 0;
@@ -3398,7 +3404,7 @@ xfs_bmap_btalloc_nullfb(
 		if (ag == startag)
 			break;
 	}
-
+	/*确定minlen*/
 	xfs_bmap_select_minlen(ap, args, blen, notinit);
 	return 0;
 }
@@ -3544,7 +3550,7 @@ xfs_bmap_btalloc(
 		ASSERT(ap->length);
 	}
 
-
+	/*t_firstblock 被初始化为 NULLFSBLOCK*/
 	nullfb = ap->tp->t_firstblock == NULLFSBLOCK;
 	fb_agno = nullfb ? NULLAGNUMBER : XFS_FSB_TO_AGNO(mp,
 							ap->tp->t_firstblock);
@@ -3560,6 +3566,7 @@ xfs_bmap_btalloc(
 	} else
 		ap->blkno = ap->tp->t_firstblock;
 
+	/*调整 ap->blkno 期望的磁盘位置*/
 	xfs_bmap_adjacent(ap);
 
 	/*
@@ -4658,7 +4665,11 @@ xfs_bmapi_convert_delalloc(
 	bma.tp = tp;
 	bma.ip = ip;
 	bma.wasdel = true;
-	/*需要申请的文件offset 和 length*/
+	/*
+	 * bma.got 是xfs_iext_lookup_extent 中进行修改的, 里面是查找到的ext, 能走到这里
+	 * 说明肯定是一个delay ext 否则4652行就已经跳转出去了
+	 * 需要申请的文件offset 和 length
+	 */
 	bma.offset = bma.got.br_startoff;
 	bma.length = max_t(xfs_filblks_t, bma.got.br_blockcount, MAXEXTLEN);
 	bma.minleft = xfs_bmapi_minleft(tp, ip, whichfork);

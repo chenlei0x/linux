@@ -314,6 +314,7 @@ typedef struct xfs_perag {
 	 * If the pagino matches, the search for new inodes
 	 * doesn't need to search the near ones again straight away
 	 */
+	 /*上次分配的pagino, 以及pagino所在的rec的的左右两个rec*/
 	xfs_agino_t	pagl_pagino;
 	xfs_agino_t	pagl_leftrec;
 	xfs_agino_t	pagl_rightrec;

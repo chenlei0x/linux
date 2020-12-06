@@ -50,6 +50,7 @@ STATIC int xfs_iunlink_remove(struct xfs_trans *, struct xfs_inode *);
 
 /*
  * helper function to extract extent size hint from inode
+ * 通常返回0
  */
 xfs_extlen_t
 xfs_get_extsz_hint(
@@ -61,6 +62,7 @@ xfs_get_extsz_hint(
 	 */
 	if (xfs_is_always_cow_inode(ip))
 		return 0;
+	/*这个标记通过ioctl 加上的*/
 	if ((ip->i_d.di_flags & XFS_DIFLAG_EXTSIZE) && ip->i_d.di_extsize)
 		return ip->i_d.di_extsize;
 	if (XFS_IS_REALTIME_INODE(ip))

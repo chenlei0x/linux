@@ -401,6 +401,7 @@ use_alloc_page:
 	offset = bp->b_offset;
 	bp->b_flags |= _XBF_PAGES;
 
+	/*page 都是独立的*/
 	for (i = 0; i < bp->b_page_count; i++) {
 		struct page	*page;
 		uint		retries = 0;

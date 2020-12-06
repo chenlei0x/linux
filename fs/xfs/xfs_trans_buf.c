@@ -472,6 +472,7 @@ xfs_trans_bhold_release(
 
 /*
  * Mark a buffer dirty in the transaction.
+ * 设置一个bp脏
  */
 void
 xfs_trans_dirty_buf(
@@ -527,6 +528,8 @@ xfs_trans_dirty_buf(
  * First and last are numbers relative to the beginning of this buffer,
  * so the first byte in the buffer is numbered 0 regardless of the
  * value of b_blkno.
+ *
+ * @first @last 都是结构体中的offset
  */
 void
 xfs_trans_log_buf(
@@ -540,9 +543,11 @@ xfs_trans_log_buf(
 	ASSERT(first <= last && last < BBTOB(bp->b_length));
 	ASSERT(!(bip->bli_flags & XFS_BLI_ORDERED));
 
+	/*标记bp为脏*/
 	xfs_trans_dirty_buf(tp, bp);
 
 	trace_xfs_trans_log_buf(bip);
+	/*把buf 分成一个个word, 标记哪个word为脏*/
 	xfs_buf_item_log(bip, first, last);
 }
 

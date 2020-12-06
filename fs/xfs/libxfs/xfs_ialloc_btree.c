@@ -493,6 +493,12 @@ xfs_inobt_irec_to_allocmask(
 	 * 64-bit (e.g., bit-per-inode), set inodespbit bits in the target
 	 * bitmap for every holemask bit.
 	 */
+	 /*allocbitmap 只有32bit,且只有低16bit 有效, 所以xfs_next_bit 中的第二个参数一直为1 */
+	/*下面这个循环就是找到所有的allocbitmap中为1的bit, 然后扩展为 1111*/
+	/*allocbitmap  0    1    0   1
+	 * bitmap    0000 1111 0000 1111
+	 * 其中1 表明已经分配出去
+	 */
 	nextbit = xfs_next_bit(&allocbitmap, 1, 0);
 	while (nextbit != -1) {
 		ASSERT(nextbit < (sizeof(rec->ir_holemask) * NBBY));
@@ -537,6 +543,7 @@ xfs_inobt_rec_check_count(
 }
 #endif	/* DEBUG */
 
+/*假如ag 中的所有block 都用来存放inode, 那么最多需要多少block 来存放 inode 树*/
 static xfs_extlen_t
 xfs_inobt_max_size(
 	struct xfs_mount	*mp,
@@ -557,6 +564,7 @@ xfs_inobt_max_size(
 	    XFS_FSB_TO_AGNO(mp, mp->m_sb.sb_logstart) == agno)
 		agblocks -= mp->m_sb.sb_logblocks;
 
+	/*假如ag 中的所有block 都用来存放inode, 那么需要多少block 来存放 inode 树*/
 	return xfs_btree_calc_size(M_IGEO(mp)->inobt_mnr,
 				(uint64_t)agblocks * mp->m_sb.sb_inopblock /
 					XFS_INODES_PER_CHUNK);

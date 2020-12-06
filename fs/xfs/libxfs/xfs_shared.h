@@ -160,8 +160,9 @@ struct xfs_ino_geometry {
 	unsigned int	cluster_align_inodes;
 	unsigned int	inoalign_mask;	/* mask sb_inoalignmt if used */
 
+	/*0 - leaf 1 - none leaf*/
 	unsigned int	inobt_mxr[2]; /* max inobt btree records */
-	unsigned int	inobt_mnr[2]; /* min inobt btree records */
+	unsigned int	inobt_mnr[2]; /* min inobt btree records = mxr/2*/
 	unsigned int	inobt_maxlevels; /* max inobt btree levels. */
 
 	/* Size of inode allocations under normal operation. */

@@ -97,6 +97,9 @@ static inline bool biovec_phys_mergeable(struct request_queue *q,
 	return true;
 }
 
+/*
+ * @offset page 内的offset
+ */
 static inline bool __bvec_gap_to_prev(struct request_queue *q,
 		struct bio_vec *bprv, unsigned int offset)
 {
@@ -104,6 +107,7 @@ static inline bool __bvec_gap_to_prev(struct request_queue *q,
 	那么两个bv 只要位置上能够连续,那就能保证映射之后再虚拟空间上连续
 	所以保证新的bv offset = 0 且 @bprv 的offset = boundary +1
 */
+	/*nvme boundary mask = page size - 1, 如果offset(当前bv 的磁盘offset)*/
 	return (offset & queue_virt_boundary(q)) ||
 		((bprv->bv_offset + bprv->bv_len) & queue_virt_boundary(q));
 }
@@ -111,6 +115,8 @@ static inline bool __bvec_gap_to_prev(struct request_queue *q,
 /*
  * Check if adding a bio_vec after bprv with offset would create a gap in
  * the SG list. Most drivers don't care about this, but some do.
+ *
+ * @offset page 内的offset
  */
 static inline bool bvec_gap_to_prev(struct request_queue *q,
 		struct bio_vec *bprv, unsigned int offset)

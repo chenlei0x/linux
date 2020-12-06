@@ -72,6 +72,7 @@ found:
  * beyond the end of the bitmap.
  *
  * Size is the number of words, not bytes, in the bitmap.
+ * 从start_bit开始 size个4字节中找到第一个1 bit
  */
 int xfs_next_bit(uint *map, uint size, uint start_bit)
 {
@@ -79,7 +80,8 @@ int xfs_next_bit(uint *map, uint size, uint start_bit)
 	uint result = start_bit & ~(NBWORD - 1);
 	uint tmp;
 
-	size <<= BIT_TO_WORD_SHIFT;
+	/*从start_bit开始 size个4字节中找到第一个1 bit*/
+	size <<= BIT_TO_WORD_SHIFT; /*左移5 相当于乘以32*/
 
 	if (start_bit >= size)
 		return -1;

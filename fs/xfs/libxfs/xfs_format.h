@@ -729,6 +729,7 @@ typedef struct xfs_agi {
 	 * mapping data is needed here.
 	 */
 	__be32		agi_count;	/* count of allocated inodes */
+	/*已经在使用的inode 挂在这里*/
 	__be32		agi_root;	/* root of inode btree */
 	__be32		agi_level;	/* levels in inode btree */
 	__be32		agi_freecount;	/* number of free inodes */
@@ -748,6 +749,13 @@ typedef struct xfs_agi {
 	__be32		agi_pad32;
 	__be64		agi_lsn;	/* last write sequence */
 
+	/*
+	 * agi_root 和 agi_free_root的区别:
+	 * 这两个树中每个rec 描述的是一组连续的inode 
+	 * agi_free_root是agi_root的子集
+	 * agi_free_root中包含了含有free inode 的rec
+	 * agi_root 包含了所有的inode rec
+	 */
 	__be32		agi_free_root; /* root of the free inode btree */
 	__be32		agi_free_level;/* levels in free inode btree */
 
@@ -1044,7 +1052,7 @@ static inline void xfs_dinode_put_rdev(struct xfs_dinode *dip, xfs_dev_t rdev)
 #define XFS_DIFLAG_RTINHERIT     (1 << XFS_DIFLAG_RTINHERIT_BIT)
 #define XFS_DIFLAG_PROJINHERIT   (1 << XFS_DIFLAG_PROJINHERIT_BIT)
 #define XFS_DIFLAG_NOSYMLINKS    (1 << XFS_DIFLAG_NOSYMLINKS_BIT)
-#define XFS_DIFLAG_EXTSIZE       (1 << XFS_DIFLAG_EXTSIZE_BIT)
+#define XFS_DIFLAG_EXTSIZE       (1 << XFS_DIFLAG_EXTSIZE_BIT) /*通过xfs ioctl 加上的*/
 #define XFS_DIFLAG_EXTSZINHERIT  (1 << XFS_DIFLAG_EXTSZINHERIT_BIT)
 #define XFS_DIFLAG_NODEFRAG      (1 << XFS_DIFLAG_NODEFRAG_BIT)
 #define XFS_DIFLAG_FILESTREAM    (1 << XFS_DIFLAG_FILESTREAM_BIT)
@@ -1278,15 +1286,16 @@ typedef __be32 xfs_alloc_ptr_t;
 #define	XFS_FIBT_CRC_MAGIC	0x46494233	/* 'FIB3' */
 
 typedef uint64_t	xfs_inofree_t;
-#define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t))
+#define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t)) /* 8*8 = 64*/
 #define	XFS_INODES_PER_CHUNK_LOG	(XFS_NBBYLOG + 3)
 #define	XFS_INOBT_ALL_FREE		((xfs_inofree_t)-1)
 #define	XFS_INOBT_MASK(i)		((xfs_inofree_t)1 << (i))
 
 #define XFS_INOBT_HOLEMASK_FULL		0	/* holemask for full chunk */
-#define XFS_INOBT_HOLEMASK_BITS		(NBBY * sizeof(uint16_t))
+#define XFS_INOBT_HOLEMASK_BITS		(NBBY * sizeof(uint16_t)) /*16*/
+/*hole mask 中的一个bit 代表多少个inode*/
 #define XFS_INODES_PER_HOLEMASK_BIT	\
-	(XFS_INODES_PER_CHUNK / (NBBY * sizeof(uint16_t)))
+	(XFS_INODES_PER_CHUNK / (NBBY * sizeof(uint16_t))) /* 64 / 8 / 2 = 4*/
 
 static inline xfs_inofree_t xfs_inobt_maskn(int i, int n)
 {
@@ -1318,8 +1327,10 @@ typedef struct xfs_inobt_rec {
 	__be64		ir_free;	/* free inode mask */
 } xfs_inobt_rec_t;
 
+/*inobt rec 代表一组连续的inode block*/
 typedef struct xfs_inobt_rec_incore {
 	xfs_agino_t	ir_startino;	/* starting inode number */
+	/*0 代表存在的inode出去了, 具体是free 还是 busy 取决于@ir_free*/
 	uint16_t	ir_holemask;	/* hole mask for sparse chunks */
 	uint8_t		ir_count;	/* total inode count */
 	uint8_t		ir_freecount;	/* count of free inodes (set bits) */

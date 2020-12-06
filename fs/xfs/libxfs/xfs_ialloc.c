@@ -110,10 +110,12 @@ xfs_inobt_get_rec(
 	int				error;
 	uint64_t			realfree;
 
+	/*得到磁盘上的rec*/
 	error = xfs_btree_get_rec(cur, &rec, stat);
 	if (error || *stat == 0)
 		return error;
 
+	/*磁盘上的rec 转为内存形式的 xfs_inobt_rec_incore */
 	xfs_inobt_btrec_to_irec(mp, rec, irec);
 
 	if (!xfs_verify_agino(mp, agno, irec->ir_startino))
@@ -608,6 +610,8 @@ error:
 /*
  * Allocate new inodes in the allocation group specified by agbp.
  * Return 0 for success, else error code.
+ *
+ * 给inobt 补充一些inode 
  */
 STATIC int
 xfs_ialloc_ag_alloc(
@@ -1043,6 +1047,8 @@ nextag:
 
 /*
  * Try to retrieve the next record to the left/right from the current one.
+ *
+ * &done = 1 fail
  */
 STATIC int
 xfs_ialloc_next_rec(
@@ -1061,7 +1067,7 @@ xfs_ialloc_next_rec(
 
 	if (error)
 		return error;
-	*done = !i;
+	*done = !i;/*i= 0 fail ==> done = 1*/
 	if (i) {
 		error = xfs_inobt_get_rec(cur, rec, &i);
 		if (error)
@@ -1113,6 +1119,7 @@ xfs_inobt_first_free_inode(
 	if (!xfs_inobt_issparse(rec->ir_holemask))
 		return xfs_lowbit64(rec->ir_free);
 
+	/*1 代表存在的inode, 具体是free 还是 busy 取决于@ir_free*/
 	realfree = xfs_inobt_irec_to_allocmask(rec);
 	realfree &= rec->ir_free;
 
@@ -1164,6 +1171,8 @@ xfs_dialloc_ag_inobt(
 
 	/*
 	 * If in the same AG as the parent, try to get near the parent.
+	 *
+	 * 以下部分都是用来确定inode 分配所在的@rec
 	 */
 	if (pagno == agno) {
 		int		doneleft;	/* done, to the left */
@@ -1221,6 +1230,7 @@ xfs_dialloc_ag_inobt(
 				goto error1;
 		} else {
 			/* search left with tcur, back up 1 record */
+			/**/
 			error = xfs_ialloc_next_rec(tcur, &trec, &doneleft, 1);
 			if (error)
 				goto error1;
@@ -1238,7 +1248,9 @@ xfs_dialloc_ag_inobt(
 			int	useleft;  /* using left inode chunk this time */
 
 			/* figure out the closer block if both are valid. */
+			/*左边和右边都有record*/
 			if (!doneleft && !doneright) {
+				/*pagino 代表@parent 尽量和parent 靠近一些*/
 				useleft = pagino -
 				 (trec.ir_startino + XFS_INODES_PER_CHUNK - 1) <
 				  rec.ir_startino - pagino;
@@ -1250,7 +1262,7 @@ xfs_dialloc_ag_inobt(
 			if (useleft && trec.ir_freecount) {
 				xfs_btree_del_cursor(cur, XFS_BTREE_NOERROR);
 				cur = tcur;
-
+				/*缓存一下left rec 和 right rec*/
 				pag->pagl_leftrec = trec.ir_startino;
 				pag->pagl_rightrec = rec.ir_startino;
 				pag->pagl_pagino = pagino;
@@ -1549,6 +1561,7 @@ xfs_dialloc_ag_update_inobt(
 	if (XFS_IS_CORRUPT(cur->bc_mp, i != 1))
 		return -EFSCORRUPTED;
 
+	/*通过cur把磁盘上的rec镜像转换为内存中的@rec*/
 	error = xfs_inobt_get_rec(cur, &rec, &i);
 	if (error)
 		return error;
@@ -1557,7 +1570,7 @@ xfs_dialloc_ag_update_inobt(
 	ASSERT((XFS_AGINO_TO_OFFSET(cur->bc_mp, rec.ir_startino) %
 				   XFS_INODES_PER_CHUNK) == 0);
 
-	rec.ir_free &= ~XFS_INOBT_MASK(offset);
+	rec.ir_free &= ~ XFS_INOBT_MASK(offset);
 	rec.ir_freecount--;
 
 	if (XFS_IS_CORRUPT(cur->bc_mp,
@@ -1610,6 +1623,7 @@ xfs_dialloc_ag(
 
 	cur = xfs_inobt_init_cursor(mp, tp, agbp, agno, XFS_BTNUM_FINO);
 
+	/*verify函数可跳过*/
 	error = xfs_check_agi_freecount(cur, agi);
 	if (error)
 		goto error_cur;
@@ -1640,7 +1654,7 @@ xfs_dialloc_ag(
 	rec.ir_freecount--;
 	if (rec.ir_freecount)
 		error = xfs_inobt_update(cur, &rec);
-	else
+	else/*rec中没有空余的inode了, 删除这个rec*/
 		error = xfs_btree_delete(cur, &i);
 	if (error)
 		goto error_cur;

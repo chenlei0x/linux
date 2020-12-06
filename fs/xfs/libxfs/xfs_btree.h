@@ -199,12 +199,24 @@ typedef struct xfs_btree_cur
 	const struct xfs_btree_ops *bc_ops;
 	uint			bc_flags; /* btree features - below */
 	union xfs_btree_irec	bc_rec;	/* current insert/search record value */
+	/*cur->bc_nlevels - 1 表示root*/
+	/*
+	 * 每一层的buf，和bc_ptrs一一对应
+	 */
 	struct xfs_buf	*bc_bufs[XFS_BTREE_MAXLEVELS];	/* buf ptr per level */
+	/*
+	 * 每层的key 或者record的index, 
+	 * bc_ptrs[0] 代表叶子节点的rec index
+	 */
 	int		bc_ptrs[XFS_BTREE_MAXLEVELS];	/* key/record # */
 	uint8_t		bc_ra[XFS_BTREE_MAXLEVELS];	/* readahead bits */
 #define	XFS_BTCUR_LEFTRA	1	/* left sibling has been read-ahead */
 #define	XFS_BTCUR_RIGHTRA	2	/* right sibling has been read-ahead */
+	/* cur->bc_nlevels - 1 表明是root, leaf 为0层
+	也就是说 bc_nlevels 是 bc_bufs 的长度
+	*/
 	uint8_t		bc_nlevels;	/* number of levels in the tree */
+	/*btree 类型, 会根据他生成ptr*/
 	uint8_t		bc_blocklog;	/* log2(blocksize) of btree blocks */
 	xfs_btnum_t	bc_btnum;	/* identifies which btree type */
 	int		bc_statoff;	/* offset of btre stats array */

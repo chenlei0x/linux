@@ -100,6 +100,7 @@ typedef void (*xfs_buf_iodone_t)(struct xfs_buf *);
 #define XB_PAGES	2
 
 /*map 数组 中代表的磁盘空间是连续的map[i].bm_bn + map[i].bm_len = map[i+1].bm_bn*/
+/*bm_len 最大为6MB 吗?? XFS_BLF_DATAMAP_SIZE*/
 struct xfs_buf_map {
 	xfs_daddr_t		bm_bn;	/* block number for I/O */
 	int			bm_len;	/* size of I/O */

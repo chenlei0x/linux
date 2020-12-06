@@ -790,6 +790,8 @@ xfs_buf_item_init(
 /*
  * Mark bytes first through last inclusive as dirty in the buf
  * item's bitmap.
+ * word = 4byte
+ * map中的每个bit 代表一个CHUNK 从first 到last 将map中bit 置为1
  */
 static void
 xfs_buf_item_log_segment(
@@ -810,6 +812,7 @@ xfs_buf_item_log_segment(
 	/*
 	 * Convert byte offsets to bit numbers.
 	 */
+	 /*first last changed chunk! chunk = 128B*/
 	first_bit = first >> XFS_BLF_SHIFT;
 	last_bit = last >> XFS_BLF_SHIFT;
 
@@ -822,6 +825,7 @@ xfs_buf_item_log_segment(
 	 * Get a pointer to the first word in the bitmap
 	 * to set a bit in.
 	 */
+	 /*bit 和 word 是一一映射的关系*/
 	word_num = first_bit >> BIT_TO_WORD_SHIFT;
 	wordp = &map[word_num];
 
@@ -872,6 +876,7 @@ xfs_buf_item_log_segment(
  * Mark bytes first through last inclusive as dirty in the buf
  * item's bitmap.
  */
+ /*把buf 分成一个个word, 标记哪个word为脏*/
 void
 xfs_buf_item_log(
 	struct xfs_buf_log_item	*bip,
@@ -908,6 +913,7 @@ xfs_buf_item_log(
 			first = start;
 		if (end > last)
 			end = last;
+		/*一个buf对应多个map*/
 		xfs_buf_item_log_segment(first - start, end - start,
 					 &bip->bli_formats[i].blf_data_map[0]);
 

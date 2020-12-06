@@ -326,6 +326,8 @@ enum blk_zoned_model {
 /*blk_set_default_limits*/
 struct queue_limits {
 	unsigned long		bounce_pfn;
+	/*决定了 bio中一个vec 的长度  */
+	/*有些设备设置为PAGE_SIZE-1*/
 	unsigned long		seg_boundary_mask;
 	/*nvme 此处为4K - 1*/
 	unsigned long		virt_boundary_mask;
@@ -1299,7 +1301,7 @@ enum blk_default_limits {
 
 static inline unsigned long queue_segment_boundary(const struct request_queue *q)
 {
-	return q->limits.seg_boundary_mask;
+	return q->limits.seg_boundary_mask; /**/
 }
 
 static inline unsigned long queue_virt_boundary(const struct request_queue *q)

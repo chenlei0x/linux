@@ -588,6 +588,7 @@ xfs_btree_ptr_offset(
 
 /*
  * Return a pointer to the n-th record in the btree block.
+ * @block中 @n 对应的rec
  */
 union xfs_btree_rec *
 xfs_btree_rec_addr(
@@ -661,6 +662,7 @@ xfs_btree_get_iroot(
 /*
  * Retrieve the block pointer from the cursor at the given level.
  * This may be an inode btree root or from a buffer.
+ * 获取@cur中 @level层的 block
  */
 struct xfs_btree_block *		/* generic btree block pointer */
 xfs_btree_get_block(
@@ -1657,7 +1659,7 @@ int						/* error */
 xfs_btree_decrement(
 	struct xfs_btree_cur	*cur,
 	int			level,
-	int			*stat)		/* success/failure */
+	int			*stat)		/* success = 1 /failure  = 0*/
 {
 	struct xfs_btree_block	*block;
 	xfs_buf_t		*bp;
@@ -4222,6 +4224,7 @@ error0:
 
 /*
  * Get the data from the pointed-to record.
+ *得到磁盘上的rec
  */
 int					/* error */
 xfs_btree_get_rec(
@@ -4237,6 +4240,7 @@ xfs_btree_get_rec(
 #endif
 
 	ptr = cur->bc_ptrs[0];
+/*0 代表拿到 leaf block*/
 	block = xfs_btree_get_block(cur, 0, &bp);
 
 #ifdef DEBUG
@@ -4256,6 +4260,7 @@ xfs_btree_get_rec(
 	/*
 	 * Point to the record and extract its data.
 	 */
+	 /*@block中 @ptr 对应的rec*/
 	*recp = xfs_btree_rec_addr(cur, ptr, block);
 	*stat = 1;
 	return 0;
@@ -4842,6 +4847,7 @@ xfs_btree_query_all(
 /*
  * Calculate the number of blocks needed to store a given number of records
  * in a short-format (per-AG metadata) btree.
+ * @len 个rec 需要多少个block来存储构成一个树
  */
 unsigned long long
 xfs_btree_calc_size(
@@ -4852,6 +4858,7 @@ xfs_btree_calc_size(
 	int			maxrecs;
 	unsigned long long	rval;
 
+	/*0 代表leaf 1 代表非leaf*/
 	maxrecs = limits[0];
 	for (level = 0, rval = 0; len > 1; level++) {
 		len += maxrecs - 1;

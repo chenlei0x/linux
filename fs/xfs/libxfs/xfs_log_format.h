@@ -437,9 +437,9 @@ static inline uint xfs_log_dinode_size(int version)
  * These are the physical dirty bitmap definitions for the log format structure.
  */
 #define	XFS_BLF_CHUNK		128
-#define	XFS_BLF_SHIFT		7
-#define	BIT_TO_WORD_SHIFT	5
-#define	NBWORD			(NBBY * sizeof(unsigned int))
+#define	XFS_BLF_SHIFT		7 /*CHUNK 对应的LOG 2^7 = 128*/
+#define	BIT_TO_WORD_SHIFT	5 /**/
+#define	NBWORD			(NBBY * sizeof(unsigned int)) /*32*/
 
 /*
  * This flag indicates that the buffer contains on disk inodes
@@ -475,8 +475,9 @@ typedef struct xfs_buf_log_format {
 	unsigned short	blf_flags;	/* misc state */
 	unsigned short	blf_len;	/* number of blocks in this buf */
 	int64_t		blf_blkno;	/* starting blkno of this buf */
+	/*xfs_buf_item_init 中初始化*/
 	unsigned int	blf_map_size;	/* used size of data bitmap in words */
-	unsigned int	blf_data_map[XFS_BLF_DATAMAP_SIZE]; /* dirty bitmap */
+	unsigned int	blf_data_map[XFS_BLF_DATAMAP_SIZE]; /* dirty bitmap  一个bit 代表一个chunk 128字节*/
 } xfs_buf_log_format_t;
 
 /*

@@ -225,6 +225,7 @@ static bool bvec_split_segs(const struct request_queue *q,
 		total_len += seg_size;
 		len -= seg_size;
 
+		/*nvme 这里 virt boundary = 4K -1 也就是说长度必须是4K的整数倍*/
 		if ((bv->bv_offset + total_len) & queue_virt_boundary(q))
 			break;
 	}
@@ -370,6 +371,7 @@ void __blk_queue_split(struct request_queue *q, struct bio **bio,
 		 */
 		bio_set_flag(*bio, BIO_QUEUE_ENTERED);
 
+		/*split 成为bio的parent*/
 		bio_chain(split, *bio);
 		trace_block_split(q, split, (*bio)->bi_iter.bi_sector);
 		/*现在的@bio 是入参的bio的后半段, 调用这个函数直接将后半段挂到 current->bio_list链表上*/

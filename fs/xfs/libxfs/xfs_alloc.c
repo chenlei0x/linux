@@ -2521,6 +2521,7 @@ xfs_alloc_fix_freelist(
 	}
 
 	need = xfs_alloc_min_freelist(mp, pag);
+		/*是否有足够的空间?*/
 	if (!xfs_alloc_space_available(args, need, flags |
 			XFS_ALLOC_FLAG_CHECK))
 		goto out_agbp_relse;
@@ -2647,6 +2648,8 @@ out_no_agbp:
 /*
  * Get a block from the freelist.
  * Returns with the buffer for the block gotten.
+ *
+ * 从agfl中获取一个block
  */
 int				/* error */
 xfs_alloc_get_freelist(
@@ -2694,6 +2697,7 @@ xfs_alloc_get_freelist(
 	pag = xfs_perag_get(mp, be32_to_cpu(agf->agf_seqno));
 	ASSERT(!pag->pagf_agflreset);
 	be32_add_cpu(&agf->agf_flcount, -1);
+	/*空函数*/
 	xfs_trans_agflist_delta(tp, -1);
 	pag->pagf_flcount--;
 
