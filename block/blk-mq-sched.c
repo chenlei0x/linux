@@ -232,6 +232,7 @@ void blk_mq_sched_dispatch_requests(struct blk_mq_hw_ctx *hctx)
 	} else {
 		/*把有pending io 的 ctx中的req 都flush下去*/
 		blk_mq_flush_busy_ctxs(hctx, &rq_list);
+		/*ctx中的req 都在rq_list 上了*/
 		blk_mq_dispatch_rq_list(q, &rq_list, false);
 	}
 }

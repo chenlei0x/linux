@@ -689,7 +689,10 @@ bool blk_mq_complete_request(struct request *rq)
 EXPORT_SYMBOL(blk_mq_complete_request);
 
 
-/*驱动层开始受理该rq*/
+/*
+ * 驱动层开始受理该rq
+ * nvme_queue_rq 调用该函数
+ */
 void blk_mq_start_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
@@ -994,7 +997,7 @@ struct flush_busy_ctx_data {
 	struct list_head *list;
 };
 
-/*把有pending io 的 ctx中的req 都flush下去*/
+/*把有pending io 的 ctx中的req 都挂到flush_data->list 中*/
 static bool flush_busy_ctx(struct sbitmap *sb, unsigned int bitnr, void *data)
 {
 	struct flush_busy_ctx_data *flush_data = data;
@@ -1316,7 +1319,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		}
 
 		/*向驱动层提交req！！！！！
-		 驱动注册的 如 nvme_queue_rq
+		 驱动注册的 如 nvme_queue_rq， 这里会敲钟
 		 */
 		ret = q->mq_ops->queue_rq(hctx, &bd);
 		if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {

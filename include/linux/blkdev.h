@@ -222,6 +222,7 @@ struct request {
 	 * Number of scatter-gather DMA addr+len pairs after
 	 * physical address coalescing is performed.
 	 */
+	 /*当前req中的所有bio的bvec 数量*/
 	unsigned short nr_phys_segments;
 
 #if defined(CONFIG_BLK_DEV_INTEGRITY)
