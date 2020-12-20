@@ -25,6 +25,7 @@ struct xfs_bmalloca {
 	struct xfs_bmbt_irec	prev;	/* extent before the new one */
 	struct xfs_bmbt_irec	got;	/* extent after, or delayed */
 
+	/*文件偏移 单位 block*/
 	xfs_fileoff_t		offset;	/* offset in file filling in */
 	xfs_extlen_t		length;	/* i/o length asked/allocated */
 	xfs_fsblock_t		blkno;	/* starting block of new extent */

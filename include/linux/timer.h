@@ -14,6 +14,7 @@ struct timer_list {
 	 * same cacheline
 	 */
 	struct hlist_node	entry;
+	/*绝对时间 单位 tick*/
 	unsigned long		expires;
 	void			(*function)(struct timer_list *);
 	u32			flags;

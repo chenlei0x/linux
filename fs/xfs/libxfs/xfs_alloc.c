@@ -2283,6 +2283,8 @@ xfs_alloc_min_freelist(
  * not. If we are freeing blocks, we always allow it, otherwise the allocation
  * is dependent on whether the size and shape of free space available will
  * permit the requested allocation to take place.
+ *
+ * 比较选定的ag 是否有足够的空间
  */
 static bool
 xfs_alloc_space_available(
@@ -2520,6 +2522,7 @@ xfs_alloc_fix_freelist(
 		goto out_agbp_relse;
 	}
 
+	/*为了维护各个tree， 需要多少个block*/
 	need = xfs_alloc_min_freelist(mp, pag);
 		/*是否有足够的空间?*/
 	if (!xfs_alloc_space_available(args, need, flags |

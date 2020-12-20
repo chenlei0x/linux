@@ -57,6 +57,7 @@ typedef struct xfs_alloc_arg {
 	/*
 	 * 磁盘fsb#
 	 * args.fsbno = ap->blkno;
+	 * 作为入参时表示 期望的磁盘位置
 	 */
 	xfs_fsblock_t	fsbno;		/* file system block number */
 	xfs_agnumber_t	agno;		/* allocation group number */

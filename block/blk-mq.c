@@ -883,7 +883,7 @@ static void blk_mq_rq_timed_out(struct request *req, bool reserved)
 			return;
 		WARN_ON_ONCE(ret != BLK_EH_RESET_TIMER);
 	}
-
+	/*如果没有timeout 的实现，那么重新挂到timeout 队列上*/
 	blk_add_timer(req);
 }
 
@@ -897,9 +897,10 @@ static bool blk_mq_req_expired(struct request *rq, unsigned long *next)
 		return false;
 
 	deadline = READ_ONCE(rq->deadline);
-	if (time_after_eq(jiffies, deadline))
+	if (time_after_eq(jiffies, deadline))/*如果超时了就返回*/
 		return true;
 
+	/*没超时， 那么找到最近一个即将超时的*/
 	if (*next == 0)
 		*next = deadline;
 	else if (time_after(*next, deadline))

@@ -90,12 +90,13 @@ void blk_abort_request(struct request *req)
 }
 EXPORT_SYMBOL_GPL(blk_abort_request);
 
+/* @timeout 不能超过 jiffies + BLK_MAX_TIMEOUT ，也就是说不管你设置多大，最多不能超过30s*/
 unsigned long blk_rq_timeout(unsigned long timeout)
 {
 	unsigned long maxt;
 
 	maxt = round_jiffies_up(jiffies + BLK_MAX_TIMEOUT);
-	if (time_after(timeout, maxt))
+	if (time_after(timeout, maxt))/*timeout限制太大了，缩小一些*/
 		timeout = maxt;
 
 	return timeout;

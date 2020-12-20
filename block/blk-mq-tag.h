@@ -11,7 +11,10 @@
  */
 struct blk_mq_tags {
 	/* depth = tags->nr_tags - tags->nr_reserved_tags;*/
-	/*nr_tags 中包含了 nr_reserved_tags
+	/*
+	 * nr_tags 中包含了 nr_reserved_tags
+	 * nr_tags - nr_reserved_tags 为 bitmap_tags 中tag的个数
+	 * nr_reserved_tags 为 breserved_tags 中tag 的个数
 	 */
 	unsigned int nr_tags;/*blk_mq_tag_set->queue_depth*/
 	unsigned int nr_reserved_tags;/*blk_mq_tag_set->reserved_tags*/
@@ -19,7 +22,7 @@ struct blk_mq_tags {
 	atomic_t active_queues;
 
 	/*以下两个bitmap用来描述 static_rqs中的使用情况*/
-	struct sbitmap_queue bitmap_tags;/*长度为depth*/
+	struct sbitmap_queue bitmap_tags;/*长度为depth 代表static*/
 	struct sbitmap_queue breserved_tags; /*长度为nr_reserved_tags*/
 
 	/*用来记录正在使用的rqs
@@ -41,7 +44,7 @@ struct blk_mq_tags {
 	  
 	 */
 	struct request **static_rqs; /*长度为nr_tags, 其中前面为reserved rq, 后面的为普通的rq*/
-	struct list_head page_list;
+	struct list_head page_list; /*page_list 连接了所有page， 这些page 包含的就是static_rqs 中所有的rq   blk_mq_alloc_rqs*/
 };
 
 

@@ -106,7 +106,9 @@ typedef struct xfs_sb {
 	xfs_ino_t	sb_rbmino;	/* bitmap inode for realtime extents */
 	xfs_ino_t	sb_rsumino;	/* summary inode for rt bitmap */
 	xfs_agblock_t	sb_rextsize;	/* realtime extent size, blocks */
+	/*每个ag多少个block*/
 	xfs_agblock_t	sb_agblocks;	/* size of an allocation group */
+	/*几个ag*/
 	xfs_agnumber_t	sb_agcount;	/* number of allocation groups */
 	xfs_extlen_t	sb_rbmblocks;	/* number of rt bitmap blocks */
 	xfs_extlen_t	sb_logblocks;	/* number of log blocks */

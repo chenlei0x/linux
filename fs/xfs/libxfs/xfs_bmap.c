@@ -3388,7 +3388,7 @@ xfs_bmap_btalloc_nullfb(
 	args->type = XFS_ALLOCTYPE_START_BNO;
 	args->total = ap->total;
 
-	/*期望的fsbno 所在的ag*/
+	/*期望的fsbno 所在的ag， args->fsbno 被初始化为 ap->blkno*/
 	startag = ag = XFS_FSB_TO_AGNO(mp, args->fsbno);
 	if (startag == NULLAGNUMBER)
 		startag = ag = 0;

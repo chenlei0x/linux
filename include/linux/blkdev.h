@@ -501,6 +501,7 @@ struct request_queue {
 	struct blk_stat_callback	*poll_cb;
 	struct blk_rq_stat	poll_stat[BLK_MQ_POLL_STATS_BKTS];
 
+	/*所有的rq 共享这个timeout定时器*/
 	struct timer_list	timeout; /*blk_rq_timed_out_timer*/
 	struct work_struct	timeout_work; /*blk_timeout_work*/
 
