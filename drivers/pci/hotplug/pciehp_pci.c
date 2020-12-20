@@ -84,6 +84,7 @@ int pciehp_configure_device(struct controller *ctrl)
 void pciehp_unconfigure_device(struct controller *ctrl, bool presence)
 {
 	struct pci_dev *dev, *temp;
+	/*一个nvme 对应一个pci_bus*/
 	struct pci_bus *parent = ctrl->pcie->port->subordinate;
 	u16 command;
 
