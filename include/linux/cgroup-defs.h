@@ -352,7 +352,7 @@ struct cgroup_freezer_state {
 };
 
 
-/*对应一个cgruop dir*/
+/*对应一个cgruop dir, 对应一个cgroup v1中的css的集合*/
 struct cgroup {
 	/* self css with NULL ->ss, points back to this cgroup */
 	struct cgroup_subsys_state self;

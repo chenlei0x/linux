@@ -1399,6 +1399,7 @@ void blk_account_io_done(struct request *req, u64 now)
 
 /* 
  * bio 合入req 后调用， 用来更新merge
+ * 或者bio称为一个单独得req 也会调用
  * bio转换为rq后也会调用，此时@new_io = true 用来更新inflight
  */
 void blk_account_io_start(struct request *rq, bool new_io)

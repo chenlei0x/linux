@@ -84,13 +84,13 @@ struct partition {
 } __attribute__((packed));
 
 struct disk_stats {
-	u64 nsecs[NR_STAT_GROUPS];
+	u64 nsecs[NR_STAT_GROUPS]; /*blk_account_io_done 一个request 完成时  += now - rq->start_time_ns*/
 	unsigned long sectors[NR_STAT_GROUPS];
 	unsigned long ios[NR_STAT_GROUPS];
-	unsigned long merges[NR_STAT_GROUPS];
+	unsigned long merges[NR_STAT_GROUPS]; /*bio合入一个request时 +1*/
 	unsigned long io_ticks;
 	unsigned long time_in_queue;
-	local_t in_flight[2];
+	local_t in_flight[2]; /*一个新的request*产生时 +1 */
 };
 
 #define PARTITION_META_INFO_VOLNAMELTH	64

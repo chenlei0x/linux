@@ -167,7 +167,7 @@ static void blk_mq_do_dispatch_ctx(struct blk_mq_hw_ctx *hctx)
 
 		/* round robin for fair dispatch */
 		ctx = blk_mq_next_ctx(hctx, rq->mq_ctx);
-
+		/*向驱动层提交*/
 	} while (blk_mq_dispatch_rq_list(q, &rq_list, true));
 
 	WRITE_ONCE(hctx->dispatch_from, ctx);
@@ -390,7 +390,7 @@ static bool blk_mq_sched_bypass_insert(struct blk_mq_hw_ctx *hctx,
 	return false;
 }
 
-
+/*放入软队列或者scheduler中*/
 void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 				 bool run_queue, bool async)
 {

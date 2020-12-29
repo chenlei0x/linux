@@ -547,6 +547,17 @@ void blk_mq_free_request(struct request *rq)
 }
 EXPORT_SYMBOL_GPL(blk_mq_free_request);
 
+/*
+ * 这个函数终究是由驱动调用的
+ 
+nvme_handle_cqe
+	nvme_end_request
+		blk_mq_complete_request
+			q->mq_ops->complete
+				nvme_pci_complete_rq
+					nvme_complete_rq
+						blk_mq_end_request
+ */
 inline void __blk_mq_end_request(struct request *rq, blk_status_t error)
 {
 	u64 now = 0;
@@ -678,6 +689,16 @@ static void hctx_lock(struct blk_mq_hw_ctx *hctx, int *srcu_idx)
  * Description:
  *	Ends all I/O on a request. It does not handle partial completions.
  *	The actual completion happens out-of-order, through a IPI handler.
+ *
+ nvme_handle_cqe
+	nvme_end_request
+		blk_mq_complete_request
+			q->mq_ops->complete
+				nvme_pci_complete_rq
+					nvme_complete_rq
+						blk_mq_end_request
+ 这个函数主要用来完成一个调用mq ops 中注册的complete 函数
+ complete函数会调用blk_mq_end_request
  **/
 bool blk_mq_complete_request(struct request *rq)
 {

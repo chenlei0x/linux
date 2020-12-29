@@ -157,7 +157,7 @@ struct latency_stat {
 };
 
 /*
-一个blkcg_gq 对应一个该数据结构 
+一个 blkcg_gq 对应一个该数据结构 
 blkg_to_lat
 申请的时候被清空 iolatency_pd_alloc
 */

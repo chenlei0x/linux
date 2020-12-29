@@ -94,7 +94,7 @@ extern struct css_set init_css_set;
  */
 
 /*
-在rebind_subsystem 中有如下语句, 如果通过mount 将subsys 挂载到别的hierachy上
+在 rebind_subsystem 中有如下语句, 如果通过mount 将subsys 挂载到别的hierachy上
 后, subsys 就脱离了default root了
 	static_branch_enable(cgroup_subsys_on_dfl_key[ssid]);
 } else {
