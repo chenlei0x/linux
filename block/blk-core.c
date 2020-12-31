@@ -977,7 +977,7 @@ generic_make_request_checks(struct bio *bio)
 	 */
 	create_io_context(GFP_ATOMIC, q->node);
 
-	/**/
+	/*blk_throtl_bio*/
 	if (!blkcg_bio_issue_check(q, bio))
 		return false;
 

@@ -167,6 +167,7 @@ struct throtl_grp {
 	/* Number of bio's dispatched in current slice */
 	unsigned int io_disp[2];
 
+	/*上一次tg_may_dispatch返回false 的时刻*/
 	unsigned long last_low_overflow_time[2];
 
 	uint64_t last_bytes_disp[2];
@@ -2226,6 +2227,11 @@ static inline void throtl_update_latency_buckets(struct throtl_data *td)
 }
 #endif
 
+/*
+generic_make_request_checkes
+	blkcg_bio_issue_check
+		blk_throtl_bio
+ */
 bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg,
 		    struct bio *bio)
 {
