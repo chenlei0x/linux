@@ -3589,6 +3589,9 @@ static struct file_operations kvm_vm_fops = {
 	KVM_COMPAT(kvm_vm_compat_ioctl),
 };
 
+/*
+ * KVM_CREATE_VM 会走到这里, 返回一个fd
+ */
 static int kvm_dev_ioctl_create_vm(unsigned long type)
 {
 	int r;
@@ -3607,6 +3610,7 @@ static int kvm_dev_ioctl_create_vm(unsigned long type)
 	if (r < 0)
 		goto put_kvm;
 
+	/*返回的fd 代表着这个文件, 后期针对这个fd 会调用ioctl, 比如KVM_CREATE_VCPU*/
 	file = anon_inode_getfile("kvm-vm", &kvm_vm_fops, kvm, O_RDWR);
 	if (IS_ERR(file)) {
 		put_unused_fd(r);
@@ -3634,7 +3638,7 @@ put_kvm:
 	kvm_put_kvm(kvm);
 	return r;
 }
-
+/*filp 代表 @kvm_dev*/
 static long kvm_dev_ioctl(struct file *filp,
 			  unsigned int ioctl, unsigned long arg)
 {
