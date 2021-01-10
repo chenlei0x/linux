@@ -460,6 +460,7 @@ int __sbitmap_queue_get(struct sbitmap_queue *sbq)
 		hint = depth ? prandom_u32() % depth : 0;
 		this_cpu_write(*sbq->alloc_hint, hint);
 	}
+	/*申请一个bit*/
 	nr = sbitmap_get(&sbq->sb, hint, sbq->round_robin);
 
 	if (nr == -1) {

@@ -482,7 +482,10 @@ struct request_queue {
 
 	/*
 	 * queue settings
-	 * blk_mq_init_sched 中初始化 = 2 * queue_depth
+	 * blk_mq_init_sched 中初始化
+	 * 1. 如果没有elevator, 则初始化为q->tag_set->queue_depth
+	 * 2. 如果有elevator 则初始化为 2 * q->tag_set->queue_depth
+	 * 
 	 *
 	 * blk_mq_init_allocated_queue 初始化为 queue_depth
 	 * 

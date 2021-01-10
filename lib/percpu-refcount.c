@@ -234,10 +234,12 @@ static void __percpu_ref_switch_to_percpu(struct percpu_ref *ref)
 	for_each_possible_cpu(cpu)
 		*per_cpu_ptr(percpu_count, cpu) = 0;
 
+	/*清除 ATOMIC标记*/
 	smp_store_release(&ref->percpu_count_ptr,
 			  ref->percpu_count_ptr & ~__PERCPU_REF_ATOMIC);
 }
 
+/*如果时atomic 或者*/
 static void __percpu_ref_switch_mode(struct percpu_ref *ref,
 				     percpu_ref_func_t *confirm_switch)
 {
@@ -368,6 +370,7 @@ void percpu_ref_kill_and_confirm(struct percpu_ref *ref,
 
 	ref->percpu_count_ptr |= __PERCPU_REF_DEAD; /*之后ref_get 或者 ref_put都会针对 ref->count进行操作*/
 	__percpu_ref_switch_mode(ref, confirm_kill);
+	/*init 时初始为1*/
 	percpu_ref_put(ref);
 
 	spin_unlock_irqrestore(&percpu_ref_switch_lock, flags);

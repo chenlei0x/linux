@@ -412,14 +412,14 @@ void blk_mq_sched_insert_request(struct request *rq, bool at_head,
 		goto run;
 
 	if (e && e->type->ops.insert_requests) {
+		/*调度层插入req*/
 		LIST_HEAD(list);
 
 		list_add(&rq->queuelist, &list);
-		/*调度层插入req*/
 		e->type->ops.insert_requests(hctx, &list, at_head);
 	} else {
-		spin_lock(&ctx->lock);
 		/*直接放入软队列ctx中*/
+		spin_lock(&ctx->lock);
 		__blk_mq_insert_request(hctx, rq, at_head);
 		spin_unlock(&ctx->lock);
 	}

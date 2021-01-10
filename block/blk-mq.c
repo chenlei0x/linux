@@ -1157,6 +1157,7 @@ static int blk_mq_dispatch_wake(wait_queue_entry_t *wait, unsigned mode,
 	}
 	spin_unlock(&hctx->dispatch_wait_lock);
 
+	/*true: 为意味着 async*/
 	blk_mq_run_hw_queue(hctx, true);
 	return 1;
 }
@@ -2151,6 +2152,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 			!data.hctx->dispatch_busy) {
 		blk_mq_try_issue_directly(data.hctx, rq, &cookie);
 	} else {
+		/*没有elevator, 那么这个函数负责把rq放到软队列中*/
 		blk_mq_sched_insert_request(rq, false, true, true);
 	}
 

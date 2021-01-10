@@ -418,6 +418,7 @@ int blk_queue_enter(struct request_queue *q, blk_mq_req_flags_t flags)
 		bool success = false;
 
 		rcu_read_lock();
+		/*只有当usage counter 非dead 或者处于atomic模式count值>0时,成功*/
 		if (percpu_ref_tryget_live(&q->q_usage_counter)) {
 			/*
 			 * The code that increments the pm_only counter is

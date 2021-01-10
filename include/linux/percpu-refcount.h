@@ -130,6 +130,8 @@ void percpu_ref_reinit(struct percpu_ref *ref);
  * and dropping the initial ref.
  *
  * There are no implied RCU grace periods between kill and release.
+ *
+ * 进入atomic mode, 后续get put只对ref->count 操作
  */
 static inline void percpu_ref_kill(struct percpu_ref *ref)
 {
@@ -256,6 +258,9 @@ static inline bool percpu_ref_tryget(struct percpu_ref *ref)
  * 
  *
  * This function is safe to call as long as @ref is between init and exit.
+ *
+ * 如果已经dead 则失败
+ * 如果当前处于atomic mode, 但是ref->count 已经为0 了, 也失败
  */
 static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 {
@@ -266,7 +271,7 @@ static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 
 	/*
 	 * 只要__PERCPU_REF_DEAD 设置了, 这个函数就会返回false
-	 * 所以只要percpu_ref_kill被调用了, 之后该函数会直接返回false
+	 * 所以只要 percpu_ref_kill 被调用了, 之后该函数会直接返回false
 	percpu_ref_kill_and_confirm
 		ref->percpu_count_ptr |= __PERCPU_REF_DEAD; 
 		__percpu_ref_switch_to_atomic

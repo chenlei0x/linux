@@ -129,6 +129,8 @@ static const char *kyber_latency_type_names[] = {
 /*
  * Per-cpu latency histograms: total latency and I/O latency for each scheduling
  * domain except for KYBER_OTHER.
+ *
+ * 2 代表 KYBER_TOTAL_LATENCY 和 KYBER_IO_LATENCY
  */
 struct kyber_cpu_latency {
 	atomic_t buckets[KYBER_OTHER][2][KYBER_LATENCY_BUCKETS];
@@ -137,6 +139,8 @@ struct kyber_cpu_latency {
 /*
  * There is a same mapping between ctx & hctx and kcq & khd,
  * we use request->mq_ctx->index_hw to index the kcq in khd.
+ *
+ * 代表着软队列
  */
 struct kyber_ctx_queue {
 	/*
@@ -171,9 +175,11 @@ struct kyber_queue_data {
 
 	unsigned long latency_timeout[KYBER_OTHER];
 
+	/*p99 所处于哪个桶中*/
 	int domain_p99[KYBER_OTHER];
 
 	/* Target latencies in nanoseconds. */
+	/*read & write 可以调节*/
 	u64 latency_targets[KYBER_OTHER];
 };
 
@@ -184,6 +190,7 @@ struct kyber_hctx_data {
 	unsigned int batching;
 	struct kyber_ctx_queue *kcqs;
 	struct sbitmap kcq_map[KYBER_NUM_DOMAINS];
+	/*kyber_domain_wake*/
 	struct sbq_wait domain_wait[KYBER_NUM_DOMAINS];
 	struct sbq_wait_state *domain_ws[KYBER_NUM_DOMAINS];
 	atomic_t wait_index[KYBER_NUM_DOMAINS];
@@ -229,6 +236,7 @@ static int calculate_percentile(struct kyber_queue_data *kqd,
 	unsigned int *buckets = kqd->latency_buckets[sched_domain][type];
 	unsigned int bucket, samples = 0, percentile_samples;
 
+	/*先计算总共样本数量*/
 	for (bucket = 0; bucket < KYBER_LATENCY_BUCKETS; bucket++)
 		samples += buckets[bucket];
 
@@ -247,6 +255,7 @@ static int calculate_percentile(struct kyber_queue_data *kqd,
 	}
 	kqd->latency_timeout[sched_domain] = 0;
 
+	/*再计算@percentile 所包含的样本数量, 再将数量转化为哪个桶*/
 	percentile_samples = DIV_ROUND_UP(samples * percentile, 100);
 	for (bucket = 0; bucket < KYBER_LATENCY_BUCKETS - 1; bucket++) {
 		if (buckets[bucket] >= percentile_samples)
@@ -303,6 +312,8 @@ static void kyber_timer_fn(struct timer_list *t)
 
 		p90 = calculate_percentile(kqd, sched_domain, KYBER_IO_LATENCY,
 					   90);
+	/*p90 百分位数落在了GOOD桶之后的桶里  
+					   看来有延迟发生了*/
 		if (p90 >= KYBER_GOOD_BUCKETS)
 			bad = true;
 	}
@@ -348,6 +359,7 @@ static void kyber_timer_fn(struct timer_list *t)
 		if (bad || p99 >= KYBER_GOOD_BUCKETS) {
 			orig_depth = kqd->domain_tokens[sched_domain].sb.depth;
 			depth = (orig_depth * (p99 + 1)) >> KYBER_LATENCY_SHIFT;
+			/*调节一下depth*/
 			kyber_resize_domain(kqd, sched_domain, depth);
 		}
 	}
@@ -525,6 +537,7 @@ static void kyber_exit_hctx(struct blk_mq_hw_ctx *hctx, unsigned int hctx_idx)
 	kfree(hctx->sched_data);
 }
 
+/*token 代表kqd 中bit maps 中的bit index*/
 static int rq_get_domain_token(struct request *rq)
 {
 	return (long)rq->elv.priv[0];
@@ -584,6 +597,7 @@ static void kyber_prepare_request(struct request *rq, struct bio *bio)
 	rq_set_domain_token(rq, -1);
 }
 
+/*先放到kcq 中, 也就是kyber 的软队列中*/
 static void kyber_insert_requests(struct blk_mq_hw_ctx *hctx,
 				  struct list_head *rq_list, bool at_head)
 {
@@ -660,6 +674,7 @@ struct flush_kcq_data {
 	struct list_head *list;
 };
 
+/*从kcq中提取所有的rq*/
 static bool flush_busy_kcq(struct sbitmap *sb, unsigned int bitnr, void *data)
 {
 	struct flush_kcq_data *flush_data = data;
@@ -674,6 +689,7 @@ static bool flush_busy_kcq(struct sbitmap *sb, unsigned int bitnr, void *data)
 	return true;
 }
 
+/*这对一个khd的所有的kcq 提取他们所有sched_domain 的rq*/
 static void kyber_flush_busy_kcqs(struct kyber_hctx_data *khd,
 				  unsigned int sched_domain,
 				  struct list_head *list)
@@ -688,6 +704,10 @@ static void kyber_flush_busy_kcqs(struct kyber_hctx_data *khd,
 			     flush_busy_kcq, &data);
 }
 
+/*
+ init_waitqueue_func_entry(&khd->domain_wait[i].wait, kyber_domain_wake);
+
+ */
 static int kyber_domain_wake(wait_queue_entry_t *wqe, unsigned mode, int flags,
 			     void *key)
 {
@@ -746,6 +766,7 @@ static int kyber_get_domain_token(struct kyber_queue_data *kqd,
 	return nr;
 }
 
+/*派发一个khd中的rq*/
 static struct request *
 kyber_dispatch_cur_domain(struct kyber_queue_data *kqd,
 			  struct kyber_hctx_data *khd,
@@ -755,6 +776,7 @@ kyber_dispatch_cur_domain(struct kyber_queue_data *kqd,
 	struct request *rq;
 	int nr;
 
+	/*优先派发自己的rqs*/
 	rqs = &khd->rqs[khd->cur_domain];
 
 	/*
@@ -767,6 +789,7 @@ kyber_dispatch_cur_domain(struct kyber_queue_data *kqd,
 	 */
 	rq = list_first_entry_or_null(rqs, struct request, queuelist);
 	if (rq) {
+		/*这里存在一个throtle, 被resize domain之后, 这里可能拿不到token*/
 		nr = kyber_get_domain_token(kqd, khd, hctx);
 		if (nr >= 0) {
 			khd->batching++;
@@ -778,6 +801,9 @@ kyber_dispatch_cur_domain(struct kyber_queue_data *kqd,
 					      kyber_domain_names[khd->cur_domain]);
 		}
 	} else if (sbitmap_any_bit_set(&khd->kcq_map[khd->cur_domain])) {
+		/*自己的rqs 都空了, 从该khd对应的每个kcq中拉rq*/
+
+		/*这里存在一个throtle, 被resize domain之后, 这里可能拿不到token*/
 		nr = kyber_get_domain_token(kqd, khd, hctx);
 		if (nr >= 0) {
 			kyber_flush_busy_kcqs(khd, khd->cur_domain, rqs);
@@ -842,6 +868,7 @@ out:
 	return rq;
 }
 
+/*kyber 中hctx 对应的khd 以及khd 对应的kcq中是否有rq*/
 static bool kyber_has_work(struct blk_mq_hw_ctx *hctx)
 {
 	struct kyber_hctx_data *khd = hctx->sched_data;
@@ -1016,6 +1043,7 @@ static struct elevator_type kyber_sched = {
 		.limit_depth = kyber_limit_depth,
 		.bio_merge = kyber_bio_merge,
 		.prepare_request = kyber_prepare_request,
+		/*先通过reserved 标记拿到一个tag,再进入scheduler*/
 		.insert_requests = kyber_insert_requests,
 		.finish_request = kyber_finish_request,
 		.requeue_request = kyber_finish_request,
