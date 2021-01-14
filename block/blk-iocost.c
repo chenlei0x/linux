@@ -257,6 +257,7 @@ enum {
 	MIN_VALID_USAGES	= 2,
 
 	/* 1/64k is granular enough and can easily be handled w/ u32 */
+	/*weight 去分vtime*/
 	HWEIGHT_WHOLE		= 1 << 16,
 
 	/*
@@ -329,8 +330,8 @@ enum {
 
 /* io.cost.qos params */
 enum {
-	QOS_RPPM, /* read percent */
-	QOS_RLAT, /* read latency 单位 us*/
+	QOS_RPPM, /* read percent 对应io.cost.qos 中的 rpct*/
+	QOS_RLAT, /* read latency 单位 us 对应io.cost.qos 中的 rlat*/
 	QOS_WPPM,
 	QOS_WLAT,
 	QOS_MIN, /*该值决定了 vrate_min*/
@@ -366,7 +367,7 @@ enum {
 	LCOEF_WRANDIO,
 	NR_LCOEFS,
 };
-
+/*autop*/
 enum {
 	AUTOP_INVALID,
 	AUTOP_HDD,
@@ -412,14 +413,17 @@ struct ioc {
 
 	struct ioc_params		params;
 	/*ioc_refresh_period_us 计算得来*/
-	u32				period_us; 
-	u32				margin_us;
-	
+	u32				period_us; /*一个period 多久*/
+	u32				margin_us;/*ioc_refresh_period_us*/
+
+	/*vtime rate 介于这两个值之间*/
 	u64				vrate_min;
 	u64				vrate_max;
 
 	spinlock_t			lock;
-	struct timer_list		timer; /*ioc_timer_fn   ioc_start_period，每隔一个period  执行一次 */
+	/*ioc_timer_fn   ioc_start_period，每隔一个period  执行一次 */
+	struct timer_list		timer;
+	/*在这个period 里面下发了io的iocg          锚点：iocg::active_list*/
 	struct list_head		active_iocgs;	/* active cgroups */
 	struct ioc_pcpu_stat __percpu	*pcpu_stat;
 
@@ -432,15 +436,25 @@ struct ioc {
 	 *
 	 * ioc_timer_fn 函数中会更新该值, 该值一个ioc 只有一个
 	 */
+	 
+	/*
+	 * 这两个值用来调节速率的，每个queue 对应一个ioc
+	 * 一个ioc 有自己的vrate，计算每个bio cost的时候，算出的cost
+	 * 需要再乘以vrate， 这样总的vtime 是一定的，这样vtime rate越大，
+	 * 带宽就会越小
+	 */
 	atomic64_t			vtime_rate; 
 
 	seqcount_t			period_seqcount;
 	u32				period_at;	/* wallclock starttime */
+
+	/*now->vnow*/
 	u64				period_at_vtime; /* vtime starttime */
 
 	atomic64_t			cur_period;	/* inc'd each period */
 	int				busy_level;	/* saturation history */
 
+	/*ioc_refresh_period_us*/
 	u64				inuse_margin_vtime;
 	bool				weights_updated;
 	/*强迫 current_hweight 拿到权重前做权重更新*/
@@ -448,8 +462,11 @@ struct ioc {
 
 	u64				autop_too_fast_at;
 	u64				autop_too_slow_at;
+	/*磁盘类型   AUTOP_HDD*/
 	int				autop_idx;
+	/*io.cost.qos ctrl=user时，该值位1*/
 	bool				user_qos_params:1;
+	/*io.qos.model ctrl=user 时 该值位1*/
 	bool				user_cost_model:1;
 };
 
@@ -473,9 +490,13 @@ struct ioc_gq {
 	 * `last_inuse` remembers `inuse` while an iocg is idle to persist
 	 * surplus adjustments.
 	 */
+	 /* 用户配置的weight， weight_updated 会把这个值慢慢同步到下面的@weight中*/
 	u32				cfg_weight;
 	
-	/*第一次会被初始化为 dfl， iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight*/
+	/*
+	 * weight_updated 第一次会被初始化为 dfl， 
+	 * iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight
+	 */
 	u32				weight;
 
 	/*
@@ -505,7 +526,8 @@ struct ioc_gq {
 	 */
 
 	/*vtime 是iocg_commit_bio中会增加*/
-	atomic64_t			vtime;/*issue 时计入的vtime */
+	/*bio 如果在当前可以派发时，把该bio所代表的 cost计入这里的vtime */
+	atomic64_t			vtime;
 	atomic64_t			done_vtime; /*done之后计入的vtime*/
 	atomic64_t			abs_vdebt;
 	u64				last_vtime;
@@ -525,6 +547,7 @@ struct ioc_gq {
 	u32				hweight_inuse;
 	bool				has_surplus;
 
+	/*iocg_wake_fn*/
 	struct wait_queue_head		waitq;
 	struct hrtimer			waitq_timer; /*iocg_waitq_timer_fn*/
 	struct hrtimer			delay_timer; /*iocg_delay_timer_fn*/
@@ -536,7 +559,11 @@ struct ioc_gq {
 	/* this iocg's depth in the hierarchy and ancestors including self */
 	int				level; /*level = 0 表示root*/
 	
-	/*每个ioc_gq都有自己转有的ancestors数组, 按根--->叶子的顺序排列*/
+	/*
+	 * 每个ioc_gq都有自己转有的ancestors数组, 
+	 * 按root--->... ---> parent --->self的顺序排列
+	 * ancestors[iocg->level] = self
+	 */
 	struct ioc_gq			*ancestors[];
 };
 
@@ -548,8 +575,12 @@ struct ioc_cgrp {
 
 struct ioc_now {
 	u64				now_ns;
+	/*ktime_to_us(now->now_ns)*/
 	u32				now;
+	/*ioc->period_at_vtime +
+			(now->now - ioc->period_at) * now->vrate;*/
 	u64				vnow;
+	/*ioc->vtime_rate*/
 	u64				vrate;
 };
 
@@ -736,9 +767,9 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 	 * echo "254:48 enable=1 ctrl=user rpct=95.00 rlat=5000 wpct=95.00 wlat=5000 min=50.00 max=150.00" 
 	 * > /sys/fs/cgroup/blkio/blkio.cost.qos
 	 */
-	/*找读latency 和write latency 中较大的, 单位为us*/
+	/*找 read latency 和write latency 中较大的, 单位为us*/
 	if (ioc->params.qos[QOS_RLAT] >= ioc->params.qos[QOS_WLAT]) {
-		ppm = ioc->params.qos[QOS_RPPM];
+		ppm = ioc->params.qos[QOS_RPPM]; /*percent*/
 		lat = ioc->params.qos[QOS_RLAT];
 	} else {
 		ppm = ioc->params.qos[QOS_WPPM];
@@ -751,8 +782,9 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 	 * multiple of the latency target.  Ideally, the multiplier should
 	 * be scaled according to the percentile so that it would nominally
 	 * contain a certain number of requests.  Let's be simpler and
-	 * scale it linearly so that it's 2x >= pct(90) and 10x at pct(50).
+	 * scale it linearly so that it's 20x >= pct(90) and 10x at pct(50).
 	 */
+	 /*ppm 9878 = 98.78% */
 	if (ppm)
 		multi = max_t(u32, (MILLION - ppm) / 50000, 2);
 	else
@@ -854,6 +886,7 @@ static void calc_lcoefs(u64 bps, u64 seqiops, u64 randiops,
 	}
 }
 
+/*根据io.qos.model 更新线性模型 cost*/
 static void ioc_refresh_lcoefs(struct ioc *ioc)
 {
 	u64 *u = ioc->params.i_lcoefs;
@@ -957,6 +990,7 @@ static void __propagate_active_weight(struct ioc_gq *iocg, u32 active, u32 inuse
 
 	/*leaf ====> root*/
 	for (lvl = iocg->level - 1; lvl >= 0; lvl--) {
+		/*parent 当前iocg 的父iocg*/
 		struct ioc_gq *parent = iocg->ancestors[lvl];
 		struct ioc_gq *child = iocg->ancestors[lvl + 1];
 		u32 parent_active = 0, parent_inuse = 0;
@@ -1086,8 +1120,8 @@ static void weight_updated(struct ioc_gq *iocg)
 	/*dfl weight CGROUP_WEIGHT_DFL*/
 	weight = iocg->cfg_weight ?: iocc->dfl_weight;
 	if (weight != iocg->weight && iocg->active)
-		propagate_active_weight(iocg, weight,
-			DIV64_U64_ROUND_UP(iocg->inuse * weight, iocg->weight));
+		propagate_active_weight(iocg, weight, /*<== active*/
+			DIV64_U64_ROUND_UP(iocg->inuse * weight, iocg->weight) /*<= insue*/);
 	iocg->weight = weight;
 }
 
@@ -1136,6 +1170,7 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 		if (!list_empty(&iocg->ancestors[i]->active_list))
 			goto fail_unlock;
 
+	/*leaf 节点的child active sum 只能位0*/
 	if (iocg->child_active_sum)
 		goto fail_unlock;
 
@@ -1487,6 +1522,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		spin_lock(&iocg->waitq.lock);
 
+		/*iocost qos中被卡住的进程都在waitq上， 那么既然这样就开始kick他们*/
 		if (waitqueue_active(&iocg->waitq) ||
 		    atomic64_read(&iocg->abs_vdebt)) {
 			/* might be oversleeping vtime / hweight changes, kick */
@@ -1747,7 +1783,7 @@ skip_surplus_transfers:
 	spin_unlock_irq(&ioc->lock);
 }
 
-/*bio消耗的VTIME时间*/
+/*bio 对应的的VTIME时间*/
 static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 				    bool is_merge, u64 *costp)
 {
@@ -2256,7 +2292,7 @@ static ssize_t ioc_weight_write(struct kernfs_open_file *of, char *buf,
 
 	spin_lock(&iocg->ioc->lock);
 	iocg->cfg_weight = v; /*iocg 的cfg weight*/
-	weight_updated(iocg);
+	weight_updated(iocg); /*这里重点*/
 	spin_unlock(&iocg->ioc->lock);
 
 	blkg_conf_finish(&ctx);

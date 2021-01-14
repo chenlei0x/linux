@@ -26,6 +26,7 @@
 #include <asm/processor.h>
 #include <asm/hypervisor.h>
 
+
 static const __initconst struct hypervisor_x86 * const hypervisors[] =
 {
 #ifdef CONFIG_XEN_PV
@@ -58,6 +59,12 @@ static __init int parse_nopv(char *arg)
 }
 early_param("nopv", parse_nopv);
 
+/*
+setup_arch
+	init_hypervisor_platform
+		detect_hypervisor_vendor
+		
+ */
 static inline const struct hypervisor_x86 * __init
 detect_hypervisor_vendor(void)
 {
