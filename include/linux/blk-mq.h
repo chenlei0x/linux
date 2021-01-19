@@ -96,6 +96,7 @@ struct blk_mq_hw_ctx {
 	/** @type: HCTX_TYPE_* flags. Type of hardware queue. */
 	unsigned short		type;
 	/** @nr_ctx: Number of software queues. */
+	/*对应我这个hw ctx 有多少个软队列*/
 	unsigned short		nr_ctx;
 	/** @ctxs: Array of software queues. */
 	struct blk_mq_ctx	**ctxs;
@@ -204,10 +205,13 @@ struct blk_mq_hw_ctx {
  *	set of hardware queues.
  */
 struct blk_mq_queue_map {
-	/*map[cpu] = queue_index(qmap, nr_queues, q++)
- cpu 和具体hw queue 的映射*/
+	/*
+	 * map[cpu] = queue_index(qmap, nr_queues, q++)
+	 * cpu 和具体hw queue 的映射
+	 */
 	unsigned int *mq_map;
-	/*set->nr_hw_queues*/
+	/*set-> nr_hw_queues 多少个硬件队列*/
+	/*可以看这个例子 nvme_rdma_map_queues*/
 	unsigned int nr_queues;
 	unsigned int queue_offset;
 };

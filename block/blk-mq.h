@@ -23,6 +23,10 @@ struct blk_mq_ctx {
 	} ____cacheline_aligned_in_smp;
 
 	unsigned int		cpu;
+	/*
+	 * n个软队列对应一个硬队列,分别是 0, 1, 2, i, ... , n - 1
+	 * 那么这个字段就代表这个i
+	 */
 	unsigned short		index_hw[HCTX_MAX_TYPES];
 	struct blk_mq_hw_ctx 	*hctxs[HCTX_MAX_TYPES];
 

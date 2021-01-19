@@ -541,8 +541,8 @@ static inline bool wbt_should_throttle(struct rq_wb *rwb, struct bio *bio)
 		 *
 		 * dio_bio_write_op
 		 * do_blockdev_direct_IO 这两个函数对DIRECT io 都会打上SYNC 和 IDLE标记
-		 * 文件系统的sync file 接口实现时，如果wbc->sync_mode == WB_SYNC_ALL 的话也会打上
-				  REQ_SYNC 标记,jbd2线程在提交io时，也会打上这个标记
+		 * 文件系统的sync file 接口实现时，如果wbc->sync_mode == WB_SYNC_ALL 
+		 * 的话也会打上 	  REQ_SYNC 标记,jbd2线程在提交io时，也会打上这个标记
 		 */
 		if ((bio->bi_opf & (REQ_SYNC | REQ_IDLE)) ==
 		    (REQ_SYNC | REQ_IDLE))
