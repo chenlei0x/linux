@@ -243,7 +243,7 @@ enum {
 	 * consistently raised.  Don't trust recorded cgroup vtime if the
 	 * period counter indicates that it's older than 5mins.
 	 */
-	VTIME_VALID_DUR		= 300 * USEC_PER_SEC,
+	VTIME_VALID_DUR		= 300 * USEC_PER_SEC,/*300s*/
 
 	/*
 	 * Remember the past three non-zero usages and use the max for
@@ -330,7 +330,7 @@ enum {
 
 /* io.cost.qos params */
 enum {
-	QOS_RPPM, /* read percent 对应io.cost.qos 中的 rpct*/
+	QOS_RPPM, /* read percent 对应io.cost.qos 中的 read pct*/
 	QOS_RLAT, /* read latency 单位 us 对应io.cost.qos 中的 rlat*/
 	QOS_WPPM,
 	QOS_WLAT,
@@ -417,6 +417,7 @@ struct ioc {
 	u32				margin_us;/*ioc_refresh_period_us*/
 
 	/*vtime rate 介于这两个值之间*/
+	/*ioc->params.qos[QOS_MIN] * VTIME_PER_USEC / MILLION*/
 	u64				vrate_min;
 	u64				vrate_max;
 
@@ -438,10 +439,9 @@ struct ioc {
 	 */
 	 
 	/*
-	 * 这两个值用来调节速率的，每个queue 对应一个ioc
-	 * 一个ioc 有自己的vrate，计算每个bio cost的时候，算出的cost
-	 * 需要再乘以vrate， 这样总的vtime 是一定的，这样vtime rate越大，
-	 * 带宽就会越小
+	 * 这个值用来调节后的每秒的vtime，每个queue 对应一个ioc
+	 * 表示一个调节之后一秒对应的vtime
+	 * 初始值 VTIME_PER_USEC
 	 */
 	atomic64_t			vtime_rate; 
 
@@ -462,7 +462,7 @@ struct ioc {
 
 	u64				autop_too_fast_at;
 	u64				autop_too_slow_at;
-	/*磁盘类型   AUTOP_HDD*/
+	/*磁盘类型 初始为 AUTOP_INVALID */
 	int				autop_idx;
 	/*io.cost.qos ctrl=user时，该值位1*/
 	bool				user_qos_params:1;
@@ -490,23 +490,32 @@ struct ioc_gq {
 	 * `last_inuse` remembers `inuse` while an iocg is idle to persist
 	 * surplus adjustments.
 	 */
-	 /* 用户配置的weight， weight_updated 会把这个值慢慢同步到下面的@weight中*/
+	 /* 用户配置的weight， weight_updated 会把这个值同步到下面的@weight中*/
 	u32				cfg_weight;
 	
 	/*
-	 * weight_updated 第一次会被初始化为 dfl， 
-	 * iocg->cfg_weight ?: iocc->dfl_weight 综合考虑的weight
+	 * weight_updated 如果用户配置了weight， 那么该值就会被改为 
+	 * iocg->cfg_weight
+	 * 否则 等于iocc->dfl_weight
 	 */
 	u32				weight;
 
 	/*
 	 * active 初始为0 随着io量增长才增长 从0逐渐增大到weight
 	 * 只有在 __propagate_active_weight 中有赋值
+	 * 对于叶子节点，这个值就是用户配置的weight
 	 */
 	u32				active;
 	
-	/*默认也为0 active 调整之后得到的inuse, 只有在__propagate_active_weight 函数中赋值*/
+	/*
+	 * 默认也为0 activate中会有如下调用：
+	 * propagate_active_weight(iocg, iocg->weight,
+				iocg->last_inuse ?: iocg->weight);
+	 * 第一次被activate时，last inuse 为0，调整之后的inuse= iocg->weight, 
+	 * 只有在__propagate_active_weight 函数中赋值
+	 */
 	u32				inuse; 
+	/*进入idle时,记录当前的inuse*/
 	u32				last_inuse;
 
 	sector_t			cursor;		/* to detect randio */
@@ -525,8 +534,8 @@ struct ioc_gq {
 	 * period to calculate utilization.
 	 */
 
-	/*vtime 是iocg_commit_bio中会增加*/
-	/*bio 如果在当前可以派发时，把该bio所代表的 cost计入这里的vtime */
+	/*vtime 是 iocg_commit_bio 中会增加*/
+	/*bio 如果在当前可以派发时，把该bio所代表的 cost(非abs cost)计入这里的vtime */
 	atomic64_t			vtime;
 	atomic64_t			done_vtime; /*done之后计入的vtime*/
 	atomic64_t			abs_vdebt;
@@ -544,6 +553,12 @@ struct ioc_gq {
 	u64				child_inuse_sum; /*所有孩子的inuse 之和*/
 	int				hweight_gen;
 	u32				hweight_active;
+	/*
+	 * 一个iocg 有自己的vrate, 也就是hweight，计算每个bio cost的时候，算出的cost
+	 * 需要再乘以vrate， 这样总的vtime 是一定的，这样 rate越大，
+	 * abs_cost_to_cost
+	 * cost = abs_cost * 
+	 */
 	u32				hweight_inuse;
 	bool				has_surplus;
 
@@ -773,7 +788,7 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 		lat = ioc->params.qos[QOS_RLAT];
 	} else {
 		ppm = ioc->params.qos[QOS_WPPM];
-		lat = ioc->params.qos[QOS_WLAT];
+		lat = ioc->params.qos[QOS_WLAT]; /*= 75000 us*/
 	}
 	
 	/*
@@ -784,7 +799,7 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 	 * contain a certain number of requests.  Let's be simpler and
 	 * scale it linearly so that it's 20x >= pct(90) and 10x at pct(50).
 	 */
-	 /*ppm 9878 = 98.78% */
+	 /*ppm 950000 = 95% */
 	if (ppm)
 		multi = max_t(u32, (MILLION - ppm) / 50000, 2);
 	else
@@ -1038,6 +1053,12 @@ static void commit_active_weights(struct ioc *ioc)
 
 	if (ioc->weights_updated) {
 		/* paired with rmb in current_hweight(), see there */
+		/*
+		 * 保证这条语句之前得所有内存写入都已经提交(可以被其他核看到)
+		 * 因为调用该函数之前调用了__propagate_active_weight函数,用来进行修改
+		 * 树中的权重, hweight_gen用来通知其他进程,所以这里一定要保证树上的权重
+		 * 的修改已经提交,然后才能发出通知.
+		 */
 		smp_wmb();
 		atomic_inc(&ioc->hweight_gen);
 		ioc->weights_updated = false;
@@ -1120,6 +1141,7 @@ static void weight_updated(struct ioc_gq *iocg)
 	/*dfl weight CGROUP_WEIGHT_DFL*/
 	weight = iocg->cfg_weight ?: iocc->dfl_weight;
 	if (weight != iocg->weight && iocg->active)
+		/*inuse */
 		propagate_active_weight(iocg, weight, /*<== active*/
 			DIV64_U64_ROUND_UP(iocg->inuse * weight, iocg->weight) /*<= insue*/);
 	iocg->weight = weight;
@@ -1185,6 +1207,11 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	vmargin = ioc->margin_us * now->vrate;
 	vmin = now->vnow - vmargin;
 
+	/*
+	 * iocg->vtime 和 vnow 差距太大了, 这时候如果有大量io下来,这个差距会
+	 * 允许很多io通过,导致控制不住,所以要修正一下iocg->vtime,使得 
+	 * iocg->vtime = vnow - vmargin
+	 */
 	if (last_period + max_period_delta < cur_period ||
 	    time_before64(vtime, vmin)) {
 		atomic64_add(vmin - vtime, &iocg->vtime);
@@ -1485,6 +1512,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 	struct ioc *ioc = container_of(timer, struct ioc, timer);
 	struct ioc_gq *iocg, *tiocg;
 	struct ioc_now now;
+	/*nr_surpluses 有多少个iocg 有大量的vtime 盈余*/
 	int nr_surpluses = 0, nr_shortages = 0, nr_lagging = 0;
 
 	/*percent 95 ----> 950000 ==> ppm_rthr = 50000*/
@@ -1589,6 +1617,11 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		/* calculate hweight based usage ratio and record */
 		if (vusage) {
+			/*
+			 * abs_cost *  hw_inuse = cost
+			 * vusage 目前是带权重的cost, 这里转换为abs cost, 因为period_vtime不带权重
+			 * usage 表示我用的vtime 占本周期的比例
+			 */
 			usage = DIV64_U64_ROUND_UP(vusage * hw_inuse,
 						   period_vtime);
 			iocg->usage_idx = (iocg->usage_idx + 1) % NR_USAGE_SLOTS;
@@ -1613,17 +1646,26 @@ static void ioc_timer_fn(struct timer_list *timer)
 			atomic64_add(delta, &iocg->done_vtime);
 			iocg->last_vtime += delta;
 			/* if usage is sufficiently low, maybe it can donate */
+			/*这个iocg 的vtime 消耗的太少了,说明IO很少, 可以贡献出来*/
 			if (surplus_adjusted_hweight_inuse(usage, hw_inuse)) {
 				iocg->has_surplus = true;
 				nr_surpluses++;
 			}
 		} else if (hw_inuse < hw_active) {
+			/*
+			 * 这里是一种惰性放大权重的方式,加入当前正在使用的权重所能获得的带宽
+			 * 能够满足该cgroup,那么就没必要增大,继续保持就好, 这样可以让别人利用带宽
+			 *
+			 * 有排队的进程,或者vtime 用的已经比较充分了,
+			 * 但是这时正在使用的hw比active要小, 那么我们需要扩大一下inuse
+			 * 因为inuse 才是计算真正获得的权重
+			 */
 			u32 new_hwi, new_inuse;
 
 			/* was donating but might need to take back some */
 			if (waitqueue_active(&iocg->waitq)) {
 				new_hwi = hw_active;
-			} else {
+			} else {/*对应vtime用完了的情况*/
 				new_hwi = max(hw_inuse,
 					      usage * SURPLUS_SCALE_PCT / 100 +
 					      SURPLUS_SCALE_ABS);
@@ -1825,7 +1867,7 @@ static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 out:
 	*costp = cost;
 }
-
+/*这个是计算abs cost的, 然后需要通过 abs_cost_to_cost转换为权重cost*/
 static u64 calc_vtime_cost(struct bio *bio, struct ioc_gq *iocg, bool is_merge)
 {
 	u64 cost;
