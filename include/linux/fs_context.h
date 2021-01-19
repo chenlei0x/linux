@@ -84,6 +84,7 @@ struct fs_parameter {
  * See Documentation/filesystems/mount_api.txt
  */
 struct fs_context {
+	/* 如果fs type没有提供, 那么默认为 legacy_fs_context_ops*/
 	const struct fs_context_operations *ops;
 	struct mutex		uapi_mutex;	/* Userspace access mutex */
 	struct file_system_type	*fs_type;

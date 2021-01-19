@@ -2942,6 +2942,7 @@ int ksys_unshare(unsigned long unshare_flags)
 	err = unshare_userns(unshare_flags, &new_cred);
 	if (err)
 		goto bad_unshare_cleanup_fd;
+	/*这里对于mnt namespace 会拷贝mnt tree*/
 	err = unshare_nsproxy_namespaces(unshare_flags, &new_nsproxy,
 					 new_cred, new_fs);
 	if (err)

@@ -2806,7 +2806,7 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 			}
 		}
 	}
-
+	/*这里会申请一个新的fc*/
 	fc = fs_context_for_mount(type, sb_flags);
 	put_filesystem(type);
 	if (IS_ERR(fc))

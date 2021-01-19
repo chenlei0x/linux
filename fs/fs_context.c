@@ -141,6 +141,7 @@ int vfs_parse_fs_param(struct fs_context *fc, struct fs_parameter *param)
 		 */
 		return ret;
 
+	/* legacy_parse_param ?*/
 	if (fc->ops->parse_param) {
 		ret = fc->ops->parse_param(fc, param);
 		if (ret != -ENOPARAM)
