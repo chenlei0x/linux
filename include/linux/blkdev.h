@@ -209,6 +209,9 @@ struct request {
 	u64 io_start_time_ns;
 
 #ifdef CONFIG_BLK_WBT
+	/* wbt_track
+	 * 有任何一个需要被track的bio存在,该rq 就需要被track
+	 */
 	unsigned short wbt_flags;
 #endif
 	/*

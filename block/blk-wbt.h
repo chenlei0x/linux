@@ -36,13 +36,19 @@ enum {
 	WBT_STATE_ON_MANUAL	= 2,
 };
 
+/*每个q 对应一个*/
 struct rq_wb {
 	/*
 	 * Settings that govern how we throttle
 	 *
 	 * 这两个值由 calc_wb_limits 计算得来
 	 */
+	 /*对于超时或者超限脏页数量的io*/
 	unsigned int wb_background;		/* background writeback */
+	/*
+	 * 没有REQ_BACKGROUND标记的回写的io, 且不是sync的比如
+	 * 	unsigned for_reclaim:1;		用于内存回收	
+	 */
 	unsigned int wb_normal;			/* normal writeback */
 
 	short enable_state;			/* WBT_STATE_* */
@@ -60,13 +66,23 @@ struct rq_wb {
 	struct blk_stat_callback *cb; /*wb_timer_fn*/
 
 	/*
-	 blk_mq_start_request->wbt_issue*/
+	 * blk_mq_start_request
+	 * 		wbt_issue
+	 * 这个字段用来记录sync IO 开始的时间
+	 * 在IO结束时,置为空
+	 * 作用是为了防止某个io 在时间窗口内开始,但是在时间窗口结束时还没结束
+	 * 这种IO通过 结束 - 开始的方式 统计不到,因为没有结束
+	 * 但是如果这个IO存在,且长时间没有完成,就说明已经很久了
+	 * 这时候我们需要上报已经有超时现象了
+	 */
 	u64 sync_issue;
 	void *sync_cookie; /*= rq*/
 
 	unsigned int wc;
 
+	/*最近一次 非throttle 的io 下发的时刻*/
 	unsigned long last_issue;		/* last non-throttled issue */
+	/*最近一次 非throttle 的io 完成的时刻*/
 	unsigned long last_comp;		/* last non-throttled comp */
 	unsigned long min_lat_nsec;
 	struct rq_qos rqos; /*通用 obj*/

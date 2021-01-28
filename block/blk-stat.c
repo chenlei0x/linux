@@ -49,6 +49,7 @@ void blk_rq_stat_add(struct blk_rq_stat *stat, u64 value)
 	stat->nr_samples++;
 }
 
+/*__blk_mq_end_request 中会调用*/
 void blk_stat_add(struct request *rq, u64 now)
 {
 	struct request_queue *q = rq->q;
@@ -132,6 +133,7 @@ blk_stat_alloc_callback(void (*timer_fn)(struct blk_stat_callback *),
 	cb->bucket_fn = bucket_fn;
 	cb->data = data;
 	cb->buckets = buckets;
+	/*blk_stat_timer_fn 会对stat 进行加和之后调用 cb->timer_fn*/
 	timer_setup(&cb->timer, blk_stat_timer_fn, 0);
 
 	return cb;

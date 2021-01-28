@@ -145,6 +145,7 @@ bool rq_depth_calc_max_depth(struct rq_depth *rqd)
 		if (rqd->scale_step > 0)
 			depth = 1 + ((depth - 1) >> min(31, rqd->scale_step));
 		else if (rqd->scale_step < 0) {
+			/*最大不能大于 queue depth 的 3/4*/
 			unsigned int maxd = 3 * rqd->queue_depth / 4;
 
 			depth = 1 + ((depth - 1) << -rqd->scale_step);
@@ -283,6 +284,7 @@ void rq_qos_wait(struct rq_wait *rqw, void *private_data,
 		if (!has_sleeper && acquire_inflight_cb(rqw, private_data)) {
 			finish_wait(&rqw->wait, &data.wq);
 
+			/*rq_qos_wake_function 中会获取一个token*/
 			/*
 			 * We raced with wbt_wake_function() getting a token,
 			 * which means we now have two. Put our local token

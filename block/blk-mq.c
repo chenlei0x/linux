@@ -234,6 +234,10 @@ void blk_mq_quiesce_queue(struct request_queue *q)
 
 	queue_for_each_hw_ctx(q, hctx, i) {
 		if (hctx->flags & BLK_MQ_F_BLOCKING)
+			/* 
+			 * 这个函数返回之后,表明所有的人都
+			 * 再次hctx lock时,都知道当前q已经进去quiesce状态了
+			 */
 			synchronize_srcu(hctx->srcu);
 		else
 			rcu = true;
@@ -2066,7 +2070,9 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 	if (blk_mq_sched_bio_merge(q, bio, nr_segs))
 		return BLK_QC_T_NONE;
 
-	/*这里可能会睡眠，睡完了继续往下走， throttle针对的是bio*/
+	/* 如果bio 没有被合并, 那么才会被qos层阻塞,
+	 * 这里可能会睡眠，睡完了继续往下走， throttle针对的是bio
+	 */
 	rq_qos_throttle(q, bio);
 
 	data.cmd_flags = bio->bi_opf;

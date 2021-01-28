@@ -190,6 +190,8 @@ struct blk_mq_hw_ctx {
 	 * @srcu: Sleepable RCU. Use as lock when type of the hardware queue is
 	 * blocking (BLK_MQ_F_BLOCKING). Must be the last member - see also
 	 * blk_mq_hw_ctx_size().
+	 *
+	 * 这个srcu 用在 blk_mq_quiesce_queue 中
 	 */
 	struct srcu_struct	srcu[0];
 };

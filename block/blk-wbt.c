@@ -93,6 +93,8 @@ static void wb_timestamp(struct rq_wb *rwb, unsigned long *var)
 /*
  * If a task was rate throttled in balance_dirty_pages() within the last
  * second or so, use that to indicate a higher cleaning rate.
+ *
+ * 返回true 说明最近提交了过多脏页
  */
 static bool wb_recent_wait(struct rq_wb *rwb)
 {
@@ -187,7 +189,10 @@ static void wbt_done(struct rq_qos *rqos, struct request *rq)
 	struct rq_wb *rwb = RQWB(rqos);
 
 	if (!wbt_is_tracked(rq)) {
-		/*没有tracked 标记的rq 可能是read*/
+		/*
+		 * 没有tracked 标记的rq 不需要被throttle的rq 可能是read
+		 * 也就是说该rq内没有一个bio是需要被throttle的
+		 */
 		/*bio_to_wbt_flags*/
 		if (rwb->sync_cookie == rq) {
 			rwb->sync_issue = 0;
@@ -311,8 +316,10 @@ static void calc_wb_limits(struct rq_wb *rwb)
 
 static void scale_up(struct rq_wb *rwb)
 {
+	/*计算max depth*/
 	if (!rq_depth_scale_up(&rwb->rq_depth))
 		return;
+	/*根据max 计算 bg normal 的大小*/
 	calc_wb_limits(rwb);
 	rwb->unknown_cnt = 0;
 	rwb_wake_all(rwb);
@@ -321,8 +328,10 @@ static void scale_up(struct rq_wb *rwb)
 
 static void scale_down(struct rq_wb *rwb, bool hard_throttle)
 {
+	/*计算max depth*/
 	if (!rq_depth_scale_down(&rwb->rq_depth, hard_throttle))
 		return;
+	/*根据max 计算 bg 以及 bg normal 的大小*/
 	calc_wb_limits(rwb);
 	rwb->unknown_cnt = 0;
 	rwb_trace_step(rwb, "scale down");
@@ -349,7 +358,7 @@ static void rwb_arm_timer(struct rq_wb *rwb)
 		rwb->cur_win_nsec = rwb->win_nsec;
 	}
 
-	/*wb_timer_fn， 在时间窗口结束时看是否超时*/
+	/* wb_timer_fn  在时间窗口结束时看是否超时*/
 	blk_stat_activate_nsecs(rwb->cb, rwb->cur_win_nsec);
 }
 
@@ -448,7 +457,7 @@ void wbt_set_min_lat(struct request_queue *q, u64 val)
 	__wbt_update_limits(RQWB(rqos));
 }
 
-
+/*最近是否才下发了非 wb型得io*/
 static bool close_io(struct rq_wb *rwb)
 {
 	const unsigned long now = jiffies;
@@ -483,12 +492,16 @@ static inline unsigned int get_limit(struct rq_wb *rwb, unsigned long rw)
 	 * the idle limit, or go to normal if we haven't had competing
 	 * IO for a bit.
 	 */
+	 
 	if ((rw & REQ_HIPRIO) || wb_recent_wait(rwb) || current_is_kswapd())
 		limit = rwb->rq_depth.max_depth;
 	else if ((rw & REQ_BACKGROUND) || close_io(rwb)) {
 		/*
 		 * If less than 100ms since we completed unrelated IO,
 		 * limit us to half the depth for background writeback.
+		 */
+		/*
+		 * 这里可能把normal write back限制为他的一半, 也就是wb background
 		 */
 		limit = rwb->wb_background;
 	} else
@@ -594,6 +607,7 @@ static void wbt_wait(struct rq_qos *rqos, struct bio *bio)
 
 	flags = bio_to_wbt_flags(rwb, bio);
 	if (!(flags & WBT_TRACKED)) {
+		/*可能是读, direct write等,也就是说should throttle 返回false*/
 		if (flags & WBT_READ)
 			wb_timestamp(rwb, &rwb->last_issue);
 		return;

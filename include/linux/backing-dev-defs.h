@@ -175,6 +175,7 @@ struct bdi_writeback {
 	/*wb_workfn*/
 	struct delayed_work dwork;	/* work item used for writeback */
 
+	/*上一次造成脏页太多触发惩罚性睡眠的时刻*/
 	unsigned long dirty_sleep;	/* last wait */
 
 	struct list_head bdi_node;	/* anchored at bdi->wb_list */

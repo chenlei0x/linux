@@ -175,6 +175,7 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	else
 		ret = ext4_fsync_journal(inode, datasync, &needs_barrier);
 
+	/*barrier 保证这次下发io一定要落到盘上,防止进入盘上cache就返回*/
 	if (needs_barrier) {
 		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
 		if (!ret)

@@ -43,6 +43,7 @@ enum writeback_sync_modes {
 		/*如果是WB_SYNC_ALL模式，就等待数据回写完成*/
 
 	/*wbc_to_write_flags 会打上REQ_SYNC过程*/
+	/*ext4_io_submit*/
 	WB_SYNC_ALL,	/* Wait on every mapping */
 };
 
@@ -68,6 +69,7 @@ struct writeback_control {
 
 	/*wbc_to_write_flags 会对bio 打上REQ_BACKGROUND*/
 	unsigned for_kupdate:1;		/* A kupdate writeback */
+	/*wbc_to_write_flags 会对bio 打上REQ_BACKGROUND*/
 	unsigned for_background:1;	/* A background writeback */
 	
 	unsigned tagged_writepages:1;	/* tag-and-write to avoid livelock */

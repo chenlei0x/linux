@@ -15,6 +15,8 @@
  * @timer is active, that queue's request completion latencies are sorted into
  * buckets by @bucket_fn and added to a per-cpu buffer, @cpu_stat. When the
  * timer fires, @cpu_stat is flushed to @stat and @timer_fn is invoked.
+ *
+ * __blk_mq_end_request 中会调用
  */
 struct blk_stat_callback {
 	/*

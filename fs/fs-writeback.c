@@ -45,9 +45,14 @@ struct wb_writeback_work {
 	unsigned long *older_than_this;
 	enum writeback_sync_modes sync_mode;
 	unsigned int tagged_writepages:1;
+
+	/*wb_check_old_data_flush(wb);*/
 	unsigned int for_kupdate:1;
 	unsigned int range_cyclic:1;
+	
+	/*wrote += wb_check_background_flush(wb); 水位线过高时*/
 	unsigned int for_background:1;
+	/*sync_inodes_sb*/
 	unsigned int for_sync:1;	/* sync(2) WB_SYNC_ALL writeback */
 	unsigned int auto_free:1;	/* free on completion */
 	enum wb_reason reason;		/* why was writeback initiated? */
@@ -2090,6 +2095,7 @@ static long wb_check_start_all(struct bdi_writeback *wb)
 {
 	long nr_pages;
 
+	/*wb_start_writeback 会打上这个标记*/
 	if (!test_bit(WB_start_all, &wb->state))
 		return 0;
 

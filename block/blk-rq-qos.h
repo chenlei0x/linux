@@ -51,7 +51,7 @@ struct rq_qos_ops {
 	/*
 	blk_mq_make_request
 		rq_qos_track 产生了rq
-
+	判定request 是否受到bio的影响需要被track
 	*/
 	void (*track)(struct rq_qos *, struct request *, struct bio *);
 
@@ -71,7 +71,7 @@ struct rq_qos_ops {
 
 	/* bio_endio会调用他*/
 	void (*done_bio)(struct rq_qos *, struct bio *);
-	/*blk_mq_get_request 返回失败*/
+	/*blk_mq_get_request 返回失败时调用*/
 	void (*cleanup)(struct rq_qos *, struct bio *);
 	/*blk_set_queue_depth 会调用*/
 	void (*queue_depth_changed)(struct rq_qos *);
