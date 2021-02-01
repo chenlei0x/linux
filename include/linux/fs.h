@@ -485,7 +485,7 @@ struct address_space {
 #endif
 	struct rb_root_cached	i_mmap;
 	struct rw_semaphore	i_mmap_rwsem;
-	unsigned long		nrpages;
+	unsigned long		nrpages; /*这个page cache中有多少page*/
 	unsigned long		nrexceptional;
 	pgoff_t			writeback_index;
 	const struct address_space_operations *a_ops;

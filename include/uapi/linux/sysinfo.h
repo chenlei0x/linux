@@ -16,8 +16,11 @@ struct sysinfo {
 	__kernel_ulong_t freeswap;	/* swap space still available */
 	__u16 procs;		   	/* Number of current processes */
 	__u16 pad;		   	/* Explicit padding for m68k */
+	/*64位下这两个都是0*/
 	__kernel_ulong_t totalhigh;	/* Total high memory size */
 	__kernel_ulong_t freehigh;	/* Available high memory size */
+
+	/*PAGE_SIZE*/
 	__u32 mem_unit;			/* Memory unit size in bytes */
 	char _f[20-2*sizeof(__kernel_ulong_t)-sizeof(__u32)];	/* Padding: libc5 uses this.. */
 };

@@ -22,6 +22,23 @@
 
 #define FOR_ALL_ZONES(xx) DMA_ZONE(xx) DMA32_ZONE(xx) xx##_NORMAL, HIGHMEM_ZONE(xx) xx##_MOVABLE
 
+
+/*
+ 1. page in/out操作指把块设备中的页读入内存或把内存中的页写入块设备
+ 
+ When ever program or data needs to be accessed and is read in from its permanent location on disk, this is called a page in request.
+ When ever program or data needs to be saved and is written to a permanent location on disk, this is called a page out request.
+ 2. page in/out中的页指disk sector,大小为512字节,而不是虚拟内存中的4k大小的页
+ 
+ The kernel tracks each disk page (512b) read in within the pgpgin (pages paged in) counter
+ 3. pgpgin/pgpgout是指主存(内存)与块设备(硬盘)之间的page in/out的页数.
+ 
+ these counters are related to virtual memory "paging" only in the fact that they are doing disk io to load a memory page with data from disk or write the data from a memory page back to disk
+ 4. pswpin/pswpout是指虚拟内存中,从块设备swap区中读入/读出的页数.因此是被包含在pgpgin/pgpgout中的.
+ 
+  pages swapped in or out are also counted within pages paged in or out respectively since swap io is still ultimately block device based.
+
+ */
 enum vm_event_item { PGPGIN, PGPGOUT, PSWPIN, PSWPOUT,
 		FOR_ALL_ZONES(PGALLOC),
 		FOR_ALL_ZONES(ALLOCSTALL),
