@@ -51,7 +51,10 @@ struct rq_qos_ops {
 	/*
 	blk_mq_make_request
 		rq_qos_track 产生了rq
-	判定request 是否受到bio的影响需要被track
+		判定request 是否受到bio的影响需要被track
+		当需要为一个bio产生一个rq时调用
+		rq_qos_track
+
 	*/
 	void (*track)(struct rq_qos *, struct request *, struct bio *);
 
@@ -88,7 +91,10 @@ struct rq_depth {
 	初始化为0, > 0 表示latency 增大, < 0 表示可以增大depth*/
 	int scale_step; 
 
-	/*rq_depth_calc_max_depth 计算得到, 表示depth 已经放大到极限了*/
+	/*
+	 * rq_depth_calc_max_depth 计算得到, 表示depth 已经放大到极限了, 
+	 * 极限为 3 * rqd->queue_depth / 4
+	 */
 	bool scaled_max;
 
 	/*wbt_queue_depth_changed 会进行更改*/
