@@ -9,6 +9,14 @@
 #define __HAVE_ARCH_PTE_ALLOC_ONE
 #include <asm-generic/pgalloc.h>	/* for pte_{alloc,free}_one */
 
+
+
+/*
+ * 5 level --- PGD P4D PUD PMD PTE
+ * 4 level ---     P4D PUD PMD PTE
+ * 3 level ---         PUD PMD PTE
+ * 2 level ---             PMD PTE
+ */
 static inline int  __paravirt_pgd_alloc(struct mm_struct *mm) { return 0; }
 
 #ifdef CONFIG_PARAVIRT_XXL

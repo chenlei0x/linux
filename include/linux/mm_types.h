@@ -136,6 +136,8 @@ struct page {
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
+			/*也就是第二个页*/
+			/*get_compound_page_dtor*/
 			unsigned char compound_dtor;
 			unsigned char compound_order;
 			atomic_t compound_mapcount;
@@ -200,6 +202,7 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
+	/* get_page 操作的这个字段*/
 	atomic_t _refcount;
 
 #ifdef CONFIG_MEMCG

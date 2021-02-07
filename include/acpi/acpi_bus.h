@@ -153,6 +153,10 @@ typedef void (*acpi_op_notify) (struct acpi_device * device, u32 event);
 struct acpi_device_ops {
 	acpi_op_add add;
 	acpi_op_remove remove;
+	/*
+	 * acpi_device_notify 
+	 * acpi_bus_notify 调用
+	 */
 	acpi_op_notify notify;
 };
 

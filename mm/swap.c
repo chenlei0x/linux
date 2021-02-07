@@ -50,6 +50,7 @@ static DEFINE_PER_CPU(struct pagevec, lru_deactivate_file_pvecs);
 static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
 static DEFINE_PER_CPU(struct pagevec, lru_lazyfree_pvecs);
 #ifdef CONFIG_SMP
+/*需要被激活的page集合*/
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
 
@@ -187,6 +188,10 @@ int get_kernel_page(unsigned long start, int write, struct page **pages)
 }
 EXPORT_SYMBOL_GPL(get_kernel_page);
 
+/* 
+ * 把@pvec中的每个page 执行 move_fn操作, move_fn的@lruvec参数通过 
+ * page 自身 获得
+ */
 static void pagevec_lru_move_fn(struct pagevec *pvec,
 	void (*move_fn)(struct page *page, struct lruvec *lruvec, void *arg),
 	void *arg)
@@ -196,8 +201,10 @@ static void pagevec_lru_move_fn(struct pagevec *pvec,
 	struct lruvec *lruvec;
 	unsigned long flags = 0;
 
+	/*把@pvec 中的page 移入到lruvec 中*/
 	for (i = 0; i < pagevec_count(pvec); i++) {
 		struct page *page = pvec->pages[i];
+		/*对应的node*/
 		struct pglist_data *pagepgdat = page_pgdat(page);
 
 		if (pagepgdat != pgdat) {
@@ -245,6 +252,8 @@ static void pagevec_move_tail(struct pagevec *pvec)
  * Writeback is about to end against a page which has been marked for immediate
  * reclaim.  If it still appears to be reclaimable, move it to the tail of the
  * inactive list.
+ *
+ * 把 lru_rotate_pvecs 中的page 放到最后lru末尾
  */
 void rotate_reclaimable_page(struct page *page)
 {
@@ -271,7 +280,7 @@ static void update_page_reclaim_stat(struct lruvec *lruvec,
 	if (rotated)
 		reclaim_stat->recent_rotated[file]++;
 }
-
+/*激活一个page, 从一个inactive lru上摘下来,放入active lru上*/
 static void __activate_page(struct page *page, struct lruvec *lruvec,
 			    void *arg)
 {
@@ -402,6 +411,7 @@ void mark_page_accessed(struct page *page)
 }
 EXPORT_SYMBOL(mark_page_accessed);
 
+/*先放到lru_add_pvec中, 然后统一放lru list中*/
 static void __lru_cache_add(struct page *page)
 {
 	struct pagevec *pvec = &get_cpu_var(lru_add_pvec);
@@ -528,6 +538,7 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 		 * It can make readahead confusing.  But race window
 		 * is _really_ small and  it's non-critical problem.
 		 */
+		 /*头插, 头插是为了再给他点时间写回*/
 		add_page_to_lru_list(page, lruvec, lru);
 		SetPageReclaim(page);
 	} else {
@@ -544,6 +555,7 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 	update_page_reclaim_stat(lruvec, file, 0);
 }
 
+/*page 移动从active 到 inactive*/
 static void lru_deactivate_fn(struct page *page, struct lruvec *lruvec,
 			    void *arg)
 {
@@ -568,6 +580,7 @@ static void lru_lazyfree_fn(struct page *page, struct lruvec *lruvec,
 	    !PageSwapCache(page) && !PageUnevictable(page)) {
 		bool active = PageActive(page);
 
+		/*连type 都变了?? anon ---> file*/
 		del_page_from_lru_list(page, lruvec,
 				       LRU_INACTIVE_ANON + active);
 		ClearPageActive(page);
@@ -590,6 +603,8 @@ static void lru_lazyfree_fn(struct page *page, struct lruvec *lruvec,
  * Drain pages out of the cpu's pagevecs.
  * Either "cpu" is the current CPU, and preemption has already been
  * disabled; or "cpu" is being hot-unplugged, and is already dead.
+ *
+ * 把所有per cpu的page vec 都刷到对应的lru中去
  */
 void lru_add_drain_cpu(int cpu)
 {
@@ -1024,6 +1039,8 @@ unsigned pagevec_lookup_entries(struct pagevec *pvec,
  * tree entries into the pagevec.  This function prunes all
  * exceptionals from @pvec without leaving holes, so that it can be
  * passed on to page-only pagevec operations.
+ *
+ * page cache中可能有些是垃圾page,剔除掉
  */
 void pagevec_remove_exceptionals(struct pagevec *pvec)
 {
@@ -1031,7 +1048,7 @@ void pagevec_remove_exceptionals(struct pagevec *pvec)
 
 	for (i = 0, j = 0; i < pagevec_count(pvec); i++) {
 		struct page *page = pvec->pages[i];
-		if (!xa_is_value(page))
+		if (!xa_is_value(page))/*必须是指针*/
 			pvec->pages[j++] = page;
 	}
 	pvec->nr = j;
@@ -1056,6 +1073,9 @@ void pagevec_remove_exceptionals(struct pagevec *pvec)
  * pagevec_lookup_range() returns the number of pages which were found. If this
  * number is smaller than PAGEVEC_SIZE, the end of specified range has been
  * reached.
+ *
+ * 从@mapping 中找到从start 到end 之间的page, 最多@PAGEVEC_SIZE,
+ * 放到@pvec中
  */
 unsigned pagevec_lookup_range(struct pagevec *pvec,
 		struct address_space *mapping, pgoff_t *start, pgoff_t end)
@@ -1075,6 +1095,11 @@ unsigned pagevec_lookup_range_tag(struct pagevec *pvec,
 	return pagevec_count(pvec);
 }
 EXPORT_SYMBOL(pagevec_lookup_range_tag);
+
+/*
+ * 从@mapping 中找到从start 到end 之间的page, 最多@PAGEVEC_SIZE,
+ * 放到@pvec中, 最多@max_pages 且带有@tag
+ */
 
 unsigned pagevec_lookup_range_nr_tag(struct pagevec *pvec,
 		struct address_space *mapping, pgoff_t *index, pgoff_t end,

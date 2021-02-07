@@ -94,7 +94,31 @@ extern int page_group_by_mobility_disabled;
 #define get_pageblock_migratetype(page)					\
 	get_pfnblock_flags_mask(page, page_to_pfn(page),		\
 			PB_migrate_end, MIGRATETYPE_MASK)
+/*
+ * order为 n 大页的聚合
+ * 我们把这些大页根据他们的migrate 属性再分到不同的list上
+ *
+ * zone 内的碎片整合路径
+ __alloc_pages_nodemask
+ 
+	 -> __alloc_pages_slowpath
+ 
+		 -> __alloc_pages_direct_compact
+ 
+			 -> try_to_compact_pages
+ 
+				 -> compact_zone_order
+ 
+					 -> compact_zone
+ 
+						 -> isolate_migratepages
+ 
+						 -> migrate_pages
+ 
+						 -> release_freepages
 
+ * 
+ */
 struct free_area {
 	struct list_head	free_list[MIGRATE_TYPES];
 	unsigned long		nr_free;
@@ -224,7 +248,9 @@ enum node_stat_item {
 	WORKINGSET_ACTIVATE,
 	WORKINGSET_RESTORE,
 	WORKINGSET_NODERECLAIM,
+	/* 对应/proc/vmstat nr_anon_pages 40756*/
 	NR_ANON_MAPPED,	/* Mapped anonymous pages */
+	/* 对应 /proc/vmstat nr_mapped 20578 */
 	NR_FILE_MAPPED,	/* pagecache pages mapped into pagetables.
 			   only modified from process context */
 	NR_FILE_PAGES,
@@ -353,8 +379,9 @@ struct per_cpu_pageset {
 	s8 expire;
 	u16 vm_numa_stat_diff[NR_VM_NUMA_STAT_ITEMS];
 #endif
+	/*vm_stat_diff 超过stat_threshold时, 会调用 zone_page_state_add */
 #ifdef CONFIG_SMP
-	s8 stat_threshold;
+	s8 stat_threshold; 
 	s8 vm_stat_diff[NR_VM_ZONE_STAT_ITEMS];
 #endif
 };
@@ -429,6 +456,33 @@ enum zone_type {
 };
 
 #ifndef __GENERATING_BOUNDS_H
+/*
+ * order为 n 大页的聚合
+ * 我们把这些大页根据他们的migrate 属性再分到不同的list上
+ *
+ * zone 内的碎片整合路径
+ __alloc_pages_nodemask
+ 
+	 -> __alloc_pages_slowpath
+ 
+		 -> __alloc_pages_direct_compact
+ 
+			 -> try_to_compact_pages
+ 
+				 -> compact_zone_order
+ 
+					 -> compact_zone
+ 
+						 -> isolate_migratepages
+ 
+						 -> migrate_pages
+ 
+						 -> release_freepages
+ 
+ * zone间的碎片整合:
+ * zone_movable
+ * 
+ */
 
 struct zone {
 	/* Read-mostly fields */

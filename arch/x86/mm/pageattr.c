@@ -566,6 +566,7 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long start,
 pte_t *lookup_address_in_pgd(pgd_t *pgd, unsigned long address,
 			     unsigned int *level)
 {
+	/*pXd_t 代表pXd table表中的一项*/
 	p4d_t *p4d;
 	pud_t *pud;
 	pmd_t *pmd;

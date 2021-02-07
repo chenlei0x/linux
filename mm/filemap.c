@@ -880,8 +880,10 @@ static int __add_to_page_cache_locked(struct page *page,
 	do {
 		xas_lock_irq(&xas);
 		old = xas_load(&xas);
+		/*!xa_is_value 说明old 是指针*/
 		if (old && !xa_is_value(old))
 			xas_set_err(&xas, -EEXIST);
+		/*实际插入*/
 		xas_store(&xas, page);
 		if (xas_error(&xas))
 			goto unlock;
@@ -1754,6 +1756,7 @@ unsigned find_get_entries(struct address_space *mapping,
 		/* Has the page moved or been split? */
 		if (unlikely(page != xas_reload(&xas)))
 			goto put_page;
+		/*可能是个compound page*/
 		page = find_subpage(page, xas.xa_index);
 
 export:

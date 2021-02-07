@@ -596,6 +596,7 @@ void dec_node_page_state(struct page *page, enum node_stat_item item)
 }
 EXPORT_SYMBOL(dec_node_page_state);
 #else
+#if 0
 /*
  * Use interrupt disable to serialize counter updates
  */
@@ -674,6 +675,7 @@ void dec_node_page_state(struct page *page, enum node_stat_item item)
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL(dec_node_page_state);
+#endif
 #endif
 
 /*

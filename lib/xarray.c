@@ -153,6 +153,7 @@ static void xas_set_offset(struct xa_state *xas)
 static void xas_move_index(struct xa_state *xas, unsigned long offset)
 {
 	unsigned int shift = xas->xa_node->shift;
+	/*先取反再左移*/
 	xas->xa_index &= ~XA_CHUNK_MASK << shift;
 	xas->xa_index += offset << shift;
 }

@@ -449,6 +449,11 @@ static int acpi_device_install_notify_handler(struct acpi_device *device)
 						     acpi_device_fixed_event,
 						     device);
 	else
+		/*
+		* 把@acpi_device_notify 放入 acpi_gbl_global_notify
+		* 最终 acpi_ev_queue_notify_request 封装成一个 acpi_generic_state
+		* 然后进行调用这个handler
+	 	*/
 		status = acpi_install_notify_handler(device->handle,
 						     ACPI_DEVICE_NOTIFY,
 						     acpi_device_notify,

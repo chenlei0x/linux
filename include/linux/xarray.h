@@ -73,6 +73,8 @@ static inline unsigned long xa_to_value(const void *entry)
  *
  * Context: Any context.
  * Return: True if the entry is a value, false if it is a pointer.
+ *
+ * 对于指针来说,返回false
  */
 static inline bool xa_is_value(const void *entry)
 {
@@ -1342,6 +1344,8 @@ struct xa_state {
  * @index: Initial index of interest.
  *
  * Declare and initialise an xa_state on the stack.
+ *
+ * index ===> xs.xa_index
  */
 #define XA_STATE(name, array, index)				\
 	struct xa_state name = __XA_STATE(array, index, 0, 0)

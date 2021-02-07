@@ -110,6 +110,7 @@ static __always_inline enum lru_list page_off_lru(struct page *page)
  *
  * Returns the LRU list a page should be on, as an index
  * into the array of LRU lists.
+ * 获得page 对应的lru num
  */
 static __always_inline enum lru_list page_lru(struct page *page)
 {
