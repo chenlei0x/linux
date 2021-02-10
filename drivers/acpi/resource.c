@@ -68,10 +68,11 @@ static bool acpi_dev_resource_len_valid(u64 start, u64 end, u64 len, bool io)
 	return false;
 }
 
+/*产生iomem flags*/
 static void acpi_dev_memresource_flags(struct resource *res, u64 len,
 				       u8 write_protect)
 {
-	res->flags = IORESOURCE_MEM;
+	res->flags = IORESOURCE_MEM; /*iomem*/
 
 	if (!acpi_dev_resource_len_valid(res->start, res->end, len, false))
 		res->flags |= IORESOURCE_DISABLED | IORESOURCE_UNSET;
@@ -101,6 +102,9 @@ static void acpi_dev_get_memresource(struct resource *res, u64 start, u64 len,
  * 1) false with res->flags setting to zero: not the expected resource type
  * 2) false with IORESOURCE_DISABLED in res->flags: valid unassigned resource
  * 3) true: valid assigned resource
+ *
+ * acpi_resource 转为 resource
+ * resource 代表了iomem 和 ioport资源
  */
 bool acpi_dev_resource_memory(struct acpi_resource *ares, struct resource *res)
 {
@@ -139,7 +143,7 @@ EXPORT_SYMBOL_GPL(acpi_dev_resource_memory);
 static void acpi_dev_ioresource_flags(struct resource *res, u64 len,
 				      u8 io_decode, u8 translation_type)
 {
-	res->flags = IORESOURCE_IO;
+	res->flags = IORESOURCE_IO; /*io port*/
 
 	if (!acpi_dev_resource_len_valid(res->start, res->end, len, true))
 		res->flags |= IORESOURCE_DISABLED | IORESOURCE_UNSET;
@@ -174,6 +178,8 @@ static void acpi_dev_get_ioresource(struct resource *res, u64 start, u64 len,
  * 1) false with res->flags setting to zero: not the expected resource type
  * 2) false with IORESOURCE_DISABLED in res->flags: valid unassigned resource
  * 3) true: valid assigned resource
+ *
+ * acpi_resource 转为 io resource
  */
 bool acpi_dev_resource_io(struct acpi_resource *ares, struct resource *res)
 {

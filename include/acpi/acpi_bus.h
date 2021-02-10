@@ -353,7 +353,7 @@ struct acpi_gpio_mapping;
 /* Device */
 struct acpi_device {
 	int device_type;
-	acpi_handle handle;		/* no handle for fixed hardware */
+	acpi_handle handle;	/*namespace node*/	/* no handle for fixed hardware */
 	struct fwnode_handle fwnode;
 	struct acpi_device *parent;
 	struct list_head children;
@@ -373,7 +373,7 @@ struct acpi_device {
 	struct acpi_driver *driver;
 	const struct acpi_gpio_mapping *driver_gpios;
 	void *driver_data;
-	struct device dev;
+	struct device dev; /*标准device 的封装*/
 	unsigned int physical_node_count;
 	unsigned int dep_unmet;
 	struct list_head physical_node_list;

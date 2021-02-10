@@ -163,6 +163,7 @@ static inline void acpi_early_processor_osc(void) {}
 /* --------------------------------------------------------------------------
                                   Embedded Controller
    -------------------------------------------------------------------------- */
+  /*由 acpi_table_ecdt 表描述ec acpi_ec_ecdt_probe*/
 struct acpi_ec {
 	acpi_handle handle;
 	int gpe;

@@ -11,7 +11,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evsci")
+ACPI_MODULE_NAME("evsci");
 #if (!ACPI_REDUCED_HARDWARE)	/* Entire module */
 /* Local prototypes */
 static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context);
@@ -45,7 +45,10 @@ u32 acpi_ev_sci_dispatch(void)
 	flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
 
 	/* Invoke all host-installed SCI handlers */
-
+	/*
+	 * 调用所有的 sci handler
+	 * acpi_install_sci_handler 会添加这个函数
+	 */
 	sci_handler = acpi_gbl_sci_handler_list;
 	while (sci_handler) {
 
@@ -72,7 +75,11 @@ u32 acpi_ev_sci_dispatch(void)
  *              control method to call to deal with a SCI.
  *
  ******************************************************************************/
-
+/*sci 中断, 中断来了,但是不知道为啥中断,我们需要自己探测*/
+/* 
+ * @context 对应 acpi_ev_sci_xrupt_handler
+ * acpi_ev_install_sci_handler
+ */
 static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context)
 {
 	struct acpi_gpe_xrupt_info *gpe_xrupt_list = context;
@@ -88,12 +95,14 @@ static u32 ACPI_SYSTEM_XFACE acpi_ev_sci_xrupt_handler(void *context)
 	/*
 	 * Fixed Events:
 	 * Check for and dispatch any Fixed Events that have occurred
+	 * 先处理 fixed event 5.6.3 Fixed Event Handling
 	 */
 	interrupt_handled |= acpi_ev_fixed_event_detect();
 
 	/*
 	 * General Purpose Events:
 	 * Check for and dispatch any GPEs that have occurred
+	 * 再处理gpe
 	 */
 	interrupt_handled |= acpi_ev_gpe_detect(gpe_xrupt_list);
 

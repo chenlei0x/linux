@@ -61,7 +61,7 @@ typedef u32 acpi_rsdesc_size;	/* Max Resource Descriptor size is (Length+3) = (6
 /* Polarity */
 
 #define ACPI_ACTIVE_HIGH                (u8) 0x00
-#define ACPI_ACTIVE_LOW                 (u8) 0x01
+#define ACPI_ACTIVE_LOW                 (u8) 0x01 /*低电平有效*/
 #define ACPI_ACTIVE_BOTH                (u8) 0x02
 
 /* Sharing */

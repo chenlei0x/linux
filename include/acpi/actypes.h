@@ -602,6 +602,8 @@ typedef u64 acpi_integer;
 
 /*
  * Standard notify values
+ * 对应acpi spec 中的 
+ * 5.6.6 Device Object Notifications
  */
 #define ACPI_NOTIFY_BUS_CHECK           (u8) 0x00
 #define ACPI_NOTIFY_DEVICE_CHECK        (u8) 0x01
@@ -855,7 +857,7 @@ typedef u8 acpi_adr_space_type;
 #define ACPI_BITREG_PCIEXP_WAKE_STATUS          0x07
 
 /* PM1 Enable register */
-
+/*PM1 block 分为 status & enable 两部分*/
 #define ACPI_BITREG_TIMER_ENABLE                0x08
 #define ACPI_BITREG_GLOBAL_LOCK_ENABLE          0x09
 #define ACPI_BITREG_POWER_BUTTON_ENABLE         0x0A
@@ -864,6 +866,7 @@ typedef u8 acpi_adr_space_type;
 #define ACPI_BITREG_PCIEXP_WAKE_DISABLE         0x0D
 
 /* PM1 Control register */
+/*PM1 Enable Registers Fixed Hardware Feature Enable*/
 
 #define ACPI_BITREG_SCI_ENABLE                  0x0E
 #define ACPI_BITREG_BUS_MASTER_RLD              0x0F

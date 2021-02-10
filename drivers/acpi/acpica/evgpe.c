@@ -347,7 +347,7 @@ struct acpi_gpe_event_info *acpi_ev_get_gpe_event_info(acpi_handle gpe_device,
 u32 acpi_ev_gpe_detect(struct acpi_gpe_xrupt_info *gpe_xrupt_list)
 {
 	struct acpi_gpe_block_info *gpe_block;
-	struct acpi_namespace_node *gpe_device;
+	struct acpi_namespace_node *gpe_device; /*代表一个device node*/
 	struct acpi_gpe_register_info *gpe_register_info;
 	struct acpi_gpe_event_info *gpe_event_info;
 	u32 gpe_number;

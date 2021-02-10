@@ -129,6 +129,24 @@ struct bus_type {
 
 	int (*match)(struct device *dev, struct device_driver *drv);
 	int (*uevent)(struct device *dev, struct kobj_uevent_env *env);
+	/*
+	 * 比较值得关注的是match和probe，分别用于判断设备是否与总线匹配以
+	 * 及对设备进行探测。多说一下，probe虽然直译是探测，实际上干得可
+	 * 不止那一点半点的事情，它包括了设备初始化和数据定义等一堆事情。
+	 * 同时应该也注意到driver也有个probe。对，他们的职能是一样的，但是
+	 * 如果要是总线定义有probe，那么在match设备之后，如果bus的probe
+	 * 是定义的情况下，将会使用bus的probe去初始化设备，除非bus的probe
+	 * 为null没有定义的情况下，才会使用driver的probe。
+	 *
+	 * 为什么这么做呢？因为设备初始化的时候，往往需要有内存地址映射，
+	 * 将设备的缓存或者寄存器投射到内存地址空间中，如此才能通过对内存的读
+	 * 写去访问设备，而总线，例如PCI总线，它的设备众多，各映射各的会
+	 * 乱套，需要有一个掌管者去分配，它就是bus。说得多一些，即便不
+	 * 定义总线的probe，靠驱动的probe去做，也没什么，这就增大了驱动开
+	 * 发者的工作量了，同时为了避免地址冲突，也必然会增加多一个关于地址
+	 * 映射分配的公共模块，这会导致架构腐化了。除此之外，免不了的还有设
+	 * 备电源管理dev_pm_ops接口集以及内存地址映射的iommu_ops接口
+	 */
 	int (*probe)(struct device *dev);
 	void (*sync_state)(struct device *dev);
 	int (*remove)(struct device *dev);

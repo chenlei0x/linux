@@ -456,6 +456,7 @@ static void acpi_free_power_resources_lists(struct acpi_device *device)
 	if (!device->power.flags.power_resources)
 		return;
 
+	/*每个power.states 对应一个 power stat 对象， 其中包含很多resource*/
 	for (i = ACPI_STATE_D0; i <= ACPI_STATE_D3_HOT; i++) {
 		struct acpi_device_power_state *ps = &device->power.states[i];
 		acpi_power_resources_list_free(&ps->resources);

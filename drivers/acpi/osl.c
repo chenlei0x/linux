@@ -1145,6 +1145,7 @@ void acpi_os_wait_events_complete(void)
 EXPORT_SYMBOL(acpi_os_wait_events_complete);
 
 struct acpi_hp_work {
+	/* acpi_hotplug_work_fn */
 	struct work_struct work;
 	struct acpi_device *adev;
 	u32 src;

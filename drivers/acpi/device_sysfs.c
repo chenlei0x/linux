@@ -365,6 +365,8 @@ static ssize_t power_state_show(struct device *dev,
 
 static DEVICE_ATTR_RO(power_state);
 
+/*sysfs中 手动 
+echo 1 > /sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A03:00/device:16/eject*/
 static ssize_t
 acpi_eject_store(struct device *d, struct device_attribute *attr,
 		const char *buf, size_t count)

@@ -214,6 +214,7 @@ int blocking_notifier_chain_register(struct blocking_notifier_head *nh,
 		return notifier_chain_register(&nh->head, n);
 
 	down_write(&nh->rwsem);
+	/*头插*/
 	ret = notifier_chain_register(&nh->head, n);
 	up_write(&nh->rwsem);
 	return ret;
@@ -462,6 +463,7 @@ int __srcu_notifier_call_chain(struct srcu_notifier_head *nh,
 	int idx;
 
 	idx = srcu_read_lock(&nh->srcu);
+	/*逐个调用call back 最多调用@nr——calls*/
 	ret = notifier_call_chain(&nh->head, val, v, nr_to_call, nr_calls);
 	srcu_read_unlock(&nh->srcu, idx);
 	return ret;

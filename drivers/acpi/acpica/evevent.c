@@ -195,7 +195,7 @@ u32 acpi_ev_fixed_event_detect(void)
 	for (i = 0; i < ACPI_NUM_FIXED_EVENTS; i++) {
 
 		/* Both the status and enable bits must be on for this event */
-
+		/*status 和 enable 位都为1 时, 才处理这个fixed event*/
 		if ((fixed_status & acpi_gbl_fixed_event_info[i].
 		     status_bit_mask)
 		    && (fixed_enable & acpi_gbl_fixed_event_info[i].
@@ -205,12 +205,16 @@ u32 acpi_ev_fixed_event_detect(void)
 			 * handler if present.
 			 */
 			acpi_fixed_event_count[i]++;
+
+			/*acpi_install_global_event_handler 会初始化这个全局 
+			 * acpi_gbl_global_event_handler 
+			 */
 			if (acpi_gbl_global_event_handler) {
 				acpi_gbl_global_event_handler
 				    (ACPI_EVENT_TYPE_FIXED, NULL, i,
 				     acpi_gbl_global_event_handler_context);
 			}
-
+			/*调用针对这个fixed event 对应的handler*/
 			int_status |= acpi_ev_fixed_event_dispatch(i);
 		}
 	}
@@ -232,14 +236,17 @@ u32 acpi_ev_fixed_event_detect(void)
  *              disabled to prevent further interrupts.
  *
  ******************************************************************************/
-
+/*
+ * 处理fixed event
+ * 5.6.3 Fixed Event Handling
+ **/
 static u32 acpi_ev_fixed_event_dispatch(u32 event)
 {
 
 	ACPI_FUNCTION_ENTRY();
 
 	/* Clear the status bit */
-
+	/*acpi_fixed_event_handler*/
 	(void)acpi_write_bit_register(acpi_gbl_fixed_event_info[event].
 				      status_register_id, ACPI_CLEAR_STATUS);
 

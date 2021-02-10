@@ -14,7 +14,7 @@
 #include "acinterp.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nsxfeval")
+ACPI_MODULE_NAME("nsxfeval");
 
 /* Local prototypes */
 static void acpi_ns_resolve_references(struct acpi_evaluate_info *info);
@@ -138,7 +138,7 @@ exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_evaluate_object_typed)
+ACPI_EXPORT_SYMBOL(acpi_evaluate_object_typed);
 
 /*******************************************************************************
  *
@@ -447,7 +447,7 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_evaluate_object)
+ACPI_EXPORT_SYMBOL(acpi_evaluate_object);
 
 /*******************************************************************************
  *
@@ -616,7 +616,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_walk_namespace)
+ACPI_EXPORT_SYMBOL(acpi_walk_namespace);
 
 /*******************************************************************************
  *
@@ -811,7 +811,7 @@ acpi_get_devices(const char *HID,
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_devices)
+ACPI_EXPORT_SYMBOL(acpi_get_devices);
 
 /*******************************************************************************
  *
@@ -859,7 +859,7 @@ unlock_and_exit:
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_attach_data)
+ACPI_EXPORT_SYMBOL(acpi_attach_data);
 
 /*******************************************************************************
  *
@@ -905,7 +905,7 @@ unlock_and_exit:
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_detach_data)
+ACPI_EXPORT_SYMBOL(acpi_detach_data);
 
 /*******************************************************************************
  *
@@ -922,6 +922,7 @@ ACPI_EXPORT_SYMBOL(acpi_detach_data)
  *              and execute a callback before returning.
  *
  ******************************************************************************/
+ /*拿到@handler 对应的obj 中的data*/
 acpi_status
 acpi_get_data_full(acpi_handle obj_handle, acpi_object_handler handler,
 		   void **data, void (*callback)(void *))
@@ -958,7 +959,7 @@ unlock_and_exit:
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_data_full)
+ACPI_EXPORT_SYMBOL(acpi_get_data_full);
 
 /*******************************************************************************
  *

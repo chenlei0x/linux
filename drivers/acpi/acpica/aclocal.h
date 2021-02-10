@@ -457,6 +457,9 @@ struct acpi_gpe_event_info {
 /* Information about a GPE register pair, one per each status/enable pair in an array */
 
 struct acpi_gpe_register_info {
+	/*下面两个地址 其实是连续的
+     * acpi_ev_create_gpe_info_blocks
+     */
 	struct acpi_generic_address status_address;	/* Address of status reg */
 	struct acpi_generic_address enable_address;	/* Address of enable reg */
 	u16 base_gpe_number;	/* Base GPE number for this register */
@@ -469,6 +472,43 @@ struct acpi_gpe_register_info {
 /*
  * Information about a GPE register block, one per each installed block --
  * GPE0, GPE1, and one per each installed GPE Block Device.
+ * 代表一个GPE register block, status + enable
+ * 实验室机器 block 长度为 16B
+ * 同时 DSDT 表中有GPE 的相关信息
+ *
+ * 
+ Scope (\_GPE)
+ {
+	 Method (_L03, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+		 Notify (\_SB.PCI0.UHC1, 0x02) // Device Wake
+	 }
+ 
+	 Method (_L04, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+		 Notify (\_SB.PCI0.UHC2, 0x02) // Device Wake
+	 }
+ 
+	 Method (_L05, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+		 Notify (\_SB.PCI0.UHC5, 0x02) // Device Wake
+	 }
+ 
+	 Method (_L09, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+	 }
+ 
+	 Method (_L0B, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+		 Notify (\_SB.PCI0.IP2P, 0x02) // Device Wake
+	 }
+ 
+	 Method (_L0C, 0, NotSerialized)  // _Lxx: Level-Triggered GPE
+	 {
+		 Notify (\_SB.PCI0.UHC3, 0x02) // Device Wake
+	 }
+}
+ * 
  */
 struct acpi_gpe_block_info {
 	struct acpi_namespace_node *node;
@@ -478,6 +518,9 @@ struct acpi_gpe_block_info {
 	struct acpi_gpe_register_info *register_info;	/* One per GPE register pair */
 	struct acpi_gpe_event_info *event_info;	/* One for each GPE */
 	u64 address;		/* Base address of the block */
+	/*acpi_ev_create_gpe_block的参数
+	 * = acpi_gbl_FADT.gpe0_block_length / 2 (实验室机器中 = 16/2 = 8)
+	 */
 	u32 register_count;	/* Number of register pairs in block */
 	u16 gpe_count;		/* Number of individual GPEs in block */
 	u16 block_base_number;	/* Base GPE number for this block */

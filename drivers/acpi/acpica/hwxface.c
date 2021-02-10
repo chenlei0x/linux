@@ -14,7 +14,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_HARDWARE
-ACPI_MODULE_NAME("hwxface")
+ACPI_MODULE_NAME("hwxface");
 
 /******************************************************************************
  *
@@ -69,7 +69,7 @@ acpi_status acpi_reset(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_reset)
+ACPI_EXPORT_SYMBOL(acpi_reset);
 
 /******************************************************************************
  *
@@ -99,7 +99,7 @@ acpi_status acpi_read(u64 *return_value, struct acpi_generic_address *reg)
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_read)
+ACPI_EXPORT_SYMBOL(acpi_read);
 
 /******************************************************************************
  *
@@ -123,7 +123,7 @@ acpi_status acpi_write(u64 value, struct acpi_generic_address *reg)
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_write)
+ACPI_EXPORT_SYMBOL(acpi_write);
 
 #if (!ACPI_REDUCED_HARDWARE)
 /*******************************************************************************
@@ -188,7 +188,7 @@ acpi_status acpi_read_bit_register(u32 register_id, u32 *return_value)
 	return_ACPI_STATUS(AE_OK);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_read_bit_register)
+ACPI_EXPORT_SYMBOL(acpi_read_bit_register);
 
 /*******************************************************************************
  *
@@ -292,7 +292,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_write_bit_register)
+ACPI_EXPORT_SYMBOL(acpi_write_bit_register);
 #endif				/* !ACPI_REDUCED_HARDWARE */
 /*******************************************************************************
  *
@@ -445,4 +445,4 @@ final_cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_sleep_type_data)
+ACPI_EXPORT_SYMBOL(acpi_get_sleep_type_data);

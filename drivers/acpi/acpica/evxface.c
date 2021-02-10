@@ -16,7 +16,7 @@
 #include "acinterp.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evxface")
+ACPI_MODULE_NAME("evxface");
 #if (!ACPI_REDUCED_HARDWARE)
 /* Local prototypes */
 static acpi_status
@@ -189,7 +189,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_notify_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_notify_handler);
 
 /*******************************************************************************
  *
@@ -328,7 +328,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_notify_handler)
+ACPI_EXPORT_SYMBOL(acpi_remove_notify_handler);
 
 /*******************************************************************************
  *
@@ -370,7 +370,7 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_exception_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_exception_handler);
 #endif
 
 #if (!ACPI_REDUCED_HARDWARE)
@@ -447,7 +447,7 @@ exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_sci_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_sci_handler);
 
 /*******************************************************************************
  *
@@ -513,7 +513,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_sci_handler)
+ACPI_EXPORT_SYMBOL(acpi_remove_sci_handler);
 
 /*******************************************************************************
  *
@@ -549,7 +549,7 @@ acpi_install_global_event_handler(acpi_gbl_event_handler handler, void *context)
 	}
 
 	/* Don't allow two handlers. */
-
+	/*只能被加载一次*/
 	if (acpi_gbl_global_event_handler) {
 		status = AE_ALREADY_EXISTS;
 		goto cleanup;
@@ -563,7 +563,7 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_global_event_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_global_event_handler);
 
 /*******************************************************************************
  *
@@ -635,7 +635,7 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_fixed_event_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_fixed_event_handler);
 
 /*******************************************************************************
  *
@@ -851,7 +851,7 @@ acpi_install_gpe_handler(acpi_handle gpe_device,
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_gpe_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_gpe_handler);
 
 /*******************************************************************************
  *
@@ -885,7 +885,7 @@ acpi_install_gpe_raw_handler(acpi_handle gpe_device,
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_gpe_raw_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_gpe_raw_handler);
 
 /*******************************************************************************
  *
@@ -1002,7 +1002,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_gpe_handler)
+ACPI_EXPORT_SYMBOL(acpi_remove_gpe_handler);
 
 /*******************************************************************************
  *
@@ -1050,7 +1050,7 @@ acpi_status acpi_acquire_global_lock(u16 timeout, u32 *handle)
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_acquire_global_lock)
+ACPI_EXPORT_SYMBOL(acpi_acquire_global_lock);
 
 /*******************************************************************************
  *
@@ -1075,5 +1075,5 @@ acpi_status acpi_release_global_lock(u32 handle)
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_release_global_lock)
+ACPI_EXPORT_SYMBOL(acpi_release_global_lock);
 #endif				/* !ACPI_REDUCED_HARDWARE */

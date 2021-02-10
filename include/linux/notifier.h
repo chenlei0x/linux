@@ -113,6 +113,7 @@ extern void srcu_init_notifier_head(struct srcu_notifier_head *nh);
 #define ATOMIC_NOTIFIER_HEAD(name)				\
 	struct atomic_notifier_head name =			\
 		ATOMIC_NOTIFIER_INIT(name)
+/*一个call back list*/
 #define BLOCKING_NOTIFIER_HEAD(name)				\
 	struct blocking_notifier_head name =			\
 		BLOCKING_NOTIFIER_INIT(name)

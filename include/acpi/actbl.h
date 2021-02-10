@@ -220,7 +220,7 @@ struct acpi_table_fadt {
 	u8 pm1_control_length;	/* Byte Length of ports at pm1x_control_block */
 	u8 pm2_control_length;	/* Byte Length of ports at pm2_control_block */
 	u8 pm_timer_length;	/* Byte Length of ports at pm_timer_block */
-	u8 gpe0_block_length;	/* Byte Length of ports at gpe0_block */
+	u8 gpe0_block_length;	/* Byte Length of ports at gpe0_block */ /*实验机器得出16B*/
 	u8 gpe1_block_length;	/* Byte Length of ports at gpe1_block */
 	u8 gpe1_base;		/* Offset in GPE number space where GPE1 events start */
 	u8 cst_control;		/* Support for the _CST object and C-States change notification */

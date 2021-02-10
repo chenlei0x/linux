@@ -226,6 +226,10 @@ acpi_ev_create_gpe_info_blocks(struct acpi_gpe_block_info *gpe_block)
 		    (gpe_block->block_base_number +
 		     (i * ACPI_GPE_REGISTER_WIDTH));
 
+		/*共同组成一个gpe_block*/
+		/*Si Ei 都占用一个B   = ACPI_GPE_REGISTER_WIDTH*/
+		/*| S0 | S2 | S3 | ... | S7 | E0 | E1 ...| E7| */
+		/* this_register 代表 Si Ei*/
 		this_register->status_address.address = gpe_block->address + i;
 
 		this_register->enable_address.address =

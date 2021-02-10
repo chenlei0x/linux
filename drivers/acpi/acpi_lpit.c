@@ -145,6 +145,7 @@ static void lpit_process(u64 begin, u64 end)
 	}
 }
 
+/*LPIT 表*/
 void acpi_init_lpit(void)
 {
 	acpi_status status;

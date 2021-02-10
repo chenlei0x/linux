@@ -338,13 +338,14 @@ acpi_ns_attach_data(struct acpi_namespace_node *node,
 		return (AE_NO_MEMORY);
 	}
 
+	/*data 和 handler 组成一个descriptor 插入到链表中*/
 	data_desc->data.handler = handler;
 	data_desc->data.pointer = data;
 
 	/* Install the data object */
 
 	if (prev_obj_desc) {
-		prev_obj_desc->common.next_object = data_desc;
+		prev_obj_desc->common.next_object = data_desc; /**/
 	} else {
 		node->object = data_desc;
 	}
@@ -410,7 +411,7 @@ acpi_ns_detach_data(struct acpi_namespace_node *node,
  *              a namespace node.
  *
  ******************************************************************************/
-
+/*@handler 是 object 的身份标志*/
 acpi_status
 acpi_ns_get_attached_data(struct acpi_namespace_node *node,
 			  acpi_object_handler handler, void **data)

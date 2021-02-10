@@ -96,7 +96,7 @@ const struct acpi_predefined_names acpi_gbl_pre_defined_names[] = {
  * Event and Hardware globals
  *
  ******************************************************************************/
-
+/* PM1 Status Registers Fixed Hardware Feature Status */
 struct acpi_bit_register_info acpi_gbl_bit_register_info[ACPI_NUM_BITREG] = {
 	/* Name                                     Parent Register             Register Bit Position                   Register Bit Mask       */
 
@@ -165,6 +165,7 @@ struct acpi_bit_register_info acpi_gbl_bit_register_info[ACPI_NUM_BITREG] = {
 						ACPI_BITMASK_ARB_DISABLE}
 };
 
+/*PM1 Enable Registers Fixed Hardware Feature Enable*/
 struct acpi_fixed_event_info acpi_gbl_fixed_event_info[ACPI_NUM_FIXED_EVENTS] = {
 	/* ACPI_EVENT_PMTIMER       */ {ACPI_BITREG_TIMER_STATUS,
 					ACPI_BITREG_TIMER_ENABLE,
@@ -174,7 +175,7 @@ struct acpi_fixed_event_info acpi_gbl_fixed_event_info[ACPI_NUM_FIXED_EVENTS] = 
 					ACPI_BITREG_GLOBAL_LOCK_ENABLE,
 					ACPI_BITMASK_GLOBAL_LOCK_STATUS,
 					ACPI_BITMASK_GLOBAL_LOCK_ENABLE},
-	/* ACPI_EVENT_POWER_BUTTON  */ {ACPI_BITREG_POWER_BUTTON_STATUS,
+	/* ACPI_EVENT_POWER_BUTTON  */ {ACPI_BITREG_POWER_BUTTON_STATUS, /*PWRBTN_STS*/
 					ACPI_BITREG_POWER_BUTTON_ENABLE,
 					ACPI_BITMASK_POWER_BUTTON_STATUS,
 					ACPI_BITMASK_POWER_BUTTON_ENABLE},
