@@ -14,7 +14,7 @@
 #include "actables.h"
 
 #define _COMPONENT          ACPI_TABLES
-ACPI_MODULE_NAME("tbxface")
+ACPI_MODULE_NAME("tbxface");
 
 /*******************************************************************************
  *
@@ -114,7 +114,7 @@ acpi_initialize_tables(struct acpi_table_desc *initial_table_array,
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_tables)
+ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_tables);
 
 /*******************************************************************************
  *
@@ -194,7 +194,7 @@ acpi_status ACPI_INIT_FUNCTION acpi_reallocate_root_table(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_reallocate_root_table)
+ACPI_EXPORT_SYMBOL_INIT(acpi_reallocate_root_table);
 
 /*******************************************************************************
  *
@@ -272,7 +272,7 @@ acpi_get_table_header(char *signature,
 	return (AE_NOT_FOUND);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_table_header)
+ACPI_EXPORT_SYMBOL(acpi_get_table_header);
 
 /*******************************************************************************
  *
@@ -339,7 +339,7 @@ acpi_get_table(char *signature,
 	return (status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_table)
+ACPI_EXPORT_SYMBOL(acpi_get_table);
 
 /*******************************************************************************
  *
@@ -386,7 +386,7 @@ void acpi_put_table(struct acpi_table_header *table)
 	return_VOID;
 }
 
-ACPI_EXPORT_SYMBOL(acpi_put_table)
+ACPI_EXPORT_SYMBOL(acpi_put_table);
 
 /*******************************************************************************
  *
@@ -439,7 +439,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_table_by_index)
+ACPI_EXPORT_SYMBOL(acpi_get_table_by_index);
 
 /*******************************************************************************
  *
@@ -486,7 +486,7 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_table_handler)
+ACPI_EXPORT_SYMBOL(acpi_install_table_handler);
 
 /*******************************************************************************
  *
@@ -527,4 +527,4 @@ cleanup:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_table_handler)
+ACPI_EXPORT_SYMBOL(acpi_remove_table_handler);

@@ -182,6 +182,7 @@ struct acpi_object_method {
 /* COMMON NOTIFY for POWER, PROCESSOR, DEVICE, and THERMAL */
 
 struct acpi_object_notify_common {
+/*notify_list 由 acpi_install_notify_handler 创建*/
 ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_NOTIFY_INFO};
 
 struct acpi_object_device {

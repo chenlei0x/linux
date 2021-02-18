@@ -333,6 +333,7 @@ static int pciehp_runtime_resume(struct pcie_device *dev)
 }
 #endif /* PM */
 
+/*内嵌 struct device_driver driver*/
 static struct pcie_port_service_driver hpdriver_portdrv = {
 	.name		= "pciehp",
 	.port_type	= PCIE_ANY_PORT,

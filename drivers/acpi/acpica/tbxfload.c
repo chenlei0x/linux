@@ -16,7 +16,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_TABLES
-ACPI_MODULE_NAME("tbxfload")
+ACPI_MODULE_NAME("tbxfload");
 
 /*******************************************************************************
  *
@@ -84,7 +84,7 @@ acpi_status ACPI_INIT_FUNCTION acpi_load_tables(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_load_tables)
+ACPI_EXPORT_SYMBOL_INIT(acpi_load_tables);
 
 /*******************************************************************************
  *
@@ -137,6 +137,7 @@ acpi_status acpi_tb_load_namespace(void)
 	 * mapping it.) There are some BIOSs that corrupt or replace the original
 	 * DSDT, creating the need for this option. Default is FALSE, do not copy
 	 * the DSDT.
+	 * 拷贝一份dsdt 表?
 	 */
 	if (acpi_gbl_copy_dsdt_locally) {
 		new_dsdt = acpi_tb_copy_dsdt(acpi_gbl_dsdt_index);
@@ -260,7 +261,7 @@ acpi_install_table(acpi_physical_address address, u8 physical)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_install_table)
+ACPI_EXPORT_SYMBOL_INIT(acpi_install_table);
 
 /*******************************************************************************
  *
@@ -313,7 +314,7 @@ acpi_status acpi_load_table(struct acpi_table_header *table, u32 *table_idx)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_load_table)
+ACPI_EXPORT_SYMBOL(acpi_load_table);
 
 /*******************************************************************************
  *
@@ -395,7 +396,7 @@ acpi_status acpi_unload_parent_table(acpi_handle object)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_unload_parent_table)
+ACPI_EXPORT_SYMBOL(acpi_unload_parent_table);
 /*******************************************************************************
  *
  * FUNCTION:    acpi_unload_table
@@ -427,4 +428,4 @@ acpi_status acpi_unload_table(u32 table_index)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_unload_table)
+ACPI_EXPORT_SYMBOL(acpi_unload_table);

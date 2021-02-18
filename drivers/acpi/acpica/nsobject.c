@@ -11,7 +11,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nsobject")
+ACPI_MODULE_NAME("nsobject");
 
 /*******************************************************************************
  *
@@ -123,7 +123,7 @@ acpi_ns_attach_object(struct acpi_namespace_node *node,
 	if (node->object) {
 		acpi_ns_detach_object(node);
 	}
-
+	/*头插 这里是不是有点问题?*/
 	if (obj_desc) {
 		/*
 		 * Must increment the new value's reference count
@@ -242,10 +242,9 @@ void acpi_ns_detach_object(struct acpi_namespace_node *node)
  * DESCRIPTION: Obtain the object attached to a namespace node.
  *
  ******************************************************************************/
-
+/*一个node 含有多个obj 对于dev 这类 一个node 就只含有一个obj*/
 union acpi_operand_object *acpi_ns_get_attached_object(struct
-						       acpi_namespace_node
-						       *node)
+						       acpi_namespace_node *node)
 {
 	ACPI_FUNCTION_TRACE_PTR(ns_get_attached_object, node);
 

@@ -855,6 +855,11 @@ static void clocksource_enqueue(struct clocksource *cs)
  * __clocksource_update_freq_hz() or __clocksource_update_freq_khz() helper
  * functions.
  */
+ /*
+确定 shift and mult 参数
+
+
+*/
 void __clocksource_update_freq_scale(struct clocksource *cs, u32 scale, u32 freq)
 {
 	u64 sec;

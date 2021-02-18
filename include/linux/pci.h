@@ -295,7 +295,10 @@ struct pci_dev {
 	void		*sysdata;	/* Hook for sys-specific extension */
 	struct proc_dir_entry *procent;	/* Device entry in /proc/bus/pci */
 	struct pci_slot	*slot;		/* Physical slot this device is in */
-
+	
+	/*PCI_SLOT(dev->devfn) == slot->number
+	* pci_create_slot
+	*/
 	unsigned int	devfn;		/* Encoded device & function index */
 	unsigned short	vendor;
 	unsigned short	device;
@@ -568,6 +571,7 @@ struct pci_bus_resource {
 
 #define PCI_REGION_FLAG_MASK	0x0fU	/* These bits of resource flags tell us the PCI region flags */
 
+/*这个结构体实际上是一个device 的封装*/
 struct pci_bus {
 	struct list_head node;		/* Node in list of buses */
 	struct pci_bus	*parent;	/* Parent bus this bridge is on */
@@ -824,6 +828,7 @@ struct module;
 struct pci_driver {
 	struct list_head	node;
 	const char		*name;
+	/*该驱动能够识别的pci device, 必须以全0结尾
 	const struct pci_device_id *id_table;	/* Must be non-NULL for probe to be called */
 	/* 
 	 * 这个probe 函数会被pci_device_probe 调用, 

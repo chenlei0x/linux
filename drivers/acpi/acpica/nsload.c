@@ -15,7 +15,7 @@
 #include "acinterp.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nsload")
+ACPI_MODULE_NAME("nsload");
 
 /* Local prototypes */
 #ifdef ACPI_FUTURE_IMPLEMENTATION

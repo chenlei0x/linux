@@ -1059,6 +1059,7 @@ add_dev:
 	return child;
 }
 
+/*创建子总线*/
 struct pci_bus *pci_add_new_bus(struct pci_bus *parent, struct pci_dev *dev,
 				int busnr)
 {

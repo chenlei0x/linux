@@ -14,7 +14,7 @@
 #include "actables.h"
 
 #define _COMPONENT          ACPI_UTILITIES
-ACPI_MODULE_NAME("utinit")
+ACPI_MODULE_NAME("utinit");
 
 /* Local prototypes */
 static void acpi_ut_terminate(void);

@@ -1957,6 +1957,15 @@ const void *free_nmi(unsigned int irq, void *dev_id)
  *	IRQF_TRIGGER_*		Specify active edge(s) or level
  *
  */
+ /*
+IRQF_SHARED 共享中断时，dev_id不能为空，因为释放irq时要区分哪个共享中断
+irq：中断号
+handler：发生中断时首先要执行的硬中断处理函数，这个函数可以通过返回 IRQ_WAKE_THREADED唤醒中断线程，也可
+返回IRQ_HANDLE不执行中断线程
+thread_fn : 中断线程，类似于中断下半部
+后三个参数与request_irq中的一致
+
+*/
 int request_threaded_irq(unsigned int irq, irq_handler_t handler,
 			 irq_handler_t thread_fn, unsigned long irqflags,
 			 const char *devname, void *dev_id)

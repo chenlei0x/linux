@@ -335,6 +335,18 @@ bool tick_check_replacement(struct clock_event_device *curdev,
  * Check, if the new registered device should be used. Called with
  * clockevents_lock held and interrupts disabled.
  */
+ /*
+如上代码所示，新注册一个事钟设备时都会对其进行检测，以判断其是否适合作
+为本地tick设备(由struct tick_device定义，它是对struct clock_event_devi
+ce的封装)。如果新的设备适合作本地tick设备，
+那将替换原有的tcik设备(如果在存的话)。被替换的老设备将有机会重新加入全
+局clockevent_devices链表并进行检测，此时的检测主要是判定它是否适合作为
+广播(broadcast)设备。广播设备的作用是为了当某些本地tick设备随CPU进入节
+电状态而停止工作时，
+能够再次发生中断以唤醒进入节电状态的CPU继续进行工作。这种情况下本地tick
+设备是无能为力的，因为它也随CPU进入睡眠状态了。这里我们只需要理解广播
+设备的作用，不用太深挖其内部实现细节：
+*/
 void tick_check_new_device(struct clock_event_device *newdev)
 {
 	struct clock_event_device *curdev;

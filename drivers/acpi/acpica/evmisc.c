@@ -13,7 +13,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evmisc")
+ACPI_MODULE_NAME("evmisc");
 
 /* Local prototypes */
 static void ACPI_SYSTEM_XFACE acpi_ev_notify_dispatch(void *context);

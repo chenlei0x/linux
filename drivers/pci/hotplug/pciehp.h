@@ -81,6 +81,7 @@ extern int pciehp_poll_time;
  * unlike other drivers, the two aren't represented by separate structures.
  */
 struct controller {
+/*pcie_port_service_driver 的一种, 见 pcie_init*/
 	struct pcie_device *pcie;
 
 	u32 slot_cap;				/* capabilities and quirks */

@@ -46,7 +46,7 @@ enum timekeeping_adv_mode {
 static struct {
 	seqcount_t		seq;
 	struct timekeeper	timekeeper;
-} tk_core ____cacheline_aligned = {
+} tk_core  = {
 	.seq = SEQCNT_ZERO(tk_core.seq),
 };
 

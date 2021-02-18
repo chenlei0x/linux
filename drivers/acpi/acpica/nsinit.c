@@ -15,7 +15,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nsinit")
+ACPI_MODULE_NAME("nsinit");
 
 /* Local prototypes */
 static acpi_status

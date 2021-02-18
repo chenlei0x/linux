@@ -14,7 +14,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_TABLES
-ACPI_MODULE_NAME("tbdata")
+ACPI_MODULE_NAME("tbdata");
 
 /* Local prototypes */
 static acpi_status
@@ -860,6 +860,7 @@ u8 acpi_tb_is_table_loaded(u32 table_index)
 {
 	u8 is_loaded = FALSE;
 
+	/*struct acpi_table_list  acpi_gbl_root_table_list 所有的acpi 表都在这里*/
 	(void)acpi_ut_acquire_mutex(ACPI_MTX_TABLES);
 	if (table_index < acpi_gbl_root_table_list.current_table_count) {
 		is_loaded = (u8)

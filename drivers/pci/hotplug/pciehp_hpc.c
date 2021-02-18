@@ -522,6 +522,7 @@ void pciehp_power_off_slot(struct controller *ctrl)
 		 PCI_EXP_SLTCTL_PWR_OFF);
 }
 
+/*上半部分,在中断上下文中*/
 static irqreturn_t pciehp_isr(int irq, void *dev_id)
 {
 	struct controller *ctrl = (struct controller *)dev_id;
@@ -611,6 +612,7 @@ static irqreturn_t pciehp_isr(int irq, void *dev_id)
 	return IRQ_WAKE_THREAD;
 }
 
+/*在线程上下文部分*/
 static irqreturn_t pciehp_ist(int irq, void *dev_id)
 {
 	struct controller *ctrl = (struct controller *)dev_id;

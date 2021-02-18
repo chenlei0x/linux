@@ -86,6 +86,8 @@ static DEFINE_MUTEX(acpi_ioapic_lock);
 /*
  * The default interrupt routing model is PIC (8259).  This gets
  * overridden if IOAPICs are enumerated (below).
+ *
+ * acpi_boot_init ==> acpi_process_madt 中会把他设置为 ACPI_IRQ_MODEL_IOAPIC
  */
 enum acpi_irq_model_id acpi_irq_model = ACPI_IRQ_MODEL_PIC;
 

@@ -12,7 +12,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evgpeutil")
+ACPI_MODULE_NAME("evgpeutil");
 
 #if (!ACPI_REDUCED_HARDWARE)	/* Entire module */
 /*******************************************************************************

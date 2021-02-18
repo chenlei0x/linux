@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
+/ SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: dsinit - Object initialization namespace walk
@@ -15,7 +15,7 @@
 #include "acinterp.h"
 
 #define _COMPONENT          ACPI_DISPATCHER
-ACPI_MODULE_NAME("dsinit")
+ACPI_MODULE_NAME("dsinit");
 
 /* Local prototypes */
 static acpi_status

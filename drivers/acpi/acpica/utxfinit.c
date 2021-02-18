@@ -17,7 +17,7 @@
 #include "actables.h"
 
 #define _COMPONENT          ACPI_UTILITIES
-ACPI_MODULE_NAME("utxfinit")
+ACPI_MODULE_NAME("utxfinit");
 
 /* For acpi_exec only */
 void ae_do_object_overrides(void);
@@ -93,7 +93,7 @@ acpi_status ACPI_INIT_FUNCTION acpi_initialize_subsystem(void)
 	return_ACPI_STATUS(AE_OK);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_subsystem)
+ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_subsystem);
 
 /*******************************************************************************
  *
@@ -191,7 +191,7 @@ acpi_status ACPI_INIT_FUNCTION acpi_enable_subsystem(u32 flags)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_enable_subsystem)
+ACPI_EXPORT_SYMBOL_INIT(acpi_enable_subsystem);
 
 /*******************************************************************************
  *
@@ -253,4 +253,4 @@ acpi_status ACPI_INIT_FUNCTION acpi_initialize_objects(u32 flags)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_objects)
+ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_objects);

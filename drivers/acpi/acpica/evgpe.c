@@ -495,6 +495,7 @@ static void ACPI_SYSTEM_XFACE acpi_ev_asynch_execute_gpe_method(void *context)
 		if (!info) {
 			status = AE_NO_MEMORY;
 		} else {
+			/*执行_Lxx 或者 _Exx方法*/
 			/*
 			 * Invoke the GPE Method (_Lxx, _Exx) i.e., evaluate the
 			 * _Lxx/_Exx control method that corresponds to this GPE
@@ -510,9 +511,7 @@ static void ACPI_SYSTEM_XFACE acpi_ev_asynch_execute_gpe_method(void *context)
 		if (ACPI_FAILURE(status)) {
 			ACPI_EXCEPTION((AE_INFO, status,
 					"while evaluating GPE method [%4.4s]",
-					acpi_ut_get_node_name(gpe_event_info->
-							      dispatch.
-							      method_node)));
+					acpi_ut_get_node_name(gpe_event_info->dispatch.method_node)));
 		}
 		break;
 
@@ -651,7 +650,7 @@ acpi_ev_detect_gpe(struct acpi_namespace_node *gpe_device,
 	gpe_register_info = gpe_event_info->register_info;
 
 	/* Get the register bitmask for this GPE */
-
+	/*该@gpe_event_info 所代表的gpe 在该gpe block中的bit index*/
 	register_bit = acpi_hw_get_gpe_register_bit(gpe_event_info);
 
 	/* GPE currently enabled (enable bit == 1)? */
@@ -679,13 +678,14 @@ acpi_ev_detect_gpe(struct acpi_namespace_node *gpe_device,
 			  gpe_register_info->enable_for_run,
 			  gpe_register_info->enable_for_wake));
 
+	/*status bit 和 enable bit 都需要为1*/
 	enabled_status_byte = (u8)(status_reg & enable_reg);
 	if (!(enabled_status_byte & register_bit)) {
 		goto error_exit;
 	}
 
 	/* Invoke global event handler if present */
-
+	/*全局handler, 任何一个gpe 都需要调用这个handler*/
 	acpi_gpe_count++;
 	if (acpi_gbl_global_event_handler) {
 		acpi_gbl_global_event_handler(ACPI_EVENT_TYPE_GPE,
@@ -695,6 +695,10 @@ acpi_ev_detect_gpe(struct acpi_namespace_node *gpe_device,
 
 	/* Found an active GPE */
 
+	/*
+	 * acpi_install_gpe_handler
+	 * acpi_install_gpe_raw_handler
+	 */
 	if (ACPI_GPE_DISPATCH_TYPE(gpe_event_info->flags) ==
 	    ACPI_GPE_DISPATCH_RAW_HANDLER) {
 

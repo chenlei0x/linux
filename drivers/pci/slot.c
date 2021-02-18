@@ -257,6 +257,9 @@ static struct pci_slot *get_slot(struct pci_bus *parent, int slot_nr)
  * consist solely of a dddd:bb tuple, where dddd is the PCI domain of the
  * %struct pci_bus and bb is the bus number. In other words, the devfn of
  * the 'placeholder' slot will not be displayed.
+ *
+ * 对 @parent pci_bus 创建pci slot 
+ * pci_bus 就是pci中的总线
  */
 struct pci_slot *pci_create_slot(struct pci_bus *parent, int slot_nr,
 				 const char *name,

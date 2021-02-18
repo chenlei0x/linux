@@ -333,6 +333,7 @@ union acpi_name_union {
 
 struct acpi_table_desc {
 	acpi_physical_address address;
+	/*虚拟内存地址 可以直接访问的*/
 	struct acpi_table_header *pointer;
 	u32 length;		/* Length fixed at 32 bits (fixed in table header) */
 	union acpi_name_union signature;

@@ -350,6 +350,7 @@ int pcie_port_device_register(struct pci_dev *dev)
 		int service = 1 << i;
 		if (!(capabilities & service))
 			continue;
+		/*这里又会创建子设备 */
 		if (!pcie_device_init(dev, service, irqs[i]))
 			nr_service++;
 	}

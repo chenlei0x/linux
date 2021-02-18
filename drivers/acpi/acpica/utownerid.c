@@ -10,7 +10,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_UTILITIES
-ACPI_MODULE_NAME("utownerid")
+ACPI_MODULE_NAME("utownerid");
 
 /*******************************************************************************
  *

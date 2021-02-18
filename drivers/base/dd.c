@@ -522,6 +522,7 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 	}
 
 re_probe:
+	/*pci_bus_type->probe 函数会用这个driver 探测dev */
 	dev->driver = drv;
 
 	/* If using pinctrl, bind pins now before probing */
@@ -872,7 +873,7 @@ static int __device_attach(struct device *dev, bool allow_async)
 	int ret = 0;
 
 	device_lock(dev);
-	if (dev->driver) {
+	if (dev->driver) {/*已经绑定?*/
 		if (device_is_bound(dev)) {
 			ret = 1;
 			goto out_unlock;
@@ -932,6 +933,8 @@ out_unlock:
  * -ENODEV if the device is not registered.
  *
  * When called for a USB interface, @dev->parent lock must be held.
+ *
+ * driver 和 device 进行绑定
  */
 int device_attach(struct device *dev)
 {

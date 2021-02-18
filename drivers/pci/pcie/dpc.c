@@ -283,6 +283,7 @@ static irqreturn_t dpc_irq(int irq, void *context)
 }
 
 #define FLAG(x, y) (((x) & (y)) ? '+' : '-')
+/*pcie_port_probe_service 调用*/
 static int dpc_probe(struct pcie_device *dev)
 {
 	struct dpc_dev *dpc;

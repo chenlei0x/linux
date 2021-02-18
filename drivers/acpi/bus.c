@@ -338,6 +338,9 @@ static void acpi_bus_osc_support(void)
  * acpi_bus_notify
  * ---------------
  * Callback for all 'system-level' device notifications (values 0x00-0x7F).
+ *
+ * 对应acpi spec 中的 
+ * 5.6.6 Device Object Notifications
  */
 static void acpi_bus_notify(acpi_handle handle, u32 type, void *data)
 {
@@ -1000,7 +1003,13 @@ static int __init acpi_bus_init_irq(void)
 	}
 
 	printk(KERN_INFO PREFIX "Using %s for interrupt routing\n", message);
-
+	/*写入 pic model
+	Name (\PICM, Zero)
+	Method (\_PIC, 1, NotSerialized)  // _PIC: Interrupt Model
+    {
+        \PICM = Arg0
+    }
+	 */
 	status = acpi_execute_simple_method(NULL, "\\_PIC", acpi_irq_model);
 	if (ACPI_FAILURE(status) && (status != AE_NOT_FOUND)) {
 		ACPI_EXCEPTION((AE_INFO, status, "Evaluating _PIC"));
@@ -1193,6 +1202,8 @@ static int __init acpi_bus_init(void)
 
 	/*
 	 * Get the system interrupt model and evaluate \_PIC.
+	 *
+	 * 调用\_PIC 方法写入irq model
 	 */
 	result = acpi_bus_init_irq();
 	if (result)
@@ -1200,6 +1211,9 @@ static int __init acpi_bus_init(void)
 
 	/*
 	 * Register the for all standard device notifications.
+	 *
+	 * 这个函数 对于任何一个Notify asl 语句都会监听到
+	 * 见 acpi_ev_notify_dispatch
 	 */
 	status =
 	    acpi_install_notify_handler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
@@ -1215,6 +1229,7 @@ static int __init acpi_bus_init(void)
 	 */
 	acpi_root_dir = proc_mkdir(ACPI_BUS_FILE_ROOT, NULL);
 
+	/*@acpi_bus_type 是一个标准的 bus_type 对象*/
 	result = bus_register(&acpi_bus_type);
 	if (!result)
 		return 0;

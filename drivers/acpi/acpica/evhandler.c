@@ -75,8 +75,7 @@ acpi_status acpi_ev_install_region_handlers(void)
 	 */
 	for (i = 0; i < ACPI_NUM_DEFAULT_SPACES; i++) {
 		status = acpi_ev_install_space_handler(acpi_gbl_root_node,
-						       acpi_gbl_default_address_spaces
-						       [i],
+						       acpi_gbl_default_address_spaces[i],
 						       ACPI_DEFAULT_HANDLER,
 						       NULL, NULL);
 		switch (status) {

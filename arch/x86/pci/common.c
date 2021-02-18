@@ -512,6 +512,7 @@ int __init pcibios_init(void)
 	return 0;
 }
 
+/*process "pci=" kernel boot arguments*/
 char *__init pcibios_setup(char *str)
 {
 	if (!strcmp(str, "off")) {

@@ -16,7 +16,7 @@
 #include "acinterp.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nsparse")
+ACPI_MODULE_NAME("nsparse");
 
 /*******************************************************************************
  *
@@ -53,6 +53,7 @@ acpi_ns_execute_table(u32 table_index, struct acpi_namespace_node *start_node)
 
 	ACPI_FUNCTION_TRACE(ns_execute_table);
 
+	/*table index ==> table 虚拟内存地址*/
 	status = acpi_get_table_by_index(table_index, &table);
 	if (ACPI_FAILURE(status)) {
 		return_ACPI_STATUS(status);

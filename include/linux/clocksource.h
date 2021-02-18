@@ -79,9 +79,27 @@ struct module;
  */
 struct clocksource {
 	u64 (*read)(struct clocksource *cs);
+	/*
+	时钟源的计数值用类型cycle_t表示，该类型其实就是无符号64位数。但是时钟源实际的计数范围可能小于64位，
+	mask的作用就是表示真实的计数范围。对于一个32位的时钟源硬件，mask等于0xffffffff，即32个bit 1。
+	这种方法的好处是即使时钟源发生溢出，一样可以通过简单的计算得出实际经历的cycle数。如下所示，
+	假设上次读时钟源得到的计数值是cycle_last，这次读取的计数值是cycle_now，则经历的cycle数等于：
+	(cycle_now - cycle_last) & mask
+	对于一个32位的时钟源，假设cycle_last=0xffffffff，cycle_now=0，即发生了溢出，通过上面的等式依然可以得到经历了一次cycle。
+
+	*/
 	u64 mask;
+
+	/*cycle 转 ns 的参数*/
 	u32 mult;
 	u32 shift;
+
+	/*表示两次读取之间所允许的最大时间间隔。
+	当两次读取间隔超过mask+1时就无法正确计算出经历的cycle数，
+	因此该数值需要小于mask+1个cycle所对应的纳秒数。
+	另一个限制因素来自于clocksource_cyc2ns()函数。
+	该函数用于将cycle数换算成纳秒。由于函数返回值是有符号64位数(s64)，
+	两次读取间隔的cycle数不能使最终的计算结果溢出。*/
 	u64 max_idle_ns;
 	u32 maxadj;
 #ifdef CONFIG_ARCH_CLOCKSOURCE_DATA
@@ -109,6 +127,15 @@ struct clocksource {
 	struct module *owner;
 };
 
+/*
+内核选择rating最高的时钟源作为watchdog时钟源监测其他时钟源的误差。
+如果新注册的时钟源的flags包含CLOCK_SOURCE_MUST_VERIFY，表示该时钟源需要经过watchdog的监测。
+如果两者之间在0.5s内的误差大于0.0625秒，则新注册的时钟源被认为是unstable的。
+如果误差小于该标准，且满足下面的情况，则新注册的时钟源被标记为CLOCK_SOURCE_VALID_FOR_HRES，即高精度时钟。
+1. 新注册的时钟源的flags包含CLOCK_SOURCE_IS_CONTINUOUS。
+2. watchdog时钟源的flags包含CLOCK_SOURCE_VALID_FOR_HRES。
+
+*/
 /*
  * Clock source flags bits::
  */

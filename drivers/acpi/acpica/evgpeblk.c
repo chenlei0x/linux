@@ -13,7 +13,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evgpeblk")
+ACPI_MODULE_NAME("evgpeblk");
 #if (!ACPI_REDUCED_HARDWARE)	/* Entire module */
 /* Local prototypes */
 static acpi_status

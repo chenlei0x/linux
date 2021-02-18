@@ -12,7 +12,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-ACPI_MODULE_NAME("nswalk")
+ACPI_MODULE_NAME("nswalk");
 
 /*******************************************************************************
  *

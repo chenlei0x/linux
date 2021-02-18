@@ -245,7 +245,7 @@ acpi_status acpi_ps_execute_table(struct acpi_evaluate_info *info)
 	ACPI_FUNCTION_TRACE(ps_execute_table);
 
 	/* Create and init a Root Node */
-
+	/*创建scope 操作符*/
 	op = acpi_ps_create_scope_op(info->obj_desc->method.aml_start);
 	if (!op) {
 		status = AE_NO_MEMORY;

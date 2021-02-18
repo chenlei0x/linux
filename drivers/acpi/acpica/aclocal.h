@@ -449,6 +449,7 @@ struct acpi_gpe_event_info {
 	union acpi_gpe_dispatch_info dispatch;	/* Either Method, Handler, or notify_list */
 	struct acpi_gpe_register_info *register_info;	/* Backpointer to register info */
 	u8 flags;		/* Misc info about this GPE */
+	/*该gpe 在全局gpe中的编号*/
 	u8 gpe_number;		/* This GPE */
 	u8 runtime_count;	/* References to a run GPE */
 	u8 disable_for_dispatch;	/* Masked during dispatching */
@@ -462,6 +463,7 @@ struct acpi_gpe_register_info {
      */
 	struct acpi_generic_address status_address;	/* Address of status reg */
 	struct acpi_generic_address enable_address;	/* Address of enable reg */
+	/*该gpe block 中第一个gpe在全局gpe的编号*/
 	u16 base_gpe_number;	/* Base GPE number for this register */
 	u8 enable_for_wake;	/* GPEs to keep enabled when sleeping */
 	u8 enable_for_run;	/* GPEs to keep enabled when running */
@@ -691,6 +693,10 @@ struct acpi_notify_info {
 	ACPI_STATE_COMMON u8 handler_list_id;
 	struct acpi_namespace_node *node;
 	union acpi_operand_object *handler_list_head;
+	/*
+	 acpi_ev_queue_notify_request
+	  acpi_gbl_global_notify
+	 */
 	struct acpi_global_notify_handler *global;
 };
 

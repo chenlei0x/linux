@@ -127,6 +127,7 @@ struct bus_type {
 	const struct attribute_group **dev_groups;
 	const struct attribute_group **drv_groups;
 
+	/*device 和 driver 是否匹配??*/
 	int (*match)(struct device *dev, struct device_driver *drv);
 	int (*uevent)(struct device *dev, struct kobj_uevent_env *env);
 	/*
@@ -411,6 +412,7 @@ struct device_driver {
 	const struct of_device_id	*of_match_table;
 	const struct acpi_device_id	*acpi_match_table;
 
+	/*返回0  表示探测成功, driver 和device 绑定成功*/
 	int (*probe) (struct device *dev);
 	void (*sync_state)(struct device *dev);
 	int (*remove) (struct device *dev);

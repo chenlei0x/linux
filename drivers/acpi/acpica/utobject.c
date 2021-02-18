@@ -13,7 +13,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_UTILITIES
-ACPI_MODULE_NAME("utobject")
+ACPI_MODULE_NAME("utobject");
 
 /* Local prototypes */
 static acpi_status
@@ -54,8 +54,7 @@ union acpi_operand_object *acpi_ut_create_internal_object_dbg(const char
 							      *module_name,
 							      u32 line_number,
 							      u32 component_id,
-							      acpi_object_type
-							      type)
+							      acpi_object_type type)
 {
 	union acpi_operand_object *object;
 	union acpi_operand_object *second_object;

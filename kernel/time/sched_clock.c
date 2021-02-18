@@ -93,6 +93,12 @@ static inline u64 notrace cyc_to_ns(u64 cyc, u32 mult, u32 shift)
 	return (cyc * mult) >> shift;
 }
 
+/*
+	通用sched clock模块。这个模块主要是提供一个sched_clock的接口函数，调用该函数可以获取当前时间点到系统启动之间的纳秒值。
+底层的HW counter其实是千差万别的，有些平台可以提供64-bit的HW counter，因此，在那样的平台中，我们可以不使用这个通用sched clock模块（不配置CONFIG_GENERIC_SCHED_CLOCK这个内核选项），而在自己的clock source chip driver中直接提供sched_clock接口。
+使用通用sched clock模块的好处是：该模块扩展了64-bit的counter，即使底层的HW counter比特数目不足（有些平台HW counter只有32个bit）。
+
+*/
 unsigned long long notrace sched_clock(void)
 {
 	u64 cyc, res;

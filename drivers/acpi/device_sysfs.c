@@ -511,6 +511,9 @@ static DEVICE_ATTR_RO(status);
 /**
  * acpi_device_setup_files - Create sysfs attributes of an ACPI device.
  * @dev: ACPI device object.
+ *
+ * 创建acpi 总线下的设备的属性对应的sysfs文件
+ * 文件目录: /sys/bus/acpi/devices/device:ff
  */
 int acpi_device_setup_files(struct acpi_device *dev)
 {

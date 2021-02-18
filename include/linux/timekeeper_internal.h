@@ -94,8 +94,11 @@ struct timekeeper {
 	struct tk_read_base	tkr_raw;
 	u64			xtime_sec;
 	unsigned long		ktime_sec;
+
+	/*xtime 和 mono 之间的差值, 单位不同*/
 	struct timespec64	wall_to_monotonic;
 	ktime_t			offs_real;
+	
 	ktime_t			offs_boot;
 	ktime_t			offs_tai;
 	s32			tai_offset;

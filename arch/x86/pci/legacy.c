@@ -61,6 +61,7 @@ static int __init pci_subsys_init(void)
 	 * The init function returns an non zero value when
 	 * pci_legacy_init should be invoked.
 	 */
+	 /*pci_acpi_init 正常情况下返回0 所以不会走到pci_legacy_init中*/
 	if (x86_init.pci.init()) {
 		if (pci_legacy_init()) {
 			pr_info("PCI: System does not support PCI\n");

@@ -15,7 +15,7 @@
 #include "acnamesp.h"
 
 #define _COMPONENT          ACPI_EVENTS
-ACPI_MODULE_NAME("evxfgpe")
+ACPI_MODULE_NAME("evxfgpe");
 
 #if (!ACPI_REDUCED_HARDWARE)	/* Entire module */
 /*******************************************************************************
@@ -74,7 +74,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_update_all_gpes)
+ACPI_EXPORT_SYMBOL(acpi_update_all_gpes);
 
 /*******************************************************************************
  *
@@ -128,7 +128,7 @@ acpi_status acpi_enable_gpe(acpi_handle gpe_device, u32 gpe_number)
 	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
 	return_ACPI_STATUS(status);
 }
-ACPI_EXPORT_SYMBOL(acpi_enable_gpe)
+ACPI_EXPORT_SYMBOL(acpi_enable_gpe);
 
 /*******************************************************************************
  *
@@ -166,7 +166,7 @@ acpi_status acpi_disable_gpe(acpi_handle gpe_device, u32 gpe_number)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_disable_gpe)
+ACPI_EXPORT_SYMBOL(acpi_disable_gpe);
 
 /*******************************************************************************
  *
@@ -240,7 +240,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_set_gpe)
+ACPI_EXPORT_SYMBOL(acpi_set_gpe);
 
 /*******************************************************************************
  *
@@ -281,7 +281,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_mask_gpe)
+ACPI_EXPORT_SYMBOL(acpi_mask_gpe);
 
 /*******************************************************************************
  *
@@ -328,7 +328,7 @@ acpi_status acpi_mark_gpe_for_wake(acpi_handle gpe_device, u32 gpe_number)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_mark_gpe_for_wake)
+ACPI_EXPORT_SYMBOL(acpi_mark_gpe_for_wake);
 
 /*******************************************************************************
  *
@@ -471,7 +471,7 @@ unlock_and_exit:
 	}
 	return_ACPI_STATUS(status);
 }
-ACPI_EXPORT_SYMBOL(acpi_setup_gpe_for_wake)
+ACPI_EXPORT_SYMBOL(acpi_setup_gpe_for_wake);
 
 /*******************************************************************************
  *
@@ -551,7 +551,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_set_gpe_wake_mask)
+ACPI_EXPORT_SYMBOL(acpi_set_gpe_wake_mask);
 
 /*******************************************************************************
  *
@@ -590,7 +590,7 @@ acpi_status acpi_clear_gpe(acpi_handle gpe_device, u32 gpe_number)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_clear_gpe)
+ACPI_EXPORT_SYMBOL(acpi_clear_gpe);
 
 /*******************************************************************************
  *
@@ -635,7 +635,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_gpe_status)
+ACPI_EXPORT_SYMBOL(acpi_get_gpe_status);
 
 /*******************************************************************************
  *
@@ -657,7 +657,7 @@ u32 acpi_dispatch_gpe(acpi_handle gpe_device, u32 gpe_number)
 	return acpi_ev_detect_gpe(gpe_device, NULL, gpe_number);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_dispatch_gpe)
+ACPI_EXPORT_SYMBOL(acpi_dispatch_gpe);
 
 /*******************************************************************************
  *
@@ -700,7 +700,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_finish_gpe)
+ACPI_EXPORT_SYMBOL(acpi_finish_gpe);
 
 /******************************************************************************
  *
@@ -731,7 +731,7 @@ acpi_status acpi_disable_all_gpes(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_disable_all_gpes)
+ACPI_EXPORT_SYMBOL(acpi_disable_all_gpes);
 
 /******************************************************************************
  *
@@ -762,7 +762,7 @@ acpi_status acpi_enable_all_runtime_gpes(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_enable_all_runtime_gpes)
+ACPI_EXPORT_SYMBOL(acpi_enable_all_runtime_gpes);
 
 /******************************************************************************
  *
@@ -793,7 +793,7 @@ acpi_status acpi_enable_all_wakeup_gpes(void)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_enable_all_wakeup_gpes)
+ACPI_EXPORT_SYMBOL(acpi_enable_all_wakeup_gpes);
 
 /******************************************************************************
  *
@@ -825,7 +825,7 @@ u32 acpi_any_gpe_status_set(void)
 	return (ret);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_any_gpe_status_set)
+ACPI_EXPORT_SYMBOL(acpi_any_gpe_status_set);
 
 /*******************************************************************************
  *
@@ -929,7 +929,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_install_gpe_block)
+ACPI_EXPORT_SYMBOL(acpi_install_gpe_block);
 
 /*******************************************************************************
  *
@@ -991,7 +991,7 @@ unlock_and_exit:
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_gpe_block)
+ACPI_EXPORT_SYMBOL(acpi_remove_gpe_block);
 
 /*******************************************************************************
  *
@@ -1007,6 +1007,9 @@ ACPI_EXPORT_SYMBOL(acpi_remove_gpe_block)
  *              the FADT-defined gpe blocks. Otherwise, the GPE block device.
  *
  ******************************************************************************/
+/*
+ * 
+ */
 acpi_status acpi_get_gpe_device(u32 index, acpi_handle *gpe_device)
 {
 	struct acpi_gpe_device_info info;
@@ -1038,5 +1041,5 @@ acpi_status acpi_get_gpe_device(u32 index, acpi_handle *gpe_device)
 	return_ACPI_STATUS(info.status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_get_gpe_device)
+ACPI_EXPORT_SYMBOL(acpi_get_gpe_device);
 #endif				/* !ACPI_REDUCED_HARDWARE */

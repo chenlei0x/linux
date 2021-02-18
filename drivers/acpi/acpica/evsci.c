@@ -162,6 +162,7 @@ u32 acpi_ev_install_sci_handler(void)
 
 	ACPI_FUNCTION_TRACE(ev_install_sci_handler);
 
+	/*acpi_ev_sci_xrupt_handler 调用时, 参数为 acpi_gbl_gpe_xrupt_list_head */
 	status =
 	    acpi_os_install_interrupt_handler((u32) acpi_gbl_FADT.sci_interrupt,
 					      acpi_ev_sci_xrupt_handler,

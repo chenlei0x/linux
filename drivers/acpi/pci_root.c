@@ -173,6 +173,7 @@ static void decode_osc_control(struct acpi_pci_root *root, char *msg, u32 word)
 
 static u8 pci_osc_uuid_str[] = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
 
+/*执行_OSC 语句*/
 static acpi_status acpi_pci_run_osc(acpi_handle handle,
 				    const u32 *capbuf, u32 *retval)
 {
@@ -473,6 +474,7 @@ static void negotiate_os_control(struct acpi_pci_root *root, int *no_aspm,
 	if (IS_ENABLED(CONFIG_PCIEASPM))
 		control |= OSC_PCI_EXPRESS_LTR_CONTROL;
 
+	/*这里打上标记 native hotplug*/
 	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE))
 		control |= OSC_PCI_EXPRESS_NATIVE_HP_CONTROL;
 
@@ -579,7 +581,11 @@ static int acpi_pci_root_add(struct acpi_device *device,
 		result = -ENXIO;
 		goto end;
 	}
+/*
+[    1.031515] ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-7e])
+[    1.068826] ACPI: PCI Root Bridge [PCI1] (domain 0000 [bus 80-fe])
 
+*/
 	pr_info(PREFIX "%s [%s] (domain %04x %pR)\n",
 	       acpi_device_name(device), acpi_device_bid(device),
 	       root->segment, &root->secondary);

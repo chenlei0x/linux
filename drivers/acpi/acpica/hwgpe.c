@@ -12,7 +12,7 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_HARDWARE
-ACPI_MODULE_NAME("hwgpe")
+ACPI_MODULE_NAME("hwgpe");
 #if (!ACPI_REDUCED_HARDWARE)	/* Entire module */
 /* Local prototypes */
 static acpi_status
@@ -59,7 +59,7 @@ u32 acpi_hw_get_gpe_register_bit(struct acpi_gpe_event_info *gpe_event_info)
  *              updated by the caller if necessary.
  *
  ******************************************************************************/
-
+/*更新enable 寄存器*/
 acpi_status
 acpi_hw_low_set_gpe(struct acpi_gpe_event_info *gpe_event_info, u32 action)
 {

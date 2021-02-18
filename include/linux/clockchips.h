@@ -96,6 +96,20 @@ enum clock_event_state {
  * @cpumask:		cpumask to indicate for which CPUs this device works
  * @list:		list head for the management code
  * @owner:		module reference
+ *
+ * clocksource不能被编程，没有产生事件的能力，它主要被用于timekeeper来实现对真实时间进行精确的统计，
+ * 而clock_event_device则是可编程的，它可以工作在周期触发或单次触发模式，系统可以对它进行编程，
+ * 以确定下一次事件触发的时间，clock_event_device主要用于实现普通定时器和高精度定时器，
+ * 同时也用于产生tick事件，供给进程调度子系统使用
+ *
+ * 与clocksource一样，系统中可以存在多个clock_event_device，系统会根据它们的精度和能力，选择合适的clock_event_device对系统提供时钟事件服务。
+ * 在smp系统中，为了减少处理器间的通信开销，基本上每个cpu都会具备一个属于自己的本地clock_event_device，
+ * 独立地为该cpu提供时钟事件服务，smp中的每个cpu基于本地的clock_event_device，建立自己的tick_device，普通定时器和高精度定时器。
+ * 
+ * 在软件架构上看，clock_event_device被分为了两层，与硬件相关的被放在了machine层，而与硬件无关的通用代码则被集中到了通用时间框架层，
+ * 这符合内核对软件的设计需求，平台的开发者只需实现平台相关的接口即可，无需关注复杂的上层时间框架。
+ * tick_device是基于clock_event_device的进一步封装，用于代替原有的时钟滴答中断，给内核提供tick事件，
+ * 以完成进程的调度和进程信息统计，负载平衡和时间更新等操作。
  */
 struct clock_event_device {
 	void			(*event_handler)(struct clock_event_device *);

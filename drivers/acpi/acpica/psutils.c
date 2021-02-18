@@ -14,7 +14,7 @@
 #include "acconvert.h"
 
 #define _COMPONENT          ACPI_PARSER
-ACPI_MODULE_NAME("psutils")
+ACPI_MODULE_NAME("psutils");
 
 /*******************************************************************************
  *

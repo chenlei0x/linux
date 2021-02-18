@@ -113,7 +113,7 @@ struct x86_init_iommu {
  */
 struct x86_init_pci {
 	int (*arch_init)(void);
-	int (*init)(void);
+	int (*init)(void); /*x86 acpi_boot_init 赋值为 pci_acpi_init;*/
 	void (*init_irq)(void);
 	void (*fixup_irqs)(void);
 };

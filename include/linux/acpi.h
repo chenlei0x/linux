@@ -519,6 +519,7 @@ extern bool osc_pc_lpi_support_confirmed;
 #define OSC_PCI_SUPPORT_MASKS			0x0000011f
 
 /* PCI Host Bridge _OSC: Capabilities DWORD 3: Control Field */
+/*热插拔*/
 #define OSC_PCI_EXPRESS_NATIVE_HP_CONTROL	0x00000001
 #define OSC_PCI_SHPC_NATIVE_HP_CONTROL		0x00000002
 #define OSC_PCI_EXPRESS_PME_CONTROL		0x00000004

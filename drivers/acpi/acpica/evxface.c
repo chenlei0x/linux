@@ -690,7 +690,7 @@ acpi_remove_fixed_event_handler(u32 event, acpi_event_handler handler)
 	return_ACPI_STATUS(status);
 }
 
-ACPI_EXPORT_SYMBOL(acpi_remove_fixed_event_handler)
+ACPI_EXPORT_SYMBOL(acpi_remove_fixed_event_handler);
 
 /*******************************************************************************
  *

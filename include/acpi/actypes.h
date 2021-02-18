@@ -421,6 +421,7 @@ typedef u64 acpi_physical_address;
 typedef u32 acpi_status;	/* All ACPI Exceptions */
 typedef u32 acpi_name;		/* 4-byte ACPI name */
 typedef char *acpi_string;	/* Null terminated ASCII string */
+/*handler  就是node*/
 typedef void *acpi_handle;	/* Actually a ptr to a NS Node */
 
 /* Time constants for timer calculations */
@@ -636,6 +637,7 @@ typedef u64 acpi_integer;
  */
 typedef u32 acpi_object_type;
 
+/*对应 Name Method Device 关键字*/
 #define ACPI_TYPE_ANY                   0x00
 #define ACPI_TYPE_INTEGER               0x01	/* Byte/Word/Dword/Zero/One/Ones */
 #define ACPI_TYPE_STRING                0x02
@@ -770,6 +772,10 @@ typedef u32 acpi_event_status;
 #define ACPI_GPE_DISPATCH_METHOD        (u8) 0x01
 #define ACPI_GPE_DISPATCH_HANDLER       (u8) 0x02
 #define ACPI_GPE_DISPATCH_NOTIFY        (u8) 0x03
+/*
+ * acpi_install_gpe_handler
+ * acpi_install_gpe_raw_handler
+ */
 #define ACPI_GPE_DISPATCH_RAW_HANDLER   (u8) 0x04
 #define ACPI_GPE_DISPATCH_MASK          (u8) 0x07
 #define ACPI_GPE_DISPATCH_TYPE(flags)   ((u8) ((flags) & ACPI_GPE_DISPATCH_MASK))

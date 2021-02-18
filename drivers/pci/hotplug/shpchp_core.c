@@ -252,6 +252,9 @@ static bool shpc_capable(struct pci_dev *bridge)
 	return false;
 }
 
+/*
+ * @pdev 一定是一个桥设备
+ */
 static int shpc_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	int rc;
