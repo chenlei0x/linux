@@ -581,6 +581,10 @@ static void bfq_group_set_parent(struct bfq_group *bfqg,
 	entity->sched_data = &parent->sched_data;
 }
 
+/*
+ * bfqd 代表了一个queue, blkcg 代表的是一个cgroup 
+ * 查找blkcg 在这个 queue中的信息
+ */
 static struct bfq_group *bfq_lookup_bfqg(struct bfq_data *bfqd,
 					 struct blkcg *blkcg)
 {
@@ -597,7 +601,10 @@ struct bfq_group *bfq_find_set_group(struct bfq_data *bfqd,
 {
 	struct bfq_group *bfqg, *parent;
 	struct bfq_entity *entity;
-
+	/*
+	 * bfqd 代表了一个queue, blkcg 代表的是一个cgroup 
+	 * 查找blkcg 在这个 queue中的信息
+	 */
 	bfqg = bfq_lookup_bfqg(bfqd, blkcg);
 
 	if (unlikely(!bfqg))

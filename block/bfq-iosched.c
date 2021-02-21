@@ -5142,6 +5142,7 @@ static struct bfq_queue *bfq_get_queue(struct bfq_data *bfqd,
 		goto out;
 	}
 
+	/*异步io 用cgroup的bfqq*/
 	if (!is_sync) {
 		async_bfqq = bfq_async_queue_prio(bfqd, bfqg, ioprio_class,
 						  ioprio);
@@ -5150,6 +5151,7 @@ static struct bfq_queue *bfq_get_queue(struct bfq_data *bfqd,
 			goto out;
 	}
 
+	/*同步io 单独的bfqq*/
 	bfqq = kmem_cache_alloc_node(bfq_pool,
 				     GFP_NOWAIT | __GFP_ZERO | __GFP_NOWARN,
 				     bfqd->queue->node);

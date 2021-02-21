@@ -18,7 +18,9 @@ struct blk_mq_debugfs_attr;
  */
 enum elv_merge {
 	ELEVATOR_NO_MERGE	= 0,
+		/*bio合并到 rq 的头部*/
 	ELEVATOR_FRONT_MERGE	= 1,
+	/*bio合并到 rq 的尾部*/
 	ELEVATOR_BACK_MERGE	= 2,
 	ELEVATOR_DISCARD_MERGE	= 3,
 };
@@ -53,8 +55,10 @@ struct elevator_mq_ops {
 	void (*request_merged)(struct request_queue *, struct request *, enum elv_merge);
 	/*两个req 已经发生了合并, 调度器是否有啥别的事情要做?*/
 	void (*requests_merged)(struct request_queue *, struct request *, struct request *);
+	/*blk_mq_get_request 中,当需要从io调度器中获取一个request 时会调用, 主要用来限制blk_mq_alloc_data :: shallow depth*/
 	void (*limit_depth)(unsigned int, struct blk_mq_alloc_data *);
 	void (*prepare_request)(struct request *, struct bio *bio);
+	/*blk_mq_free_request 调用*/
 	void (*finish_request)(struct request *);
 	void (*insert_requests)(struct blk_mq_hw_ctx *, struct list_head *, bool);
 	struct request *(*dispatch_request)(struct blk_mq_hw_ctx *);

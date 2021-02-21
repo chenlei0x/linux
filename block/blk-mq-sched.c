@@ -242,12 +242,16 @@ bool blk_mq_sched_try_merge(struct request_queue *q, struct bio *bio,
 {
 	struct request *rq;
 
+	/*探测是否能够, 返回目标rq 和合并类型*/
 	switch (elv_merge(q, &rq, bio)) {
 	case ELEVATOR_BACK_MERGE:
+		/*bio 能否合并到rq*/
 		if (!blk_mq_sched_allow_merge(q, rq, bio))
 			return false;
+		/*可以合并到@rq的尾部码?*/
 		if (!bio_attempt_back_merge(rq, bio, nr_segs))
 			return false;
+		/*rq此时尾部新增了一部分, 这时候可能可以和后面的rq进行合并*/
 		*merged_request = attempt_back_merge(q, rq);
 		if (!*merged_request)
 			elv_merged_request(q, rq, ELEVATOR_BACK_MERGE);
@@ -255,6 +259,7 @@ bool blk_mq_sched_try_merge(struct request_queue *q, struct bio *bio,
 	case ELEVATOR_FRONT_MERGE:
 		if (!blk_mq_sched_allow_merge(q, rq, bio))
 			return false;
+		/**/
 		if (!bio_attempt_front_merge(rq, bio, nr_segs))
 			return false;
 		*merged_request = attempt_front_merge(q, rq);
