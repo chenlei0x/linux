@@ -5124,6 +5124,7 @@ static struct bfq_queue **bfq_async_queue_prio(struct bfq_data *bfqd,
 	}
 }
 
+/*拿到对应的queue 对于sync io 进行申请, 异步io 用bfqg的队列*/
 static struct bfq_queue *bfq_get_queue(struct bfq_data *bfqd,
 				       struct bio *bio, bool is_sync,
 				       struct bfq_io_cq *bic)

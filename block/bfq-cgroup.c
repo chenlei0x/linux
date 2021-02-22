@@ -114,9 +114,9 @@ static int bfqg_stats_##name(struct bfqg_stats *stats)		\
 	return (stats->flags & (1 << BFQG_stats_##name)) != 0;		\
 }									\
 
-BFQG_FLAG_FNS(waiting)
-BFQG_FLAG_FNS(idling)
-BFQG_FLAG_FNS(empty)
+BFQG_FLAG_FNS(waiting);
+BFQG_FLAG_FNS(idling);
+BFQG_FLAG_FNS(empty);
 #undef BFQG_FLAG_FNS
 
 /* This should be called with the scheduler lock held. */
