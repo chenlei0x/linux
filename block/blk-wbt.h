@@ -84,6 +84,7 @@ struct rq_wb {
 	unsigned long last_issue;		/* last non-throttled issue */
 	/*最近一次 非throttle 的io 完成的时刻*/
 	unsigned long last_comp;		/* last non-throttled comp */
+	/*用户指定的延迟*/
 	unsigned long min_lat_nsec;
 	struct rq_qos rqos; /*通用 obj*/
 	struct rq_wait rq_wait[WBT_NUM_RWQ];

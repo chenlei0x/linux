@@ -328,10 +328,10 @@ static void scale_up(struct rq_wb *rwb)
 
 static void scale_down(struct rq_wb *rwb, bool hard_throttle)
 {
-	/*计算max depth*/
+	/*计算 max_depth*/
 	if (!rq_depth_scale_down(&rwb->rq_depth, hard_throttle))
 		return;
-	/*根据max 计算 bg 以及 bg normal 的大小*/
+	/*根据 max_depth 计算 bg 以及 bg normal 的大小*/
 	calc_wb_limits(rwb);
 	rwb->unknown_cnt = 0;
 	rwb_trace_step(rwb, "scale down");

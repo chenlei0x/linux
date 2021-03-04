@@ -226,6 +226,7 @@ struct backing_dev_info {
 #ifdef CONFIG_CGROUP_WRITEBACK
 	/*memcg ---> wb 之间的映射*/
 	struct radix_tree_root cgwb_tree; /* radix tree of active cgroup wbs */
+	/*bdi_writeback_congested::rb_node */
 	struct rb_root cgwb_congested_tree; /* their congested states */
 	struct mutex cgwb_release_mutex;  /* protect shutdown of wb structs */
 	struct rw_semaphore wb_switch_rwsem; /* no cgwb switch while syncing */
