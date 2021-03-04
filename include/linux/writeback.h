@@ -38,6 +38,10 @@ struct backing_dev_info;
 /*
  * fs/fs-writeback.c
  */
+ /*
+一共有WB_SYNC_NONE和WB_SYNC_ALL两种可选，前一种不会等待回写结束，
+一般用于周期性回写，后一种会等待回写结束，用于sync之类的强制回写
+*/
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
 		/*如果是WB_SYNC_ALL模式，就等待数据回写完成*/
