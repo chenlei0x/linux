@@ -375,7 +375,7 @@ error:
 }
 EXPORT_SYMBOL(kobject_init);
 
-static __printf(3, 0) int kobject_add_varg(struct kobject *kobj,
+static int kobject_add_varg(struct kobject *kobj,
 					   struct kobject *parent,
 					   const char *fmt, va_list vargs)
 {

@@ -84,9 +84,13 @@ struct partition {
 } __attribute__((packed));
 
 struct disk_stats {
-	u64 nsecs[NR_STAT_GROUPS]; /*blk_account_io_done 一个request 完成时  += now - rq->start_time_ns*/
+	/*blk_account_io_done 一个request 完成时  += now - rq->start_time_ns*/
+	u64 nsecs[NR_STAT_GROUPS];
+	/* req部分完成时， 会调用 blk_account_io_completion ，表示增加的bps数量*/
 	unsigned long sectors[NR_STAT_GROUPS];
-	unsigned long ios[NR_STAT_GROUPS];
+
+	/*一个request 完成后 +1， blk_account_io_done*/
+	unsigned long ios[NR_STAT_GROUPS]; 
 	unsigned long merges[NR_STAT_GROUPS]; /*bio合入一个request时 +1*/
 	unsigned long io_ticks;
 	unsigned long time_in_queue;

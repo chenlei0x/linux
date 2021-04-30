@@ -208,6 +208,7 @@ struct nvme_ctrl {
 	struct device ctrl_device;
 	struct device *device;	/* char device */
 	struct cdev cdev;
+	/*nvme_reset_work*/
 	struct work_struct reset_work;
 	struct work_struct delete_work;
 	wait_queue_head_t state_wq;

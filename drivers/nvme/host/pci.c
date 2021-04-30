@@ -536,7 +536,7 @@ static void nvme_unmap_data(struct nvme_dev *dev, struct request *req)
 
 	WARN_ON_ONCE(!iod->nents);
 
-	if (is_pci_p2pdma_page(sg_page(iod->sg)))
+	if (is_pci_p2pdma_page(sg_page(iod->sg))) /*这里不会走到*/
 		pci_p2pdma_unmap_sg(dev->dev, iod->sg, iod->nents,
 				    rq_dma_dir(req));
 	else
@@ -792,6 +792,7 @@ static blk_status_t nvme_setup_sgl_simple(struct nvme_dev *dev,
 	return 0;
 }
 
+/*映射dma地址*/
 static blk_status_t nvme_map_data(struct nvme_dev *dev, struct request *req,
 		struct nvme_command *cmnd)
 {
@@ -859,6 +860,7 @@ static blk_status_t nvme_map_metadata(struct nvme_dev *dev, struct request *req,
 /*
  * NOTE: ns is NULL when called on the admin queue.
  */
+ /*mq_ops:: queue_rq 回调*/
 static blk_status_t nvme_queue_rq(struct blk_mq_hw_ctx *hctx,
 			 const struct blk_mq_queue_data *bd)
 {
@@ -885,6 +887,7 @@ static blk_status_t nvme_queue_rq(struct blk_mq_hw_ctx *hctx,
 	if (ret)
 		return ret;
 
+	/*做dma map*/
 	if (blk_rq_nr_phys_segments(req)) {
 		ret = nvme_map_data(dev, req, &cmnd);
 		if (ret)
@@ -1249,6 +1252,7 @@ static enum blk_eh_timer_return nvme_timeout(struct request *req, bool reserved)
 	if (nvme_should_reset(dev, csts)) {
 		nvme_warn_reset(dev, csts);
 		nvme_dev_disable(dev, false);
+		/*nvme_reset_work*/
 		nvme_reset_ctrl(&dev->ctrl);
 		return BLK_EH_DONE;
 	}

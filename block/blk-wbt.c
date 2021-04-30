@@ -239,6 +239,8 @@ enum {
 	LAT_EXCEEDED,
 };
 
+
+/*@stat 代表 读，见 wb_timer_fn*/
 static int latency_exceeded(struct rq_wb *rwb, struct blk_rq_stat *stat)
 {
 	struct backing_dev_info *bdi = rwb->rqos.q->backing_dev_info;
@@ -304,6 +306,7 @@ static void rwb_trace_step(struct rq_wb *rwb, const char *msg)
 static void calc_wb_limits(struct rq_wb *rwb)
 {
 	if (rwb->min_lat_nsec == 0) {
+		/*当wb_normal = 0时， disable wbt*/
 		rwb->wb_normal = rwb->wb_background = 0;
 	} else if (rwb->rq_depth.max_depth <= 2) {
 		rwb->wb_normal = rwb->rq_depth.max_depth;
@@ -314,12 +317,17 @@ static void calc_wb_limits(struct rq_wb *rwb)
 	}
 }
 
+/*
+ * max_dep = f(min(def_dep, queue_dep), scale_step)
+ * bg = max_dep /4
+ * normal = max_dep /2
+ */
 static void scale_up(struct rq_wb *rwb)
 {
 	/*计算max depth*/
 	if (!rq_depth_scale_up(&rwb->rq_depth))
 		return;
-	/*根据max 计算 bg normal 的大小*/
+	/*根据max depth 计算 bg normal 的大小*/
 	calc_wb_limits(rwb);
 	rwb->unknown_cnt = 0;
 	rwb_wake_all(rwb);
@@ -425,6 +433,12 @@ static void __wbt_update_limits(struct rq_wb *rwb)
 	rqd->scale_step = 0;
 	rqd->scaled_max = false;
 
+	/*因为scale step 清空了， 所以需要重新计算*/
+	/*
+ * max_dep = f(min(def_dep, queue_dep), scale_step)
+ * bg = max_dep /4
+ * normal = max_dep /2
+ */
 	rq_depth_calc_max_depth(rqd);
 	calc_wb_limits(rwb);
 
@@ -469,6 +483,18 @@ static bool close_io(struct rq_wb *rwb)
 #define REQ_HIPRIO	(REQ_SYNC | REQ_META | REQ_PRIO)
 
 
+/*
+static void calc_wb_limits(struct rq_wb *rwb)
+{
+	if (rwb->min_lat_nsec == 0) {
+		rwb->wb_normal = rwb->wb_background = 0;
+	} else {
+		rwb->wb_normal = (rwb->rq_depth.max_depth + 1) / 2;
+		rwb->wb_background = (rwb->rq_depth.max_depth + 3) / 4;
+	}
+}
+
+*/
 /* wb_background 还是 wb_normal 或者 rwb->rq_depth.max_depth*/
 static inline unsigned int get_limit(struct rq_wb *rwb, unsigned long rw)
 {
@@ -619,6 +645,10 @@ static void wbt_wait(struct rq_qos *rqos, struct bio *bio)
 		rwb_arm_timer(rwb);
 }
 
+/*
+ * 产生一个rq之前先被throttle， 再被track
+ *
+ */
 static void wbt_track(struct rq_qos *rqos, struct request *rq, struct bio *bio)
 {
 	struct rq_wb *rwb = RQWB(rqos);

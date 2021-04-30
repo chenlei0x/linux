@@ -2242,6 +2242,9 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  * 当fdatasync 系统调用本意是只把用户数据刷盘刷下去，在必要时才刷meta data
  * 这个必要时就是发现了I_DIRTY_DATASYNC被设置，
  * 就知道metadata需要马上回写了
+ *
+ * I_DIRTY_DATASYNC 必要时(文件长度变化)刷回metadata
+ * I_SYNC 每次(不论时间戳变化还是长度变化，不论必要非必要)都刷回metadata
  */
 
 #define I_DIRTY_DATASYNC	(1 << 1)

@@ -258,6 +258,7 @@ size_t dma_direct_max_mapping_size(struct device *dev);
 #ifdef CONFIG_HAS_DMA
 #include <asm/dma-mapping.h>
 
+/*nvme 都返回空*/
 static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
 {
 	if (dev->dma_ops)
@@ -331,7 +332,7 @@ static inline void dma_unmap_sg_attrs(struct device *dev, struct scatterlist *sg
 
 	BUG_ON(!valid_dma_direction(dir));
 	debug_dma_unmap_sg(dev, sg, nents, dir);
-	if (dma_is_direct(ops))
+	if (dma_is_direct(ops)) /*ops为空肯定会走这里*/
 		dma_direct_unmap_sg(dev, sg, nents, dir, attrs);
 	else if (ops->unmap_sg)
 		ops->unmap_sg(dev, sg, nents, dir, attrs);

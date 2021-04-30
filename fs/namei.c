@@ -486,6 +486,7 @@ EXPORT_SYMBOL(path_put);
 
 #define EMBEDDED_LEVELS 2
 struct nameidata {
+	/**/
 	struct path	path;
 	struct qstr	last;
 	struct path	root;
@@ -588,6 +589,7 @@ static void drop_links(struct nameidata *nd)
 	}
 }
 
+/*做一些释放操作*/
 static void terminate_walk(struct nameidata *nd)
 {
 	drop_links(nd);
@@ -2215,6 +2217,7 @@ static const char *path_init(struct nameidata *nd, unsigned flags)
 		return s;
 	}
 
+	/*以下字段会根据 需要打开的路径 来决定*/
 	nd->root.mnt = NULL;
 	nd->path.mnt = NULL;
 	nd->path.dentry = NULL;
@@ -3488,6 +3491,7 @@ static int do_o_path(struct nameidata *nd, unsigned flags, struct file *file)
 	return error;
 }
 
+/*nd是空的*/
 static struct file *path_openat(struct nameidata *nd,
 			const struct open_flags *op, unsigned flags)
 {
@@ -3503,6 +3507,8 @@ static struct file *path_openat(struct nameidata *nd,
 	} else if (unlikely(file->f_flags & O_PATH)) {
 		error = do_o_path(nd, flags, file);
 	} else {
+		/*常用路径*/
+		/*初始化nd*/
 		const char *s = path_init(nd, flags);
 		while (!(error = link_path_walk(s, nd)) &&
 			(error = do_last(nd, file, op)) > 0) {

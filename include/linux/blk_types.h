@@ -127,7 +127,13 @@ static inline sector_t bio_issue_size(struct bio_issue *issue)
 {
 	return ((issue->value & BIO_ISSUE_SIZE_MASK) >> BIO_ISSUE_SIZE_SHIFT);
 }
-
+/*
+generic_make_request_checks
+	blkcg_bio_issue_check
+		blk_throtl_bio	===> 已经过了throttle 层了
+		blkcg_bio_issue_init 这里设置了issue time
+			bio_issue_init
+*/
 static inline void bio_issue_init(struct bio_issue *issue,
 				       sector_t size)
 {
@@ -189,8 +195,13 @@ struct bio {
       */
 	struct blkcg_gq		*bi_blkg;
 	/*throttle 之后
-	 * generic_make_request_checks
-	 *     blkcg_bio_issue_init
+	 *
+	 generic_make_request_checks
+		 blkcg_bio_issue_check
+			 blk_throtl_bio  ===> 已经过了throttle 层了
+			 blkcg_bio_issue_init 这里设置了issue time
+				 bio_issue_init
+	 *
 	 */
 	struct bio_issue	bi_issue;
 #ifdef CONFIG_BLK_CGROUP_IOCOST

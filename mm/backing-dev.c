@@ -568,6 +568,7 @@ static int cgwb_create(struct backing_dev_info *bdi,
 	if (ret)
 		goto err_free;
 
+	/*cgwb_release 会调用下面的 wb->release_work */
 	ret = percpu_ref_init(&wb->refcnt, cgwb_release, 0, gfp);
 	if (ret)
 		goto err_wb_exit;

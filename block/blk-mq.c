@@ -243,7 +243,7 @@ void blk_mq_quiesce_queue(struct request_queue *q)
 			rcu = true;
 	}
 	if (rcu)
-		synchronize_rcu();
+		synchronize_rcu(); /*为了等所有的rq 释放 rcu_read_unlock*/
 }
 EXPORT_SYMBOL_GPL(blk_mq_quiesce_queue);
 

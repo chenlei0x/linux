@@ -598,6 +598,7 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
 	/*
 	generic_make_request_checks
 		blkcg_bio_issue_check
+			blk_throtl_bio  ===> 已经过了throttle 层了
 			blkcg_bio_issue_init 这里设置了issue time
 	*/
 	u64 start = bio_issue_time(issue);

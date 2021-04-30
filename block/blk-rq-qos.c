@@ -140,6 +140,10 @@ bool rq_depth_calc_max_depth(struct rq_depth *rqd)
 		 * writes, and we allow a temporarily higher depth to
 		 * increase performance.
 		 */
+		 /*
+		  * 根据default_depth queue_depth 的最小值，
+		  * scale_step 计算max depth
+		  */
 		depth = min_t(unsigned int, rqd->default_depth,
 			      rqd->queue_depth);
 		if (rqd->scale_step > 0)
