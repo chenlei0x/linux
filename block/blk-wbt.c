@@ -149,7 +149,7 @@ static void wbt_rqw_done(struct rq_wb *rwb, struct rq_wait *rqw,
 	 */
 	if (wb_acct & WBT_DISCARD)
 		limit = rwb->wb_background;
-	else if (rwb->wc && !wb_recent_wait(rwb))
+	else if (rwb->wc && !wb_recent_wait(rwb)) /*最近回写压力不大 所以暂时不wakeup,*/
 		limit = 0;
 	else
 		limit = rwb->wb_normal;

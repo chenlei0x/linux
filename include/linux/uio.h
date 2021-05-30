@@ -26,6 +26,7 @@ enum iter_type {
 	 */
 	ITER_IOVEC = 4,
 	ITER_KVEC = 8,
+	/*bio 的一个vec*/
 	ITER_BVEC = 16,
 	ITER_PIPE = 32,
 	ITER_DISCARD = 64,
