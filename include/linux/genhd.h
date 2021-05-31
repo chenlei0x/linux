@@ -116,7 +116,7 @@ struct hd_struct {
 	 * partition while IO is happening to it and update of nr_sects
 	 * can be non-atomic on 32bit machines with 64bit sector_t.
 	 */
-	sector_t nr_sects;
+	sector_t nr_sects; /*容量*/
 	seqcount_t nr_sects_seq;
 	sector_t alignment_offset;
 	unsigned int discard_alignment;

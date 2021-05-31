@@ -140,6 +140,10 @@ static struct bio *blk_bio_write_same_split(struct request_queue *q,
  * requests that are submitted to a block device if the start of a bio is not
  * aligned to a physical block boundary.
  */
+/*
+ * 首先保证每个bio 长度不能超过 max_hw_sectors
+ * 再次不能超过max_sectors
+*/
 static inline unsigned get_max_io_size(struct request_queue *q,
 				       struct bio *bio)
 {
@@ -157,17 +161,16 @@ static inline unsigned get_max_io_size(struct request_queue *q,
 	 * max_sector 用来存储结尾sector
 	 */
 	max_sectors += start_offset;
-	/*尾部sector   和 phy block对齐*/
+	/*整数个 pbs， 尾部sector   和 phy block对齐*/
 	max_sectors &= ~(pbs - 1);
 
-	/*max_sectors > start_offset 说明结尾sector已经到某个pb的结尾了
-	*/
+	/*max_sectors 有可能等于      start_offset*/
 	if (max_sectors > start_offset)
 		/*减去 start_offset, 使得io结尾的sector 刚好和一个pb对齐*/
 		return max_sectors - start_offset;
 
 	/*好搓, end sector 和 start_offset 落在同一个 pb, 勉强和lb 对齐吧*/
-	return sectors & (lbs - 1);
+	return sectors & ~(lbs - 1);
 }
 
 static inline unsigned get_max_segment_size(const struct request_queue *q,

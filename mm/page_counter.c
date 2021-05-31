@@ -251,6 +251,7 @@ int page_counter_memparse(const char *buf, const char *max,
 	char *end;
 	u64 bytes;
 
+	/*如果输入的bug == “max”*/
 	if (!strcmp(buf, max)) {
 		*nr_pages = PAGE_COUNTER_MAX;
 		return 0;

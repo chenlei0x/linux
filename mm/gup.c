@@ -1157,6 +1157,8 @@ static __always_inline long __get_user_pages_locked(struct task_struct *tsk,
  * get_user_pages_locked|unlocked or get_user_pages_fast. Nothing
  * should use get_user_pages because it cannot pass
  * FAULT_FLAG_ALLOW_RETRY to handle_mm_fault.
+ *
+ * 传入用户态地址，把对应的所有page 都pin起来，防止被释放
  */
 long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,

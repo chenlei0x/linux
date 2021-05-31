@@ -1293,6 +1293,8 @@ EXPORT_SYMBOL_GPL(xas_find_conflict);
  *
  * Context: Any context.  Takes and releases the RCU lock.
  * Return: The entry at @index in @xa.
+ *
+ * 查看xa 中index 对应的值， 比如pagecache中查找index处的page
  */
 void *xa_load(struct xarray *xa, unsigned long index)
 {

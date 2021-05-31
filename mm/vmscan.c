@@ -2768,6 +2768,7 @@ again:
 		unsigned long free, anon;
 		int z;
 
+		/*合计 node中的每个zone的free page*/
 		free = sum_zone_node_page_state(pgdat->node_id, NR_FREE_PAGES);
 		file = node_page_state(pgdat, NR_ACTIVE_FILE) +
 			   node_page_state(pgdat, NR_INACTIVE_FILE);

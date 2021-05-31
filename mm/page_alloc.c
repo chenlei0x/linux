@@ -1151,6 +1151,7 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	}
 	if (PageMappingFlags(page))
 		page->mapping = NULL;
+	/*处理memcg */
 	if (memcg_kmem_enabled() && PageKmemcg(page))
 		__memcg_kmem_uncharge(page, order);
 	if (check_free)
@@ -1168,6 +1169,7 @@ static __always_inline bool free_pages_prepare(struct page *page,
 		debug_check_no_obj_freed(page_address(page),
 					   PAGE_SIZE << order);
 	}
+	/*清空页*/
 	if (want_init_on_free())
 		kernel_init_free_pages(page, 1 << order);
 
@@ -1180,7 +1182,7 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	arch_free_page(page, order);
 
 	if (debug_pagealloc_enabled_static())
-		kernel_map_pages(page, 1 << order, 0);
+		kernel_map_pages(page, 1 << order, 0); /*清空pte 的p bit*/
 
 	kasan_free_nondeferred_pages(page, order);
 

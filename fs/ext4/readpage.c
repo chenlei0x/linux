@@ -257,6 +257,7 @@ int ext4_mpage_readpages(struct address_space *mapping,
 
 			prefetchw(&page->flags);
 			list_del(&page->lru);
+			/*这里会对page 设置      lock标记*/
 			if (add_to_page_cache_lru(page, mapping, page->index,
 				  readahead_gfp_mask(mapping)))
 				goto next_page;

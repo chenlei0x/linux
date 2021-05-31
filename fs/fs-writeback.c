@@ -934,7 +934,7 @@ restart:
 		if (skip_if_busy && writeback_in_progress(wb))
 			continue;
 
-		/*本次写入 wb 应该写入多少个pages*/
+		/*本次该 wb 应该写入多少个pages*/
 		nr_pages = wb_split_bdi_pages(wb, base_work->nr_pages);
 
 		work = kmalloc(sizeof(*work), GFP_ATOMIC);

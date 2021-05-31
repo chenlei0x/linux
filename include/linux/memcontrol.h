@@ -207,7 +207,8 @@ struct mem_cgroup {
 	struct mem_cgroup_id id;
 
 	/* Accounted resources */
-	struct page_counter memory;
+	/*cgroup v2 中 min lonw high 就是设置的这个里面的值*/
+	struct page_counter memory; /*当前的使用量*/
 	struct page_counter swap;
 
 	/* Legacy consumer-oriented counters */

@@ -125,6 +125,7 @@ static int read_pages(struct address_space *mapping, struct file *filp,
 	if (mapping->a_ops->readpages) {
 		ret = mapping->a_ops->readpages(filp, mapping, pages, nr_pages);
 		/* Clean up the remaining pages */
+	/*从@pages list中删除所有的page*/
 		put_pages_list(pages);
 		goto out;
 	}
@@ -377,6 +378,8 @@ static int try_context_readahead(struct address_space *mapping,
 
 /*
  * A minimal readahead algorithm for trivial sequential/random reads.
+ *
+ * 动态决定预读的数量
  */
 static unsigned long
 ondemand_readahead(struct address_space *mapping,

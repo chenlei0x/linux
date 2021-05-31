@@ -1489,6 +1489,8 @@ NOKPROBE_SYMBOL(do_user_addr_fault);
 /*
  * Explicitly marked noinline such that the function tracer sees this as the
  * page_fault entry point.
+ *
+ * @address 肯定是虚拟地址了
  */
 static noinline void
 __do_page_fault(struct pt_regs *regs, unsigned long hw_error_code,
@@ -1500,9 +1502,16 @@ __do_page_fault(struct pt_regs *regs, unsigned long hw_error_code,
 		return;
 
 	/* Was the fault on kernel-controlled part of the address space? */
+	/*这个通常不可能， 但是有一些可能比如 read write 传入一个非法的内核虚拟地址*/
 	if (unlikely(fault_in_kernel_space(address)))
 		do_kern_addr_fault(regs, hw_error_code, address);
 	else
+		/*
+		 * address 是用户态的，这种有几种可能， 
+		 * 比如 
+		 * 1. malloc之后的内存被touch了，代码处于用户态，但是地址处于内核态
+		 * 2. malloc 之后的内存传入read 函数，read在真正复制的时候，产生page fault
+	     */
 		do_user_addr_fault(regs, hw_error_code, address);
 }
 NOKPROBE_SYMBOL(__do_page_fault);

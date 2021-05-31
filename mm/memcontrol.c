@@ -489,6 +489,7 @@ ino_t page_cgroup_ino(struct page *page)
 	return ino;
 }
 
+/*memcg 的 nodeinfo*/
 static struct mem_cgroup_per_node *
 mem_cgroup_page_nodeinfo(struct mem_cgroup *memcg, struct page *page)
 {

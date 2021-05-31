@@ -122,6 +122,7 @@ EXPORT_SYMBOL(get_options);
  *	potentially suffixed with K, M, G, T, P, E.
  */
 
+/*123K M G ===》 bytes*/
 unsigned long long memparse(const char *ptr, char **retptr)
 {
 	char *endptr;	/* local pointer to end of parsed string */

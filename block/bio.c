@@ -699,7 +699,7 @@ static inline bool page_is_mergeable(const struct bio_vec *bv,
 	 * 物理地址连续， 那么肯定可以合并
 	 */
 	*same_page = ((vec_end_addr & PAGE_MASK) == page_addr);
-	/*vec_end 所在的page 和 @page 还得处于同一个数组中 还得连续*/
+	/*vec_end 所在的page 和 @page 还得处于同一个mem_map数组中 还得连续*/
 	if (!*same_page && pfn_to_page(PFN_DOWN(vec_end_addr)) + 1 != page)
 		return false;
 	return true;
@@ -838,6 +838,7 @@ EXPORT_SYMBOL_GPL(__bio_try_merge_page);
  *
  * Add the data at @page + @off to @bio as a new bvec.  The caller must ensure
  * that @bio has space for another bvec.
+ * page 作为一个新的vec
  */
 void __bio_add_page(struct bio *bio, struct page *page,
 		unsigned int len, unsigned int off)

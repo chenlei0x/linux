@@ -27,7 +27,9 @@
  * https://www.cnblogs.com/aspirs/p/12620294.html
  * 这个连接中有对所有的XX_DS set_fs的解释
  */
-
+/*
+ * 虚拟地址访问的限制， https://www.cnblogs.com/aspirs/p/12620294.html
+ */
 #define KERNEL_DS	MAKE_MM_SEG(-1UL)  /*0xFFFFFFFF FFFFFFFF*/
 #define USER_DS 	MAKE_MM_SEG(TASK_SIZE_MAX) /*0x00007FFFFFFFF000 */
 

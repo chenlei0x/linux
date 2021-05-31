@@ -44,13 +44,25 @@
 /* How many pages do we try to swap or page in/out together? */
 int page_cluster;
 
+
+/*缓存不属于LRU链表的页，新加入的页；*/
+
 static DEFINE_PER_CPU(struct pagevec, lru_add_pvec);
+/*
+ * 缓存已经在INACTIVE LRU链表中的非活动页，将这些页添加到INACTIVE LRU链表的尾部；这个vec中包含了file 和 anon的page，
+ * 真正rotate的时候，根据page_lru返回值决定放到哪个lru中
+ */
 static DEFINE_PER_CPU(struct pagevec, lru_rotate_pvecs);
+/*缓存已经在ACTIVE LRU链表中的页，清除掉PG_activate, PG_referenced标志后，将这些页加入到INACTIVE LRU链表中；*/
 static DEFINE_PER_CPU(struct pagevec, lru_deactivate_file_pvecs);
+
 static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
+/*缓存匿名页，清除掉PG_activate, PG_referenced, PG_swapbacked标志后，将这些页加入到LRU_INACTIVE_FILE链表中；*/
 static DEFINE_PER_CPU(struct pagevec, lru_lazyfree_pvecs);
+
 #ifdef CONFIG_SMP
 /*需要被激活的page集合*/
+/*将LRU中的页加入到ACTIVE LRU链表中；*/
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
 
@@ -231,6 +243,7 @@ static void pagevec_move_tail_fn(struct page *page, struct lruvec *lruvec,
 	if (PageLRU(page) && !PageUnevictable(page)) {
 		del_page_from_lru_list(page, lruvec, page_lru(page));
 		ClearPageActive(page);
+		/*这里决定放到哪个lru中*/
 		add_page_to_lru_list_tail(page, lruvec, page_lru(page));
 		(*pgmoved)++;
 	}
@@ -264,7 +277,7 @@ void rotate_reclaimable_page(struct page *page)
 
 		get_page(page);
 		local_irq_save(flags);
-		pvec = this_cpu_ptr(&lru_rotate_pvecs);
+		pvec = this_cpu_ptr(&lru_rotate_pvecs); /*active ===> inactive */
 		if (!pagevec_add(pvec, page) || PageCompound(page))
 			pagevec_move_tail(pvec);
 		local_irq_restore(flags);
@@ -342,6 +355,7 @@ void activate_page(struct page *page)
 }
 #endif
 
+/*从 lru cache中找到@page Active*/
 static void __lru_cache_activate_page(struct page *page)
 {
 	struct pagevec *pvec = &get_cpu_var(lru_add_pvec);
@@ -418,6 +432,7 @@ static void __lru_cache_add(struct page *page)
 
 	get_page(page);
 	if (!pagevec_add(pvec, page) || PageCompound(page))
+		/*放不下了，把pvec中的转移到lru中*/
 		__pagevec_lru_add(pvec);
 	put_cpu_var(lru_add_pvec);
 }
@@ -704,6 +719,7 @@ void mark_page_lazyfree(struct page *page)
 	}
 }
 
+/*percpu page vec 转移到 lru list上*/
 void lru_add_drain(void)
 {
 	lru_add_drain_cpu(get_cpu());

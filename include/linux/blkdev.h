@@ -338,8 +338,19 @@ struct queue_limits {
 
 	unsigned int		max_hw_sectors;
 	unsigned int		max_dev_sectors;
+	/*
+	 * chunk, 把整个磁盘分为一个个的chunk，2^n 对齐， 每次下发的req 都弄成一个个的chunk
+	 * 假如chunk = 8， 写入start sector = 12， 那么 req 大小之只能为4
+	 * 详见 blk_rq_get_max_sectors
+	 *
+	 */
 	unsigned int		chunk_sectors;/*0*/
+	/*
+	 * 当 chunk_sectors 为0时， 一个req 最大不能超过max_sectors， 
+	 * 这个值通过max_sectors_kb设置，最终转换为sector个数
+	 */
 	unsigned int		max_sectors; /*255*/
+	/*bvec 的最大长度*/
 	unsigned int		max_segment_size;
 	/*NVME最大不会超过 1<< PAGE_SHIFT */
 	unsigned int		physical_block_size;/*512B*/
