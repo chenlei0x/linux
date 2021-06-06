@@ -2156,6 +2156,7 @@ inline void post_alloc_hook(struct page *page, unsigned int order,
 static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 							unsigned int alloc_flags)
 {
+	/*page -> _refcount ++*/
 	post_alloc_hook(page, order, gfp_flags);
 
 	if (!free_pages_prezeroed() && want_init_on_alloc(gfp_flags))
@@ -3566,6 +3567,8 @@ alloc_flags_nofragment(struct zone *zone, gfp_t gfp_mask)
 /*
  * get_page_from_freelist goes through the zonelist trying to allocate
  * a page.
+ *
+ * page refcount = 1
  */
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,

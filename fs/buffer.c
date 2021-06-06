@@ -295,8 +295,10 @@ static void end_buffer_async_read(struct buffer_head *bh, int uptodate)
 	 * If none of the buffers had errors and they are all
 	 * uptodate then we can set the page uptodate.
 	 */
+	 /*所有bh 都 uptodate, 那么设置page 为uptodate*/
 	if (page_uptodate && !PageError(page))
 		SetPageUptodate(page);
+	/*释放page lock*/
 	unlock_page(page);
 	return;
 

@@ -113,6 +113,7 @@ int read_cache_pages(struct address_space *mapping, struct list_head *pages,
 
 EXPORT_SYMBOL(read_cache_pages);
 
+/*异步预读 pages*/
 static int read_pages(struct address_space *mapping, struct file *filp,
 		struct list_head *pages, unsigned int nr_pages, gfp_t gfp)
 {
@@ -194,7 +195,9 @@ unsigned int __do_page_cache_readahead(struct address_space *mapping,
 			continue;
 		}
 
+		/*page -> _refcount = 1*/
 		page = __page_cache_alloc(gfp_mask);
+		/*之后在read_pages中, 会put_page*/
 		if (!page)
 			break;
 		page->index = page_offset;
@@ -467,6 +470,7 @@ ondemand_readahead(struct address_space *mapping,
 	 * standalone, small random read
 	 * Read as is, and do not pollute the readahead state.
 	 */
+	 /*req_size 全读进来*/
 	return __do_page_cache_readahead(mapping, filp, offset, req_size, 0);
 
 initial_readahead:
@@ -492,6 +496,7 @@ readit:
 		}
 	}
 
+	/*一部分 read ahead 一部分 非 reqdahead*/
 	return ra_submit(ra, mapping, filp);
 }
 

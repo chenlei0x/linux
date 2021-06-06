@@ -1527,6 +1527,8 @@ EXPORT_SYMBOL(page_cache_prev_miss);
  * swap entry from shmem/tmpfs, it is returned.
  *
  * Return: the found page or shadow entry, %NULL if nothing is found.
+ *
+ * !!!!!!!!ref count ++
  */
 struct page *find_get_entry(struct address_space *mapping, pgoff_t offset)
 {
@@ -1638,6 +1640,7 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 	struct page *page;
 
 repeat:
+	/*refcount_add count ++(int i, refcount_t * r)*/
 	page = find_get_entry(mapping, offset);
 	if (xa_is_value(page))
 		page = NULL;
@@ -1687,6 +1690,7 @@ no_page:
 
 		err = add_to_page_cache_lru(page, mapping, offset, gfp_mask);
 		if (unlikely(err)) {
+			/*alloc page 时 refcount 被初始化为1*/
 			put_page(page);
 			page = NULL;
 			if (err == -EEXIST)
@@ -2401,6 +2405,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	if (!ra->ra_pages)
 		return fpin;
 
+	/*只有madvise 会加上这个标记*/
 	if (vmf->vma->vm_flags & VM_SEQ_READ) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
 		page_cache_sync_readahead(mapping, ra, file, offset,
@@ -2499,6 +2504,7 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 
 	/*
 	 * Do we have something in the page cache already?
+	 * 这里只做查找,不创建, 如果找到 page-> _refcount ++
 	 */
 	page = find_get_page(mapping, offset);
 	if (likely(page) && !(vmf->flags & FAULT_FLAG_TRIED)) {
@@ -2512,6 +2518,7 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 		count_vm_event(PGMAJFAULT);
 		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
 		ret = VM_FAULT_MAJOR;
+		/*发起预读*/
 		fpin = do_sync_mmap_readahead(vmf);
 retry_find:
 		page = pagecache_get_page(mapping, offset,
@@ -2524,6 +2531,7 @@ retry_find:
 		}
 	}
 
+	/*这里会锁定 @page, 如果能锁定page, 那么fpin就为空, 否则fpin会被置为非空,走入retry流程*/
 	if (!lock_page_maybe_drop_mmap(vmf, page, &fpin))
 		goto out_retry;
 

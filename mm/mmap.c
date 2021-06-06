@@ -1560,6 +1560,7 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	unsigned long retval;
 
 	if (!(flags & MAP_ANONYMOUS)) {
+		/*file backed mmap*/
 		audit_mmap_fd(fd, flags);
 		file = fget(fd);
 		if (!file)

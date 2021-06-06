@@ -846,6 +846,7 @@ retry:
 		}
 		cond_resched();
 
+		/*在 vma 的 start处找到对应的page*/
 		page = follow_page_mask(vma, start, foll_flags, &ctx);
 		if (!page) {
 			ret = faultin_page(tsk, vma, start, &foll_flags,

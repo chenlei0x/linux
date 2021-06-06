@@ -3745,6 +3745,8 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
  * return value.  See filemap_fault() and __lock_page_or_retry().
  * If mmap_sem is released, vma may become invalid (for example
  * by other thread calling munmap()).
+ *
+ * file backed fault
  */
 static vm_fault_t do_fault(struct vm_fault *vmf)
 {
@@ -3782,10 +3784,23 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 			pte_unmap_unlock(vmf->pte, vmf->ptl);
 		}
 	} else if (!(vmf->flags & FAULT_FLAG_WRITE))
+		/*比如这种情况:
+			p = mmap(fd, 0, 4096);  mmap 只分配vma
+			int a = int(*p) 触发缺页中断,进行真正的映射,即走到这个流程中
+
+		*/
 		ret = do_read_fault(vmf);
 	else if (!(vma->vm_flags & VM_SHARED))
-		ret = do_cow_fault(vmf);
-	else
+		/*WRITE 但 非 SHARED*/
+		/*即这是一个私有映射且发生了写时复制COW*/
+		ret = do_cow_fault(vmf); 
+	else /*比如公用的进行写入, 比如private map*/
+
+	/*比如这种情况:
+		p = mmap(fd, 0, 4096);	mmap 只分配vma
+		*p = 10 触发缺页中断,进行真正的映射,即走到这个流程中
+
+	*/
 		ret = do_shared_fault(vmf);
 
 	/* preallocated pagetable is unused: free it */
@@ -4013,6 +4028,7 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		if (vma_is_anonymous(vmf->vma))
 			return do_anonymous_page(vmf);
 		else
+			/*对于shmem共享内存, 不会走到anonymous中, 因为 其vm_ops = shmem_vm_ops*/
 			return do_fault(vmf);
 	}
 

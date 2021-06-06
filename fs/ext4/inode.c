@@ -3243,6 +3243,7 @@ static int ext4_readpage(struct file *file, struct page *page)
 	return ret;
 }
 
+/*ext4 的预读*/
 static int
 ext4_readpages(struct file *file, struct address_space *mapping,
 		struct list_head *pages, unsigned nr_pages)
@@ -3253,6 +3254,7 @@ ext4_readpages(struct file *file, struct address_space *mapping,
 	if (ext4_has_inline_data(inode))
 		return 0;
 
+	/*readahead = true*/
 	return ext4_mpage_readpages(mapping, pages, NULL, nr_pages, true);
 }
 
