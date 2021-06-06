@@ -759,6 +759,7 @@ static void ext4_update_bh_state(struct buffer_head *bh, unsigned long flags)
 		 cmpxchg(&bh->b_state, old_state, new_state) != old_state));
 }
 
+/*inode 的 逻辑block @iblock 映射到磁盘block， 结果放到 bh中*/
 static int _ext4_get_block(struct inode *inode, sector_t iblock,
 			   struct buffer_head *bh, int flags)
 {

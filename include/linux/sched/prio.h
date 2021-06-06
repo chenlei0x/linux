@@ -22,8 +22,8 @@
 #define MAX_USER_RT_PRIO	100
 #define MAX_RT_PRIO		MAX_USER_RT_PRIO
 
-#define MAX_PRIO		(MAX_RT_PRIO + NICE_WIDTH)
-#define DEFAULT_PRIO		(MAX_RT_PRIO + NICE_WIDTH / 2)
+#define MAX_PRIO		(MAX_RT_PRIO + NICE_WIDTH) *-/* = 120*/
+#define DEFAULT_PRIO		(MAX_RT_PRIO + NICE_WIDTH / 2) /*= 100 + 40 / 2 = 120 */
 
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]

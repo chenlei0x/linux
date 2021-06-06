@@ -227,6 +227,7 @@ enum {
 	MIN_PERIOD		= USEC_PER_MSEC,
 	MAX_PERIOD		= USEC_PER_SEC,
 
+	/*device time 和 vtime之间的gap成为margin*/
 	/*
 	 * A cgroup's vtime can run 50% behind the device vtime, which
 	 * serves as its IO credit buffer.  Surplus weight adjustment is
@@ -360,8 +361,8 @@ enum {
 
 enum {
 	LCOEF_RPAGE,
-	LCOEF_RSEQIO,
-	LCOEF_RRANDIO,
+	LCOEF_RSEQIO, /*seq io需要的寻道时间*/
+	LCOEF_RRANDIO,/*rand io需要的寻道时间*/
 	LCOEF_WPAGE,
 	LCOEF_WSEQIO,
 	LCOEF_WRANDIO,
@@ -380,7 +381,7 @@ struct ioc_gq;
 
 struct ioc_params {
 	u32				qos[NR_QOS_PARAMS];
-	u64				i_lcoefs[NR_I_LCOEFS];
+	u64				i_lcoefs[NR_I_LCOEFS]; /*用户echo 的model参数会存到这里*/
 	/*
 	 * ioc_refresh_lcoefs 会从根据 i_lcoefs计算生成 lcoefs, 
 	 * i_locefs 表示墙上时间, 
@@ -411,12 +412,13 @@ struct ioc {
 
 	bool				enabled;
 
+	/*实际工作的时候参考的参数，默认从autop中复制过来*/
 	struct ioc_params		params;
 	/*ioc_refresh_period_us 计算得来*/
 	u32				period_us; /*一个period 多久*/
 	u32				margin_us;/*ioc_refresh_period_us*/
 
-	/*vtime rate 介于这两个值之间*/
+	/*vtime rate 介于这两个值之间，这个值就是qos 配置中根据min max 两个参数算出来的*/
 	/*ioc->params.qos[QOS_MIN] * VTIME_PER_USEC / MILLION*/
 	u64				vrate_min;
 	u64				vrate_max;
@@ -428,6 +430,7 @@ struct ioc {
 	struct list_head		active_iocgs;	/* active cgroups */
 	struct ioc_pcpu_stat __percpu	*pcpu_stat;
 
+	/*初始为IDLE*/
 	enum ioc_running		running;
 	
 	/* 
@@ -446,11 +449,16 @@ struct ioc {
 	atomic64_t			vtime_rate; 
 
 	seqcount_t			period_seqcount;
+
+	/*以下两个域 在 ioc_start_period 中重置*/
+	/*初始值当前的 us 时间*/
+	/*初始化为 ktime_to_us(ktime_get())*/
 	u32				period_at;	/* wallclock starttime */
 
-	/*now->vnow*/
+	/*now->vnow   ioc_start_period*/
 	u64				period_at_vtime; /* vtime starttime */
 
+	/*init 0*/
 	atomic64_t			cur_period;	/* inc'd each period */
 	int				busy_level;	/* saturation history */
 
@@ -458,6 +466,7 @@ struct ioc {
 	u64				inuse_margin_vtime;
 	bool				weights_updated;
 	/*强迫 current_hweight 拿到权重前做权重更新*/
+	/*初始 0*/
 	atomic_t			hweight_gen;	/* for lazy hweights */
 
 	u64				autop_too_fast_at;
@@ -490,7 +499,7 @@ struct ioc_gq {
 	 * `last_inuse` remembers `inuse` while an iocg is idle to persist
 	 * surplus adjustments.
 	 */
-	 /* 用户配置的weight， weight_updated 会把这个值同步到下面的@weight中*/
+	 /* 用户通过 maj:min weight 方式配置的weight， weight_updated 会把这个值同步到下面的@weight中*/
 	u32				cfg_weight;
 	
 	/*
@@ -539,13 +548,17 @@ struct ioc_gq {
 	atomic64_t			vtime;
 	atomic64_t			done_vtime; /*done之后计入的vtime*/
 	atomic64_t			abs_vdebt;
+	/*上次被active 的时候， vtime */
 	u64				last_vtime;
 
 	/*
 	 * The period this iocg was last active in.  Used for deactivation
 	 * and invalidating `vtime`.
+	 *
+	 * 最后一次为active时，所处的period
 	 */
 	atomic64_t			active_period;
+	/*默认是 none active的*/
 	struct list_head		active_list;
 
 	/* see __propagate_active_weight() and current_hweight() for details */
@@ -582,7 +595,7 @@ struct ioc_gq {
 	struct ioc_gq			*ancestors[];
 };
 
-/* per cgroup */
+/* per cgroup ,每个 cgroup！！！ 不是per cg per queue*/
 struct ioc_cgrp {
 	struct blkcg_policy_data	cpd;
 	unsigned int			dfl_weight;
@@ -612,6 +625,7 @@ struct iocg_wake_ctx {
 	s64				vbudget;
 };
 
+/*不同磁盘的默认参数*/
 static const struct ioc_params autop[] = {
 	[AUTOP_HDD] = {
 		.qos				= {
@@ -800,6 +814,7 @@ static void ioc_refresh_period_us(struct ioc *ioc)
 	 * scale it linearly so that it's 20x >= pct(90) and 10x at pct(50).
 	 */
 	 /*ppm 950000 = 95% */
+	/*multi 用来计算多少个io，防止窗口太小，统计没有意义，比如一个窗口中只有两个io过去了，那有一个超时就50%超时率了，不准*/
 	if (ppm)
 		multi = max_t(u32, (MILLION - ppm) / 50000, 2);
 	else
@@ -888,12 +903,14 @@ static void calc_lcoefs(u64 bps, u64 seqiops, u64 randiops,
 		*page = DIV64_U64_ROUND_UP(VTIME_PER_SEC,
 					   DIV_ROUND_UP_ULL(bps, IOC_PAGE_SIZE));
 
+	/*seq io 的时候默认是128M 一个io，所以减少了很多寻道时间*/
 	if (seqiops) {
 		v = DIV64_U64_ROUND_UP(VTIME_PER_SEC, seqiops);
 		if (v > *page)
 			*seqio = v - *page;
 	}
 
+	/*128MB一个IO*/
 	if (randiops) {
 		v = DIV64_U64_ROUND_UP(VTIME_PER_SEC, randiops);
 		if (v > *page)
@@ -907,8 +924,10 @@ static void ioc_refresh_lcoefs(struct ioc *ioc)
 	u64 *u = ioc->params.i_lcoefs;
 	u64 *c = ioc->params.lcoefs;
 
+	/*读*/
 	calc_lcoefs(u[I_LCOEF_RBPS], u[I_LCOEF_RSEQIOPS], u[I_LCOEF_RRANDIOPS],
 		    &c[LCOEF_RPAGE], &c[LCOEF_RSEQIO], &c[LCOEF_RRANDIO]);
+	/*写*/
 	calc_lcoefs(u[I_LCOEF_WBPS], u[I_LCOEF_WSEQIOPS], u[I_LCOEF_WRANDIOPS],
 		    &c[LCOEF_WPAGE], &c[LCOEF_WSEQIO], &c[LCOEF_WRANDIO]);
 }
@@ -940,7 +959,9 @@ static bool ioc_refresh_params(struct ioc *ioc, bool force)
 	if (!ioc->user_cost_model)
 		memcpy(ioc->params.i_lcoefs, p->i_lcoefs, sizeof(p->i_lcoefs));
 
+	/*计算timer 周期*/
 	ioc_refresh_period_us(ioc);
+	/*计算每个io的cost*/
 	ioc_refresh_lcoefs(ioc);
 
 	ioc->vrate_min = DIV64_U64_ROUND_UP((u64)ioc->params.qos[QOS_MIN] *
@@ -972,7 +993,7 @@ static void ioc_now(struct ioc *ioc, struct ioc_now *now)
 		seq = read_seqcount_begin(&ioc->period_seqcount);
 		/*上一次的vtime + 过去的墙上时间 * vrate*/
 		now->vnow = ioc->period_at_vtime +
-			(now->now - ioc->period_at) * now->vrate;
+			(now->now - ioc->period_at) * now->vrate;/*vrate 实际就是: vtime per us*/
 	} while (read_seqcount_retry(&ioc->period_seqcount, seq));
 }
 
@@ -993,6 +1014,8 @@ static void ioc_start_period(struct ioc *ioc, struct ioc_now *now)
 /*
  * Update @iocg's `active` and `inuse` to @active and @inuse, update level
  * weight sums and propagate upwards accordingly.
+ *
+ * 这里只更新从该节点开始到root节点，同级兄弟节点靠 iocg_activate 函数更新
  */
 static void __propagate_active_weight(struct ioc_gq *iocg, u32 active, u32 inuse)
 {
@@ -1083,6 +1106,7 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 	if (ioc_gen == iocg->hweight_gen)
 		goto out;
 
+	/*hweight_gen 变了的话，要保证 其他的值也一定是变了*/
 	/*
 	 * Paired with wmb in commit_active_weights().  If we saw the
 	 * updated hweight_gen, all the weight updates from
@@ -1171,6 +1195,7 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	}
 
 	/* racy check on internal node IOs, treat as root level IOs */
+	/*非leaf 节点的IO*/
 	if (iocg->child_active_sum)
 		return false;
 
@@ -1192,7 +1217,7 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 		if (!list_empty(&iocg->ancestors[i]->active_list))
 			goto fail_unlock;
 
-	/*leaf 节点的child active sum 只能位0*/
+	/*leaf 节点的child active sum 只能为0*/
 	if (iocg->child_active_sum)
 		goto fail_unlock;
 
@@ -1211,10 +1236,12 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	 * iocg->vtime 和 vnow 差距太大了, 这时候如果有大量io下来,这个差距会
 	 * 允许很多io通过,导致控制不住,所以要修正一下iocg->vtime,使得 
 	 * iocg->vtime = vnow - vmargin
+	 *
+	 * margin_us 表示vtime 裁剪的时候，至少要保留多少vtime
 	 */
 	if (last_period + max_period_delta < cur_period ||
 	    time_before64(vtime, vmin)) {
-		atomic64_add(vmin - vtime, &iocg->vtime);
+		atomic64_add(vmin - vtime, &iocg->vtime); /*补齐到 vnow - vmargin*/
 		atomic64_add(vmin - vtime, &iocg->done_vtime);
 		vtime = vmin;
 	}
@@ -1237,6 +1264,7 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	iocg->last_vtime = vtime;
 
 	if (ioc->running == IOC_IDLE) {
+		/*初始为IDLE*/
 		ioc->running = IOC_RUNNING;
 		ioc_start_period(ioc, now);
 	}
@@ -1518,7 +1546,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 	/*percent 95 ----> 950000 ==> ppm_rthr = 50000*/
 	u32 ppm_rthr = MILLION - ioc->params.qos[QOS_RPPM]; 
 	u32 ppm_wthr = MILLION - ioc->params.qos[QOS_WPPM];
-	u32 missed_ppm[2], rq_wait_pct;
+	u32 missed_ppm[2] /*r/w*/, rq_wait_pct;
 	u64 period_vtime;
 	int prev_busy_level, i;
 
@@ -1559,6 +1587,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 		} else if (iocg_is_idle(iocg)) {
 			/* no waiter and idle, deactivate */
 			iocg->last_inuse = iocg->inuse;
+			/*既然已经idle了，那么把权重都让出来*/
 			__propagate_active_weight(iocg, 0, 0);
 			list_del_init(&iocg->active_list);
 		}
@@ -1617,11 +1646,12 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		/* calculate hweight based usage ratio and record */
 		if (vusage) {
-			/*
-			 * abs_cost *  hw_inuse = cost
-			 * vusage 目前是带权重的cost, 这里转换为abs cost, 因为period_vtime不带权重
-			 * usage 表示我用的vtime 占本周期的比例
-			 */
+			 /* 
+			  * 这里 vusage 是带了权重了
+			  * usage = 使用的(cost / 已经过去的vtime) * hw_inuse, 
+			  * 也就是说，usage 反应了 hw_inuse到底使用是否充分，
+			  * 引入如果vusage 和已经过去的vtime十分接近的话，usage 几乎= hw_inuse
+			  */
 			usage = DIV64_U64_ROUND_UP(vusage * hw_inuse,
 						   period_vtime);
 			iocg->usage_idx = (iocg->usage_idx + 1) % NR_USAGE_SLOTS;
@@ -1636,7 +1666,10 @@ static void ioc_timer_fn(struct timer_list *timer)
 
 		iocg->has_surplus = false;
 
-		/*没有排队的进程且 vtime < vmin*/
+		/*
+		 * 没有排队的进程且 vtime < vmin
+		 * 说明这个cg 是一个富裕的cg
+		 */
 		if (!waitqueue_active(&iocg->waitq) &&
 		    time_before64(vtime, vmin)) {
 			u64 delta = vmin - vtime;
@@ -1647,7 +1680,9 @@ static void ioc_timer_fn(struct timer_list *timer)
 			iocg->last_vtime += delta;
 			/* if usage is sufficiently low, maybe it can donate */
 			/*这个iocg 的vtime 消耗的太少了,说明IO很少, 可以贡献出来*/
+			/*usage 是 hw inuse 的实际使用反应*/
 			if (surplus_adjusted_hweight_inuse(usage, hw_inuse)) {
+				/*打上这个标记说明才可以走入下面的循环*/
 				iocg->has_surplus = true;
 				nr_surpluses++;
 			}
@@ -1813,6 +1848,7 @@ skip_surplus_transfers:
 	 */
 	atomic64_inc(&ioc->cur_period);
 
+	/*只有exit的时候，才会赋值 IOC_STOP*/
 	if (ioc->running != IOC_STOP) {
 		if (!list_empty(&ioc->active_iocgs)) {
 			ioc_start_period(ioc, &now);
@@ -1825,7 +1861,7 @@ skip_surplus_transfers:
 	spin_unlock_irq(&ioc->lock);
 }
 
-/*bio 对应的的VTIME时间*/
+/*bio 对应的的abs VTIME时间*/
 static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 				    bool is_merge, u64 *costp)
 {
@@ -1904,12 +1940,13 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 	vtime = atomic64_read(&iocg->vtime);
 	current_hweight(iocg, &hw_active, &hw_inuse);
 
-	/*inuse 应该 大于 active*/
+	/*inuse < 用户设置的weight*/
 	if (hw_inuse < hw_active &&
 	    time_after_eq64(vtime + ioc->inuse_margin_vtime, now.vnow)) {
 		TRACE_IOCG_PATH(inuse_reset, iocg, &now,
 				iocg->inuse, iocg->weight, hw_inuse, hw_active);
 		spin_lock_irq(&ioc->lock);
+		/*inuse 直接设置为 用户设置的weight，然后重新计算hweight*/
 		propagate_active_weight(iocg, iocg->weight, iocg->weight);
 		spin_unlock_irq(&ioc->lock);
 		current_hweight(iocg, &hw_active, &hw_inuse);
@@ -2394,6 +2431,8 @@ static const match_table_t qos_tokens = {
 	{ NR_QOS_PARAMS,	NULL		},
 };
 
+
+/*$maj_min enable=1 ctrl=user rpct=95.00 rlat=5000 wpct=95.00 wlat=5000 min=80.00 max=150.00*/
 static ssize_t ioc_qos_write(struct kernfs_open_file *of, char *input,
 			     size_t nbytes, loff_t off)
 {
@@ -2560,11 +2599,16 @@ static const match_table_t i_lcoef_tokens = {
 	{ NR_I_LCOEFS,		NULL		},
 };
 
+
+/*
+model="$maj_min rbps=2962362618 rseqiops=191979 rrandiops=313656 wbps=2316874936 wseqiops=226444 wrandiops=314936
+*/
 static ssize_t ioc_cost_model_write(struct kernfs_open_file *of, char *input,
 				    size_t nbytes, loff_t off)
 {
 	struct gendisk *disk;
 	struct ioc *ioc;
+	/*这里面存储着 echo 进来的string */
 	u64 u[NR_I_LCOEFS];
 	bool user;
 	char *p;

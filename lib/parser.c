@@ -101,6 +101,8 @@ static int match_one(char *s, const char *p, substring_t args[])
  * to it. Tokens can include up to MAX_OPT_ARGS instances of basic c-style
  * format identifiers which will be taken into account when matching the
  * tokens, and whose locations will be returned in the @args array.
+ *
+ * 看s 能match table种的元素几个，最多 MAX_OPT_ARGS个，放到args数组种
  */
 int match_token(char *s, const match_table_t table, substring_t args[])
 {

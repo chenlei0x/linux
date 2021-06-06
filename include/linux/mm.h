@@ -249,7 +249,7 @@ extern unsigned int kobjsize(const void *objp);
 #define VM_READ		0x00000001	/* currently active flags */
 #define VM_WRITE	0x00000002
 #define VM_EXEC		0x00000004
-#define VM_SHARED	0x00000008
+#define VM_SHARED	0x00000008 /*父子进程之间cow 匿名页*/
 
 /* mprotect() hardcodes VM_MAYREAD >> 4 == VM_READ, and so for r/w/x bits. */
 #define VM_MAYREAD	0x00000010	/* limits for mprotect() etc */
