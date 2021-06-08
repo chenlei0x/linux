@@ -633,6 +633,7 @@ __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *prev, struct rb_node **rb_link,
 	struct rb_node *rb_parent)
 {
+	/*通过 vma:: vm_prev vm_next 链接, 按照地址*/
 	__vma_link_list(mm, vma, prev);
 	__vma_link_rb(mm, vma, rb_link, rb_parent);
 }
@@ -1396,6 +1397,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		addr = round_hint_to_min(addr);
 
 	/* Careful about overflows.. */
+	/*向上取整PAGE*/
 	len = PAGE_ALIGN(len);
 	if (!len)
 		return -ENOMEM;
@@ -1956,6 +1958,7 @@ found:
 	return gap_start;
 }
 
+/*在这些vma中,找到相邻的两个vma, 计算他们的gap, gap满足info中的要求,返回这个virtual address*/
 unsigned long unmapped_area_topdown(struct vm_unmapped_area_info *info)
 {
 	struct mm_struct *mm = current->mm;
@@ -2007,6 +2010,7 @@ unsigned long unmapped_area_topdown(struct vm_unmapped_area_info *info)
 
 check_current:
 		/* Check if current node has a suitable gap */
+		/*vma 的起始*/
 		gap_end = vm_start_gap(vma);
 		if (gap_end < low_limit)
 			return -ENOMEM;
@@ -2032,6 +2036,7 @@ check_current:
 				return -ENOMEM;
 			vma = rb_entry(rb_parent(prev),
 				       struct vm_area_struct, vm_rb);
+			/*从右子树返回上来*/
 			if (prev == vma->vm_rb.rb_right) {
 				gap_start = vma->vm_prev ?
 					vm_end_gap(vma->vm_prev) : 0;
@@ -2131,6 +2136,10 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 	if (flags & MAP_FIXED)
 		return addr;
 
+	/*这里确定是否有一块适合的空闲区域，先要保证addr+len不会
+			  超过进程地址空间的最大允许范围，然后如果前面vma获取成功的话则要保证
+			  vma位于addr的后面并且addr+len不会延伸到该vma的区域*/
+
 	/* requesting a specific address */
 	if (addr) {
 		addr = PAGE_ALIGN(addr);
@@ -2181,6 +2190,7 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	if (len > TASK_SIZE)
 		return -ENOMEM;
 
+	/* arch_get_unmapped_area_topdown */
 	get_area = current->mm->get_unmapped_area;
 	if (file) {
 		if (file->f_op->get_unmapped_area)
@@ -2211,6 +2221,7 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 EXPORT_SYMBOL(get_unmapped_area);
 
 /* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
+/*获取一个vma，该vma可能包含了addr也可能在addr后面并且离addr最近*/
 struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 {
 	struct rb_node *rb_node;
