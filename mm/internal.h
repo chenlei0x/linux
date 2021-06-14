@@ -183,6 +183,7 @@ extern void zone_pcp_reset(struct zone *zone);
  */
 struct compact_control {
 	struct list_head freepages;	/* List of free pages to migrate to */
+	/*这里面都是*/
 	struct list_head migratepages;	/* List of pages being migrated */
 	unsigned int nr_freepages;	/* Number of isolated free pages */
 	unsigned int nr_migratepages;	/* Number of pages to migrate */

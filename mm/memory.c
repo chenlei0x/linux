@@ -2710,6 +2710,11 @@ static vm_fault_t wp_page_shared(struct vm_fault *vmf)
  * We enter with non-exclusive mmap_sem (to exclude vma changes,
  * but allow concurrent faults), with pte both mapped and locked.
  * We return with mmap_sem still held, but pte unmapped and unlocked.
+ *
+ * 走到这里说明页面在内存中，只是PTE只有读权限，而又要写内存的时候就会触发
+ *
+ * do_wp_page函数用于处理写时复制（copy on write），其流程比较简单，主要是分配新
+ * 的物理页，拷贝原来页的内容到新页，然后修改页表项内容指向新页并修改为可写(vma具备可写属性)。
  */
 static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	__releases(vmf->ptl)

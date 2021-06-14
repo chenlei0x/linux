@@ -454,6 +454,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
 		SetPageDirty(newpage);
 	}
 
+	/*newpage插入到pagecache中*/
 	xas_store(&xas, newpage);
 	if (PageTransHuge(page)) {
 		int i;
@@ -681,11 +682,13 @@ int migrate_page(struct address_space *mapping,
 
 	BUG_ON(PageWriteback(page));	/* Writeback must be complete */
 
+	/*新旧页加入在pagecache中进行替换*/
 	rc = migrate_page_move_mapping(mapping, newpage, page, 0);
 
 	if (rc != MIGRATEPAGE_SUCCESS)
 		return rc;
 
+	/*开始拷贝页,因为已经对page 进行了lock,所以不用考虑page fault*/
 	if (mode != MIGRATE_SYNC_NO_COPY)
 		migrate_page_copy(newpage, page);
 	else
@@ -950,6 +953,7 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 			rc = mapping->a_ops->migratepage(mapping, newpage,
 							page, mode);
 		else
+			/*默认走这个里面*/
 			rc = fallback_migrate_page(mapping, newpage,
 							page, mode);
 	} else {
@@ -1112,6 +1116,7 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		page_was_mapped = 1;
 	}
 
+	/*处理pagecache 替换*/
 	if (!page_mapped(page))
 		rc = move_to_new_page(newpage, page, mode);
 
@@ -1160,6 +1165,9 @@ out:
 /*
  * Obtain the lock on page, remove all ptes and migrate the page
  * to the newly allocated page in newpage.
+ *
+ * 针对一个page 进行migrate
+
  */
 static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 				   free_page_t put_new_page,

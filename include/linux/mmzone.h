@@ -100,23 +100,14 @@ extern int page_group_by_mobility_disabled;
  *
  * zone 内的碎片整合路径
  __alloc_pages_nodemask
- 
 	 -> __alloc_pages_slowpath
- 
 		 -> __alloc_pages_direct_compact
- 
 			 -> try_to_compact_pages
- 
 				 -> compact_zone_order
- 
 					 -> compact_zone
- 
 						 -> isolate_migratepages
- 
 						 -> migrate_pages
- 
 						 -> release_freepages
-
  * 
  */
 struct free_area {
@@ -514,6 +505,8 @@ struct zone {
 	/*
 	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
 	 * In SPARSEMEM, this map is stored in struct mem_section
+	 *
+	 * 每个pageblock 对应的flags 数组 setup_usemap
 	 */
 	unsigned long		*pageblock_flags;
 #endif /* CONFIG_SPARSEMEM */

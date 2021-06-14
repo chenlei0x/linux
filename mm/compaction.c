@@ -880,6 +880,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 		 * potential isolation targets.
 		 */
 		if (PageBuddy(page)) {
+			/*page 在buddy中*/
 			unsigned long freepage_order = page_order_unsafe(page);
 
 			/*
@@ -974,7 +975,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 				goto isolate_fail;
 			}
 		}
-
+		/*戏开始了, 把这个page从lru 中摘掉*/
 		lruvec = mem_cgroup_page_lruvec(page, pgdat);
 
 		/* Try isolate the page */
@@ -989,6 +990,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 				NR_ISOLATED_ANON + page_is_file_cache(page));
 
 isolate_success:
+		/*摘掉之后放到migratepages中*/
 		list_add(&page->lru, &cc->migratepages);
 		cc->nr_migratepages++;
 		nr_isolated++;
@@ -1737,6 +1739,8 @@ static unsigned long fast_find_migrateblock(struct compact_control *cc)
  * Isolate all pages that can be migrated from the first suitable block,
  * starting at the block pointed to by the migrate scanner pfn within
  * compact_control.
+ *
+ * 
  */
 static isolate_migrate_t isolate_migratepages(struct compact_control *cc)
 {
@@ -1754,6 +1758,7 @@ static isolate_migrate_t isolate_migratepages(struct compact_control *cc)
 	 * initialized by compact_zone(). The first failure will use
 	 * the lowest PFN as the starting point for linear scanning.
 	 */
+	 /*找到free pfn*/
 	low_pfn = fast_find_migrateblock(cc);
 	block_start_pfn = pageblock_start_pfn(low_pfn);
 	if (block_start_pfn < cc->zone->zone_start_pfn)
@@ -2068,6 +2073,23 @@ bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
 	return false;
 }
 
+
+/*
+ __aloc_pages_slowpath
+	 __alloc_pages_direct_compact
+		 __try_to_compact_pages
+			 compact_zone_order
+ 
+ kconpactd
+	 kconpactd_do_work
+ 
+ /sys/devices/system/node/node0/compact
+ sysfs_compact_node
+ 
+ /proc/sys/vm/compact_memory
+ sysctl_compaction_handler
+
+ */
 static enum compact_result
 compact_zone(struct compact_control *cc, struct capture_control *capc)
 {
@@ -2149,6 +2171,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 	trace_mm_compaction_begin(start_pfn, cc->migrate_pfn,
 				cc->free_pfn, end_pfn, sync);
 
+	/*把lru cache中的page 都刷下去*/
 	migrate_prep_local();
 
 	while ((ret = compact_finished(cc)) == COMPACT_CONTINUE) {
