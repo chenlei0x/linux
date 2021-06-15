@@ -779,6 +779,11 @@ struct bootmem_data;
 /*每个node 有一个 pg_data_t*/
 typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES];
+	/*
+	 * ZONELIST_NOFALLBACK 只包含了自己node节点的zone，
+	 * ZONELIST_FALLBACK 包含了其他节点和本届点的zone
+	 * build_zonelists
+	 */
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
