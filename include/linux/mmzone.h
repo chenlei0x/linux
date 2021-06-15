@@ -493,6 +493,24 @@ struct zone {
 	 * there being tons of freeable ram on the higher zones).  This array is
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
+	 *
+	 *
+	 ZONE_NORMAL和ZONE_DMA都是线性映射，使用方便，ZONE_DMA还可以满足一些特殊的
+	 DMA设备对地址的要求，所以我们通常是希望尽量不要动用低位zones的内存的。为
+	 了防止高位zone在fallback时过度挤压自己的内存，低位zones会在zone watermark
+	 之外，再给自己加一层缓冲垫，这个缓冲垫就是"lowmem reserve"。
+
+
+	 设ZONE_DMA, ZONE_NORMAL和ZONE_HIGHMEM的内存大小分别是A, B和C，那么
+	 在ZONE_DMA中，需要给自己预留的内存大小是"B/256"加上"(B+C)/256"。在
+	 ZONE_NORMAL中，需要预留的内存大小是"C/32"。这里的分母来自于zone自
+	 己的"lowmem_reserve_ratio"，而分子则来自于比它高位的zones。
+	 
+	 所以，ZONE_DMA防止被ZONE_NORMAL侵占而预留的将是190464/256=784个pages，
+	 防止ZONE_HIGHMEM的将是(190464+51200)/256=984个pages。ZONE_NORMAL防止被
+	 ZONE_HIGHMEM侵占而预留的则是51200/32=1600个pages。这种关系可以用一个3x3的矩阵来表示：
+	 *
+	 * 本zone 为了防止其他zone的偷页行为,需要预留多少页
 	 */
 	long lowmem_reserve[MAX_NR_ZONES];
 
