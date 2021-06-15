@@ -490,7 +490,10 @@ int account_locked_vm(struct mm_struct *mm, unsigned long pages, bool inc)
 }
 EXPORT_SYMBOL_GPL(account_locked_vm);
 
-/*mmap 肯定会走到这个流程中*/
+/*
+ * mmap 肯定会走到这个流程中
+ * @file 可能是NULL
+ */
 unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long pgoff)

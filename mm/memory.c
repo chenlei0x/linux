@@ -385,6 +385,11 @@ void free_pgd_range(struct mmu_gather *tlb,
 	} while (pgd++, addr = next, addr != end);
 }
 
+/*相邻的vma 都进行释放？*/
+/*
+ * 到这一步，注意到，只是释放了pte所映射的页框，所以，可能会造成有很多
+ * pte项没有映射的状态，这部份pte所占的空间其实是可以回收的。
+ */
 void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		unsigned long floor, unsigned long ceiling)
 {
@@ -420,6 +425,7 @@ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	}
 }
 
+/*pmd 的一项 对应一个page 的 pte项*/
 int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 {
 	spinlock_t *ptl;
@@ -1019,6 +1025,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	return ret;
 }
 
+/*这里会 put_page*/
 static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,

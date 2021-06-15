@@ -246,7 +246,7 @@ enum node_stat_item {
 			   only modified from process context */
 	NR_FILE_PAGES,
 	NR_FILE_DIRTY,
-	NR_WRITEBACK,
+	NR_WRITEBACK, /*设置页正在被回写*/
 	NR_WRITEBACK_TEMP,	/* Writeback using temporary buffers */
 	NR_SHMEM,		/* shmem pages (included tmpfs/GEM pages) */
 	NR_SHMEM_THPS,

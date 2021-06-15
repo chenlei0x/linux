@@ -1511,6 +1511,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			return -EINVAL;
 		}
 	} else {
+		/*匿名页*/
 		switch (flags & MAP_TYPE) {
 		case MAP_SHARED:
 			if (vm_flags & (VM_GROWSDOWN|VM_GROWSUP))
@@ -2192,7 +2193,7 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 
 	/* arch_get_unmapped_area_topdown */
 	get_area = current->mm->get_unmapped_area;
-	if (file) {
+	if (file) {/*如果是file backed page*/
 		if (file->f_op->get_unmapped_area)
 			get_area = file->f_op->get_unmapped_area;
 	} else if (flags & MAP_SHARED) {
@@ -2201,6 +2202,7 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 		 * so use shmem's get_unmapped_area in case it can be huge.
 		 * do_mmap_pgoff() will clear pgoff, so match alignment.
 		 */
+		 /*匿名页走到这个里面*/
 		pgoff = 0;
 		get_area = shmem_get_unmapped_area;
 	}
@@ -2784,6 +2786,7 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 		if (error)
 			return error;
 	}
+	/*mmap 是 vma 的链表指针，指向第一个*/
 	vma = prev ? prev->vm_next : mm->mmap;
 
 	if (unlikely(uf)) {

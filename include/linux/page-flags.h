@@ -99,7 +99,7 @@
  /*uptodate 和 dirty 不冲突*/
 enum pageflags {
 	PG_locked,		/* Page is locked. Don't touch. */
-	PG_referenced,
+	PG_referenced, /*表示页最近被访问(只有文件页使用)*/
 	PG_uptodate,
 	PG_dirty,
 	PG_lru,
@@ -265,10 +265,12 @@ static __always_inline void __SetPage##uname(struct page *page)		\
 static __always_inline void __ClearPage##uname(struct page *page)	\
 	{ __clear_bit(PG_##lname, &policy(page, 1)->flags); }
 
+/*返回旧值*/
 #define TESTSETFLAG(uname, lname, policy)				\
 static __always_inline int TestSetPage##uname(struct page *page)	\
 	{ return test_and_set_bit(PG_##lname, &policy(page, 1)->flags); }
 
+/*返回旧值*/
 #define TESTCLEARFLAG(uname, lname, policy)				\
 static __always_inline int TestClearPage##uname(struct page *page)	\
 	{ return test_and_clear_bit(PG_##lname, &policy(page, 1)->flags); }

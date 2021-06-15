@@ -2761,6 +2761,33 @@ EXPORT_SYMBOL(__cancel_dirty_page);
  * This incoherency between the page's dirty flag and xarray tag is
  * unfortunate, but it only exists while the page is locked.
  */
+
+/*
+通常情况下，当VM发现一个mmap页面dirty时，
+会调用set_page_dirty()设置该page以及所属的buffer head为dirty。
+然后，在适当的时候，会通过writepage()写到磁盘上去。
+
+但是，在系统忙的时候，set_page_dirty()和真正的writepage()之间
+可能有很长的时间（比如有人做了sync操作），在这期间，文件系统的某些内部操作可能会
+自行把buffer写到磁盘，并清除buffer head的dirty标志。
+但此时，page的dirty标志仍然有效。
+等到writepage()执行时，会发现page是dirty的，但buffers是clean的，
+因此writepage()不会有任何动作。
+
+问题来了，由于这个page是mmaped，如果在文件系统内部操作和
+执行writepage()之间，应用程序直接写data到该page的话，就失去
+了跟踪，writepage()仍然会看到所有的buffer是clean的，
+因此不会把新的数据写入文件，因此这些数据就丢失了。
+
+Linus的patch是修改了clear_page_dirty_for_io()，
+也就是在writepage()的时候，查看一下相关的pte是否dirty，
+如果是，就重新调用一次set_page_dirty()，从而使得buffer header重新变成dirty。
+同时，并把该page设置为只读（这样，如果程序还写，会触发一次page fault再处理）。
+
+因此，writepage()就会写入新数据了。
+
+
+*/
 int clear_page_dirty_for_io(struct page *page)
 {
 	struct address_space *mapping = page_mapping(page);
@@ -2798,6 +2825,12 @@ int clear_page_dirty_for_io(struct page *page)
 		 * as a serialization point for all the different
 		 * threads doing their things.
 		 */
+		 /* 把page clean了，并且protect，后续再有人写入就
+		  * 会进入page fault，被阻塞，  但是把bh 弄脏，这是
+		  * 为了后续的writepage把真正的脏buffer 刷下去，因为writepage
+		  * 会遍历一个page 中的所有buffer， 如果buffer 脏了
+		  * 的话，才加入bio，并不关心page是否为脏
+		  */
 		if (page_mkclean(page))
 			set_page_dirty(page);
 		/*
@@ -2810,6 +2843,7 @@ int clear_page_dirty_for_io(struct page *page)
 		 */
 		wb = unlocked_inode_to_wb_begin(inode, &cookie);
 		if (TestClearPageDirty(page)) {
+			/*返回旧值， 说明是脏的*/
 			dec_lruvec_page_state(page, NR_FILE_DIRTY);
 			dec_zone_page_state(page, NR_ZONE_WRITE_PENDING);
 			dec_wb_stat(wb, WB_RECLAIMABLE);
