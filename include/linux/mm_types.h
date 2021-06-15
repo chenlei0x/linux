@@ -83,6 +83,7 @@ struct page {
 			 */
 			struct list_head lru;
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
+			/* __PageMovable PageAnon 对这个域有特殊的用法*/
 			struct address_space *mapping;
 			/*文件系统中, 这个表示在文件中的offset*/
 			pgoff_t index;		/* Our offset within mapping. */

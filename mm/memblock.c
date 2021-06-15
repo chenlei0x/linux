@@ -107,7 +107,7 @@ static struct memblock_region memblock_reserved_init_regions[INIT_MEMBLOCK_RESER
 static struct memblock_region memblock_physmem_init_regions[INIT_PHYSMEM_REGIONS] __initdata_memblock;
 #endif
 
-struct memblock memblock __initdata_memblock = {
+struct memblock memblock /*__initdata_memblock*/ = {
 	.memory.regions		= memblock_memory_init_regions,
 	.memory.cnt		= 1,	/* empty dummy entry */
 	.memory.max		= INIT_MEMBLOCK_REGIONS,

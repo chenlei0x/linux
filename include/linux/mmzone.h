@@ -40,6 +40,7 @@
 
 enum migratetype {
 	MIGRATE_UNMOVABLE,
+	/*默认都是把page 都放到这个free list里面 memmap_init_zone*/
 	MIGRATE_MOVABLE,
 	MIGRATE_RECLAIMABLE,
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
@@ -499,6 +500,8 @@ struct zone {
 	int node;
 #endif
 	struct pglist_data	*zone_pgdat;
+
+	/*全部是order = 0 的page*/
 	struct per_cpu_pageset __percpu *pageset;
 
 #ifndef CONFIG_SPARSEMEM

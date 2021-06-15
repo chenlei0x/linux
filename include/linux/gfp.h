@@ -117,6 +117,7 @@ struct vm_area_struct;
 #define __GFP_ATOMIC	((__force gfp_t)___GFP_ATOMIC)
 #define __GFP_HIGH	((__force gfp_t)___GFP_HIGH)
 #define __GFP_MEMALLOC	((__force gfp_t)___GFP_MEMALLOC)
+/*禁止去emergency reserve 内存中拿内存*/
 #define __GFP_NOMEMALLOC ((__force gfp_t)___GFP_NOMEMALLOC)
 
 /**
@@ -188,7 +189,13 @@ struct vm_area_struct;
  * loop around allocator.
  * Using this flag for costly allocations is _highly_ discouraged.
  */
+
+/* 内存分配的过程中可进行IO操作，也就是说分配过程中如果需要换出页，必须设置该标志，才能将换出的页写入磁盘 */
+
 #define __GFP_IO	((__force gfp_t)___GFP_IO)
+/*
+ 内存分配过程中可执行VFS操作，也就是可以调用VFS的接口 
+*/
 #define __GFP_FS	((__force gfp_t)___GFP_FS)
 #define __GFP_DIRECT_RECLAIM	((__force gfp_t)___GFP_DIRECT_RECLAIM) /* Caller can reclaim */
 #define __GFP_KSWAPD_RECLAIM	((__force gfp_t)___GFP_KSWAPD_RECLAIM) /* kswapd can wake */
@@ -290,8 +297,11 @@ struct vm_area_struct;
 #define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_KERNEL_ACCOUNT (GFP_KERNEL | __GFP_ACCOUNT)
 #define GFP_NOWAIT	(__GFP_KSWAPD_RECLAIM)
+/*可以等待，但是不能又IO发生*/
 #define GFP_NOIO	(__GFP_RECLAIM)
+/*不能有文件系统相关的操作*/
 #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO)
+/*为用户态分配的页，可以阻塞*/
 #define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL)
 #define GFP_DMA		__GFP_DMA
 #define GFP_DMA32	__GFP_DMA32

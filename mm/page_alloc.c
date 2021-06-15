@@ -549,6 +549,7 @@ void set_pfnblock_flags_mask(struct page *page, unsigned long flags,
 
 void set_pageblock_migratetype(struct page *page, int migratetype)
 {
+	/*如果disable了，那么强制设置喂unmovable*/
 	if (unlikely(page_group_by_mobility_disabled &&
 		     migratetype < MIGRATE_PCPTYPES))
 		migratetype = MIGRATE_UNMOVABLE;
@@ -2015,6 +2016,8 @@ void __init init_cma_reserved_pageblock(struct page *page)
  *
  * -- nyc
  */
+
+/*拆页， 比如order = 3 的page， current order=1 拆为 2 + 2 + 4  ,然后第一个2 被分配*/
 static inline void expand(struct zone *zone, struct page *page,
 	int low, int high, struct free_area *area,
 	int migratetype)
@@ -2180,6 +2183,8 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 /*
  * Go through the free lists for the given migratetype and remove
  * the smallest available page from the freelists
+ *
+ * 找到一个最小最合适的页，可能会由大页进行分割
  */
 static __always_inline
 struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
@@ -2190,12 +2195,15 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 	struct page *page;
 
 	/* Find a page of the appropriate size in the preferred list */
+	/*尝试所有的free area， 每个fa对应一个order，找到一个page ，然后expand*/
 	for (current_order = order; current_order < MAX_ORDER; ++current_order) {
 		area = &(zone->free_area[current_order]);
 		page = get_page_from_free_area(area, migratetype);
 		if (!page)
 			continue;
 		del_page_from_free_area(page, area);
+		/*把一个连续的 8 页拆为 2 + 2 + 4，  @page = 开头的2页*/
+		/*order 为n 的page，会被拆分到不同的free area中*/
 		expand(zone, page, order, current_order, area, migratetype);
 		set_pcppage_migratetype(page, migratetype);
 		return page;
@@ -2269,6 +2277,7 @@ static int move_freepages(struct zone *zone,
 		VM_BUG_ON_PAGE(page_to_nid(page) != zone_to_nid(zone), page);
 		VM_BUG_ON_PAGE(page_zone(page) != zone, page);
 
+		/*移动阶为 @order 的page*/
 		order = page_order(page);
 		move_to_free_area(page, &zone->free_area[order], migratetype);
 		page += 1 << order;
@@ -2707,6 +2716,7 @@ do_steal:
 /*
  * Do the hard work of removing an element from the buddy allocator.
  * Call me with the zone->lock already held.
+ *
  */
 static __always_inline struct page *
 __rmqueue(struct zone *zone, unsigned int order, int migratetype,
@@ -2715,6 +2725,7 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 	struct page *page;
 
 retry:
+	/*申请个合适的业面*/
 	page = __rmqueue_smallest(zone, order, migratetype);
 	if (unlikely(!page)) {
 		if (migratetype == MIGRATE_MOVABLE)
@@ -3262,6 +3273,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 	unsigned long flags;
 	struct page *page;
 
+	/*0阶内存，注意这里是从preferred zone 中申请*/
 	if (likely(order == 0)) {
 		page = rmqueue_pcplist(preferred_zone, zone, gfp_flags,
 					migratetype, alloc_flags);
@@ -3275,6 +3287,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 	WARN_ON_ONCE((gfp_flags & __GFP_NOFAIL) && (order > 1));
 	spin_lock_irqsave(&zone->lock, flags);
 
+	/*0阶内存申请失败，或者不是0阶， 这时候需要搜索@zone 的buddy了， 而不是@preferred zone*/
 	do {
 		page = NULL;
 		if (alloc_flags & ALLOC_HARDER) {
@@ -3282,6 +3295,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 			if (page)
 				trace_mm_page_alloc_zone_locked(page, order, migratetype);
 		}
+		/*从紧急保留内存中还是没有申请到， 那么从migratetyep 对应的free list中申请*/
 		if (!page)
 			page = __rmqueue(zone, order, migratetype, alloc_flags);
 	} while (page && check_new_pages(page, order));
@@ -3640,6 +3654,7 @@ retry:
 			}
 		}
 
+		/*探测zone是否超过水位线*/
 		mark = wmark_pages(zone, alloc_flags & ALLOC_WMARK_MASK);
 		if (!zone_watermark_fast(zone, order, mark,
 				       ac_classzone_idx(ac), alloc_flags)) {
@@ -3693,6 +3708,7 @@ try_this_zone:
 			 * if the pageblock should be reserved for the future
 			 */
 			if (unlikely(order && (alloc_flags & ALLOC_HARDER)))
+				/*放到high atomic中*/
 				reserve_highatomic_pageblock(page, zone, order);
 
 			return page;
@@ -4674,6 +4690,7 @@ static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
 
 	might_sleep_if(gfp_mask & __GFP_DIRECT_RECLAIM);
 
+	/*chaos mesh相关操作*/
 	if (should_fail_alloc_page(gfp_mask, order))
 		return false;
 
