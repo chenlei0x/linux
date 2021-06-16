@@ -781,7 +781,7 @@ typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES];
 	/*
 	 * ZONELIST_NOFALLBACK 只包含了自己node节点的zone，
-	 * ZONELIST_FALLBACK 包含了其他节点和本届点的zone
+	 * ZONELIST_FALLBACK 包含了本节点 & 其他节点和的zone
 	 * build_zonelists
 	 */
 	struct zonelist node_zonelists[MAX_ZONELISTS];
@@ -1122,6 +1122,8 @@ struct zoneref *__next_zones_zonelist(struct zoneref *z,
  * search. The zoneref returned is a cursor that represents the current zone
  * being examined. It should be advanced by one before calling
  * next_zones_zonelist again.
+ *
+ * @z 是一个数组
  */
 static __always_inline struct zoneref *next_zones_zonelist(struct zoneref *z,
 					enum zone_type highest_zoneidx,

@@ -112,8 +112,10 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  * by a const pointer.
  */
 struct alloc_context {
+/*prepare_alloc_pages  指向一个node 的某个zonelist*/
 	struct zonelist *zonelist;
 	nodemask_t *nodemask;
+	/*finalise_ac*/
 	struct zoneref *preferred_zoneref;
 	int migratetype;
 	enum zone_type high_zoneidx;
@@ -531,6 +533,7 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 #define ALLOC_CPUSET		 0x40 /* check for correct cpuset */
 #define ALLOC_CMA		 0x80 /* allow allocations from CMA areas */
 #ifdef CONFIG_ZONE_DMA32
+/*如果这个标记打上，则直接申请一个page block*/
 #define ALLOC_NOFRAGMENT	0x100 /* avoid mixing pageblock types */
 #else
 #define ALLOC_NOFRAGMENT	  0x0

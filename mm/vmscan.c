@@ -4130,7 +4130,14 @@ module_init(kswapd_init)
  * If non-zero call node_reclaim when the number of free pages falls below
  * the watermarks.
  */
-int node_reclaim_mode __read_mostly;
+
+/*
+1 = Zone reclaim on
+2 = Zone reclaim writes dirty pages out
+4 = Zone reclaim swaps pages
+
+*/
+int node_reclaim_mode /*__read_mostly*/;
 
 #define RECLAIM_OFF 0
 #define RECLAIM_ZONE (1<<0)	/* Run shrink_inactive_list on the zone */

@@ -3600,6 +3600,7 @@ retry:
 	 */
 	no_fallback = alloc_flags & ALLOC_NOFRAGMENT;
 	z = ac->preferred_zoneref;
+	/*z 和 zone 始终时对应的, 第一遍循环时,zone 和 ac->preferred_zoneref 是对应的*/
 	for_next_zone_zonelist_nodemask(zone, z, ac->zonelist, ac->high_zoneidx,
 								ac->nodemask) {
 		struct page *page;
@@ -3647,6 +3648,10 @@ retry:
 			 * fragmenting fallbacks. Locality is more important
 			 * than fragmentation avoidance.
 			 */
+			 /* 走到这里说明第一遍循环已经完结, 第一遍zone 肯定和ac->preferred zoneref一致,
+			  * 而且没有申请到内存,这时候需要跨node 搞, 如果nofragment标记依然存在,需要一次申请一个
+			  * pageblock, 但是可能造成在一个邻居node上申请不到, 所以放弃nofragment, 允许申请
+			  * 一个较小的page 块,因为locality 比碎片更重要*/
 			local_nid = zone_to_nid(ac->preferred_zoneref->zone);
 			if (zone_to_nid(zone) != local_nid) {
 				alloc_flags &= ~ALLOC_NOFRAGMENT;
@@ -3654,13 +3659,14 @@ retry:
 			}
 		}
 
-		/*探测zone是否超过水位线*/
+		/*探测zone是否超过水位线, 水位线用的是min 还是low 得看alloc_flags*/
 		mark = wmark_pages(zone, alloc_flags & ALLOC_WMARK_MASK);
 		if (!zone_watermark_fast(zone, order, mark,
 				       ac_classzone_idx(ac), alloc_flags)) {
 			int ret;
 
 #ifdef CONFIG_DEFERRED_STRUCT_PAGE_INIT
+			/*没有开启,暂时不管*/
 			/*
 			 * Watermark failed for this zone, but see if we can
 			 * grow this zone if it contains deferred pages.
@@ -3689,6 +3695,7 @@ retry:
 				continue;
 			default:
 				/* did we reclaim enough */
+				/*棒, 回收的比较充足了*/
 				if (zone_watermark_ok(zone, order, mark,
 						ac_classzone_idx(ac), alloc_flags))
 					goto try_this_zone;
@@ -3698,6 +3705,7 @@ retry:
 		}
 
 try_this_zone:
+		/*这里可能会wakeup kswapd*/
 		page = rmqueue(ac->preferred_zoneref->zone, zone, order,
 				gfp_mask, alloc_flags, ac->migratetype);
 		if (page) {
@@ -4561,6 +4569,7 @@ retry:
 		goto got_pg;
 
 	/* Try direct compaction and then allocating */
+	/*紧缩!!!!!!*/
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
 	if (page)
@@ -5601,6 +5610,7 @@ static void build_zonelists_in_node_order(pg_data_t *pgdat, int *node_order,
 		nr_zones = build_zonerefs_node(node, zonerefs);
 		zonerefs += nr_zones;
 	}
+	/*最后一个zoneref 为空*/
 	zonerefs->zone = NULL;
 	zonerefs->zone_idx = 0;
 }

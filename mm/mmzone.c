@@ -52,6 +52,7 @@ static inline int zref_in_nodemask(struct zoneref *zref, nodemask_t *nodes)
 #endif /* CONFIG_NUMA */
 }
 
+/*返回符合 @highest_zoneidx 且在nodes 中的第一个zone*/
 /* Returns the next zone at or below highest_zoneidx in a zonelist */
 struct zoneref *__next_zones_zonelist(struct zoneref *z,
 					enum zone_type highest_zoneidx,
@@ -65,6 +66,7 @@ struct zoneref *__next_zones_zonelist(struct zoneref *z,
 		while (zonelist_zone_idx(z) > highest_zoneidx)
 			z++;
 	else
+		/*当 < hightest_zoneindex 且属于nodeamsk时退出*/
 		while (zonelist_zone_idx(z) > highest_zoneidx ||
 				(z->zone && !zref_in_nodemask(z, nodes)))
 			z++;
