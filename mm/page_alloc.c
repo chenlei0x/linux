@@ -3313,6 +3313,7 @@ out:
 	/* Separate test+clear to avoid unnecessary atomics */
 	if (test_bit(ZONE_BOOSTED_WATERMARK, &zone->flags)) {
 		clear_bit(ZONE_BOOSTED_WATERMARK, &zone->flags);
+		/*唤醒kswapd*/
 		wakeup_kswapd(zone, 0, 0, zone_idx(zone));
 	}
 
@@ -4469,6 +4470,7 @@ retry_cpuset:
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
 	 * that first
+	 * alloc flags 修改之后可能能够直接成功
 	 */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page)
