@@ -225,6 +225,7 @@ struct mem_cgroup {
 	unsigned long soft_limit;
 
 	/* vmpressure notifications */
+	/*每个memcg 有一个vmpressure*/
 	struct vmpressure vmpressure;
 
 	/*

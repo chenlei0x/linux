@@ -178,6 +178,7 @@ static void pgd_dtor(pgd_t *pgd)
 					KERNEL_PGD_PTRS : 0)
 #define MAX_PREALLOCATED_USER_PMDS KERNEL_PGD_PTRS
 
+/*@pmd  代表一个页，也就是pmd_t数组，一个pudp指向一个pud_t,其中是一个页表项,指向一个全是pmd 页*/
 void pud_populate(struct mm_struct *mm, pud_t *pudp, pmd_t *pmd)
 {
 	paravirt_alloc_pmd(mm, __pa(pmd) >> PAGE_SHIFT);

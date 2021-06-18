@@ -314,6 +314,8 @@ enum jbd_state_bits {
 	BH_RevokeValid,		/* Revoked flag is valid */
 	BH_JBDDirty,		/* Is dirty but journaled */
 	BH_JournalHead,		/* Pins bh->b_private and jh->b_bh */
+	/*https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/fs/jbd2/transaction.c?h=linux-3.11.y&id=b34090e5e22a02fba0e4473056cce9420ad9dd0b*/
+	/*被shadow 的buffer 是为了防止提交到磁盘之前被篡改*/
 	BH_Shadow,		/* IO on shadow buffer is running */
 	BH_Verified,		/* Metadata block has been verified ok */
 	BH_JBDPrivateStart,	/* First bit available for private use by FS */

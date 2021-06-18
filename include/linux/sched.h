@@ -729,6 +729,8 @@ struct task_struct {
 	struct rb_node			pushable_dl_tasks;
 #endif
 
+	/*https://blog.csdn.net/renyisheng/article/details/77822789 */
+	/*内核线程mm 为 null*/
 	struct mm_struct		*mm;
 	struct mm_struct		*active_mm;
 

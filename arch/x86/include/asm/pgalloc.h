@@ -82,6 +82,7 @@ static inline void pmd_populate_kernel_safe(struct mm_struct *mm,
 	set_pmd_safe(pmd, __pmd(__pa(pte) | _PAGE_TABLE));
 }
 
+/*pmd_t * 指向了一个pmd entry*/
 static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
 				struct page *pte)
 {

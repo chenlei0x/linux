@@ -2951,6 +2951,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		 * to global LRU.
 		 */
 		if (!cgroup_reclaim(sc)) {
+			/*非针对cgroup级别的回收*/
 			if (!cpuset_zone_allowed(zone,
 						 GFP_KERNEL | __GFP_HARDWALL))
 				continue;
@@ -2999,6 +3000,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		if (zone->zone_pgdat == last_pgdat)
 			continue;
 		last_pgdat = zone->zone_pgdat;
+		/*回收内存*/
 		shrink_node(zone->zone_pgdat, sc);
 	}
 
@@ -3035,6 +3037,8 @@ static void snapshot_refaults(struct mem_cgroup *target_memcg, pg_data_t *pgdat)
  * returns:	0, if no pages reclaimed
  * 		else, the number of pages reclaimed
  */
+
+/*try_to_free_mem_cgroup_pages 会调用该函数释放内存*/
 static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 					  struct scan_control *sc)
 {
@@ -3374,6 +3378,7 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 	psi_memstall_enter(&pflags);
 	noreclaim_flag = memalloc_noreclaim_save();
 
+	/*这里*/
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
 
 	memalloc_noreclaim_restore(noreclaim_flag);

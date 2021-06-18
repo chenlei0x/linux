@@ -357,6 +357,7 @@ static inline pudval_t native_pud_val(pud_t pud)
 #endif
 
 #if CONFIG_PGTABLE_LEVELS > 2
+/*pmd_t * 指向了一个pmd entry*/
 typedef struct { pmdval_t pmd; } pmd_t;
 
 static inline pmd_t native_make_pmd(pmdval_t val)

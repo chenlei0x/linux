@@ -426,6 +426,7 @@ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 }
 
 /*pmd 的一项 对应一个page 的 pte项*/
+/*该函数用来申请一个页用来装pte*/
 int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 {
 	spinlock_t *ptl;
@@ -446,11 +447,13 @@ int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 	 * seen in-order. See the alpha page table accessors for the
 	 * smp_read_barrier_depends() barriers in page table walking code.
 	 */
+	 /*可能已经有人把这个pte项分配了，所以这里需要wmb一下*/
 	smp_wmb(); /* Could be smp_wmb__xxx(before|after)_spin_lock */
 
 	ptl = pmd_lock(mm, pmd);
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
 		mm_inc_nr_ptes(mm);
+		/*写入页表*/
 		pmd_populate(mm, pmd, new);
 		new = NULL;
 	}
