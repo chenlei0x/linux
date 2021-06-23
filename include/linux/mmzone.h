@@ -780,8 +780,9 @@ struct bootmem_data;
 typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES];
 	/*
-	 * ZONELIST_NOFALLBACK 只包含了自己node节点的zone，
-	 * ZONELIST_FALLBACK 包含了本节点 & 其他节点和的zone
+	 * 
+	 * ZONELIST_FALLBACK 包含了本节点 & 其他节点和的zone, 比如 本node 的 zone 2 zone 1 zone 0 其他node 的zone2
+	 * ZONELIST_NOFALLBACK 只包含了自己node节点的zone，比如本node 的 zone 2 zone 1 zone 0
 	 * build_zonelists
 	 */
 	struct zonelist node_zonelists[MAX_ZONELISTS];
