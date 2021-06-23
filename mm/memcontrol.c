@@ -2064,6 +2064,7 @@ static bool consume_stock(struct mem_cgroup *memcg, unsigned int nr_pages)
 
 	local_irq_save(flags);
 
+	/*cache 加速*/
 	stock = this_cpu_ptr(&memcg_stock);
 	if (memcg == stock->cached && stock->nr_pages >= nr_pages) {
 		stock->nr_pages -= nr_pages;
@@ -2403,12 +2404,16 @@ retry:
 	if (consume_stock(memcg, nr_pages))
 		return 0;
 
+	/*不需要计入 swap 或者需要计入而且没有超过限制*/
 	if (!do_memsw_account() ||
 	    page_counter_try_charge(&memcg->memsw, batch, &counter)) {
+	    /*再计入memory*/
 		if (page_counter_try_charge(&memcg->memory, batch, &counter))
 			goto done_restock;
+		/*悲剧了,memory charge失败了, memsw uncharge回去*/
 		if (do_memsw_account())
 			page_counter_uncharge(&memcg->memsw, batch);
+		/*counter 肯定代表的时 memory page_counter*/
 		mem_over_limit = mem_cgroup_from_counter(counter, memory);
 	} else {
 		mem_over_limit = mem_cgroup_from_counter(counter, memsw);

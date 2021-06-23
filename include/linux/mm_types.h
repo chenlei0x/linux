@@ -351,6 +351,19 @@ struct vm_area_struct {
 	 */
 	const struct vm_operations_struct *vm_ops;
 
+	/*
+	如果是匿名页, 则
+
+	case MAP_SHARED:
+		pgoff = 0;
+
+	case MAP_PRIVATE:
+		pgoff = addr >> PAGE_SHIFT;
+
+	如果是file 页:	则 = 文件中的page 偏移
+
+	do_mmap
+	*/
 	/* Information about our backing store: */
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
 					   units */

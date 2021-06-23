@@ -961,6 +961,7 @@ static inline int copy_p4d_range(struct mm_struct *dst_mm, struct mm_struct *src
 	return 0;
 }
 
+/*拷贝页表项*/
 int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		struct vm_area_struct *vma)
 {
@@ -2481,6 +2482,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
 
+	/*0号页, 针对malloc 之后立即读的场景, 这时候读的实际上都是0号页的数据,而真正写的时候才分配内存*/
 	if (is_zero_pfn(pte_pfn(vmf->orig_pte))) {
 		new_page = alloc_zeroed_user_highpage_movable(vma,
 							      vmf->address);
@@ -2540,6 +2542,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		 * thread doing COW.
 		 */
 		ptep_clear_flush_notify(vma, vmf->address, vmf->pte);
+		/*新的page 应该归属于这个vma了*/
 		page_add_new_anon_rmap(new_page, vma, vmf->address, false);
 		mem_cgroup_commit_charge(new_page, memcg, false, false);
 		lru_cache_add_active_or_unevictable(new_page, vma);
@@ -2668,6 +2671,10 @@ static vm_fault_t wp_pfn_shared(struct vm_fault *vmf)
 	wp_page_reuse(vmf);
 	return VM_FAULT_WRITE;
 }
+
+/*
+针对文件页
+*/
 
 static vm_fault_t wp_page_shared(struct vm_fault *vmf)
 	__releases(vmf->ptl)
@@ -2798,6 +2805,7 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		unlock_page(vmf->page);
 	} else if (unlikely((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
 					(VM_WRITE|VM_SHARED))) {
+		/*针对文件页*/
 		return wp_page_shared(vmf);
 	}
 copy:
@@ -4059,6 +4067,7 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 	if (unlikely(!pte_same(*vmf->pte, entry)))
 		goto unlock;
 	if (vmf->flags & FAULT_FLAG_WRITE) {
+		/*wp write present page, 也就是对应的页存在,但是不准写的情况*/
 		if (!pte_write(entry))
 			return do_wp_page(vmf);
 		entry = pte_mkdirty(entry);

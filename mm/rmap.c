@@ -283,6 +283,13 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
 		dst->anon_vma = prev->anon_vma;
 
 
+	/*
+	 * 既然要拷贝,那么就需要该vma关联的所有anon_vma 都复制出来,
+	 * 因为 一个vma可能被多个anon_vma 关联, 比如匿名私有页面fork之后cow, 因cow 创建
+	 * 的新页指向一个新的av,该av表示这个新页所涉及到的所有vma(目前只有该进程的该vma)
+	 * 而没有触发cow 的页还是被该vma映射着, 所以没有触发cow的页也需要一个av,他表示这个页所涉及到的
+	 * 所有vma,其中包括原进程的vma和新进程的vma
+	 */
 	list_for_each_entry_reverse(pavc, &src->anon_vma_chain, same_vma) {
 		struct anon_vma *anon_vma;
 
@@ -1166,6 +1173,8 @@ void do_page_add_anon_rmap(struct page *page,
  * Same as page_add_anon_rmap but must only be called on *new* pages.
  * This means the inc-and-test can be bypassed.
  * Page does not have to be locked.
+ *
+ * 将 page 绑定到 @vma -> anon_vma
  */
 void page_add_new_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address, bool compound)
