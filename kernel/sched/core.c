@@ -3946,6 +3946,8 @@ restart:
 	 * We can terminate the balance pass as soon as we know there is
 	 * a runnable task of @class priority or higher.
 	 */
+	 /*stop deadline  rt fair idle*/
+	/*这个范围不包括idle*/
 	for_class_range(class, prev->sched_class, &idle_sched_class) {
 		if (class->balance(rq, prev, rf))
 			break;
@@ -3954,6 +3956,7 @@ restart:
 
 	put_prev_task(rq, prev);
 
+	/*每种class 遍历， 找到一个合适的就退出*/
 	for_each_class(class) {
 		p = class->pick_next_task(rq);
 		if (p)
@@ -4040,9 +4043,11 @@ static void __sched notrace __schedule(bool preempt)
 
 	switch_count = &prev->nivcsw;
 	if (!preempt && prev->state) {
+		/*这种情况下就是自愿放弃cpu，比如拿锁等IO等*/
 		if (signal_pending_state(prev->state, prev)) {
 			prev->state = TASK_RUNNING;
 		} else {
+			/*从rq上摘除，因为task肯定已经处于一个等待队列上，比如mutex锁*/
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 
 			if (prev->in_iowait) {
@@ -4053,6 +4058,7 @@ static void __sched notrace __schedule(bool preempt)
 		switch_count = &prev->nvcsw;
 	}
 
+	/*从rq上pick 下一个*/
 	next = pick_next_task(rq, prev, &rf);
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();

@@ -517,6 +517,7 @@ struct zone {
 #ifdef CONFIG_NUMA
 	int node;
 #endif
+/*指向自己所处的node data*/
 	struct pglist_data	*zone_pgdat;
 
 	/*全部是order = 0 的page*/

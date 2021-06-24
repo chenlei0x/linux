@@ -490,6 +490,12 @@ struct cfs_bandwidth { };
 struct cfs_rq {
 	struct load_weight	load;
 	unsigned long		runnable_weight;
+	/*
+	 * The difference between nr_running and h_nr_running is:
+	 * nr_running:	 present how many entity would take part in the sharing
+	 *				 the cpu power of that cfs_rq
+	 * h_nr_running: present how many tasks in current cfs runqueue
+	 */
 	unsigned int		nr_running;
 	unsigned int		h_nr_running;      /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
@@ -1305,6 +1311,7 @@ init_numa_balancing(unsigned long clone_flags, struct task_struct *p)
 
 #ifdef CONFIG_SMP
 
+/*头插*/
 static inline void
 queue_balance_callback(struct rq *rq,
 		       struct callback_head *head,

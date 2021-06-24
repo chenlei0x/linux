@@ -466,6 +466,8 @@ struct sched_entity {
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	int				depth;
 	struct sched_entity		*parent;
+
+	/*init_tg_cfs_entry*/
 	/* rq on which this entity is (to be) queued: */
 	struct cfs_rq			*cfs_rq;
 	/* rq "owned" by this entity/group: */
@@ -857,6 +859,14 @@ struct task_struct {
 	atomic_t			tick_dep_mask;
 #endif
 	/* Context switch counts: */
+/*
+SEQ_printf(m, "%-45s:%21Ld\n",
+	   "nr_voluntary_switches", (long long)p->nvcsw);
+SEQ_printf(m, "%-45s:%21Ld\n",
+	   "nr_involuntary_switches", (long long)p->nivcsw);
+
+
+*/
 	unsigned long			nvcsw;
 	unsigned long			nivcsw;
 
