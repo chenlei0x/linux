@@ -1407,11 +1407,15 @@ void tick_oneshot_notify(void)
  * softirq) allow_nohz signals, that we can switch into low-res nohz
  * mode, because high resolution timers are disabled (either compile
  * or runtime). Called with interrupts disabled.
+ *
+ * 在系统初始化过程中，基于local timer的per cpu tick总是从periodic mode开始工作，
+ * 然后在softirq中周期性的检测是否切换到one shot mode（以便可以真正实现高精度timer）
  */
 int tick_check_oneshot_change(int allow_nohz)
 {
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 
+	/*原始为 1,便继续, 所以事先得调用tick_oneshot_notify 或者 tick_clock_notify*/
 	if (!test_and_clear_bit(0, &ts->check_clocks))
 		return 0;
 

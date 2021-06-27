@@ -45,14 +45,14 @@ ktime_t tick_period;
  *    at it will take over and keep the time keeping alive.  The handover
  *    procedure also covers cpu hotplug.
  */
-int tick_do_timer_cpu __read_mostly = TICK_DO_TIMER_BOOT;
+int tick_do_timer_cpu = TICK_DO_TIMER_BOOT;
 #ifdef CONFIG_NO_HZ_FULL
 /*
  * tick_do_timer_boot_cpu indicates the boot CPU temporarily owns
  * tick_do_timer_cpu and it should be taken over by an eligible secondary
  * when one comes online.
  */
-static int tick_do_timer_boot_cpu __read_mostly = -1;
+static int tick_do_timer_boot_cpu = -1;
 #endif
 
 /*
@@ -185,11 +185,13 @@ static void giveup_do_timer(void *info)
 	tick_do_timer_cpu = cpu;
 }
 
+/*tick_do_timer_boot_cpu 放弃do_timer*/
 static void tick_take_do_timer_from_boot(void)
 {
 	int cpu = smp_processor_id();
 	int from = tick_do_timer_boot_cpu;
 
+	/*让 @from cpu 放弃 do_timer*/
 	if (from >= 0 && from != cpu)
 		smp_call_function_single(from, giveup_do_timer, &cpu, 1);
 }
