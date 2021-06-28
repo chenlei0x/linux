@@ -2573,6 +2573,7 @@ void account_page_cleaned(struct page *page, struct address_space *mapping,
 int __set_page_dirty_nobuffers(struct page *page)
 {
 	lock_page_memcg(page);
+	/*返回0 说明 clean ==》 dirty 设置成功了*/
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page_mapping(page);
 		unsigned long flags;
@@ -2586,6 +2587,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 		BUG_ON(page_mapping(page) != mapping);
 		WARN_ON_ONCE(!PagePrivate(page) && !PageUptodate(page));
 		account_page_dirtied(page, mapping);
+		/*在address space中置脏*/
 		__xa_set_mark(&mapping->i_pages, page_index(page),
 				   PAGECACHE_TAG_DIRTY);
 		xa_unlock_irqrestore(&mapping->i_pages, flags);

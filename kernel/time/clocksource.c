@@ -729,6 +729,7 @@ static struct clocksource *clocksource_find_best(bool oneshot, bool skipcur)
 	return NULL;
 }
 
+/*curr_clocksource 选择*/
 static void __clocksource_select(bool skipcur)
 {
 	bool oneshot = tick_oneshot_mode_active();
@@ -739,6 +740,7 @@ static void __clocksource_select(bool skipcur)
 	if (!best)
 		return;
 
+	/*current_clocksource_store  sysfs 中又current_clock_source的配置*/
 	if (!strlen(override_name))
 		goto found;
 
@@ -828,6 +830,8 @@ fs_initcall(clocksource_done_booting);
 
 /*
  * Enqueue the clocksource sorted by rating
+ *
+ * 按照rating进行插入clocksource_list
  */
 static void clocksource_enqueue(struct clocksource *cs)
 {
@@ -952,6 +956,7 @@ int __clocksource_register_scale(struct clocksource *cs, u32 scale, u32 freq)
 }
 EXPORT_SYMBOL_GPL(__clocksource_register_scale);
 
+/*出队 改rating  再入队*/
 static void __clocksource_change_rating(struct clocksource *cs, int rating)
 {
 	list_del(&cs->list);

@@ -3522,6 +3522,7 @@ bool zone_watermark_ok_safe(struct zone *z, unsigned int order,
 {
 	long free_pages = zone_page_state(z, NR_FREE_PAGES);
 
+	/*可能pcpu中还有一部分缓存*/
 	if (z->percpu_drift_mark && free_pages < z->percpu_drift_mark)
 		free_pages = zone_page_state_snapshot(z, NR_FREE_PAGES);
 

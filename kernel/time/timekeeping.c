@@ -2394,6 +2394,9 @@ EXPORT_SYMBOL(hardpps);
  * @ticks:	number of ticks, that have elapsed since the last call.
  *
  * Must be called with interrupts disabled.
+
+ * timer_interrupt 里面 会调用xtime_update
+ * x86架构这个函数没有用
  */
 void xtime_update(unsigned long ticks)
 {

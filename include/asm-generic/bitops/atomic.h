@@ -42,6 +42,7 @@ static inline int test_and_set_bit(unsigned int nr, volatile unsigned long *p)
 	return !!(old & mask);
 }
 
+/*返回原值，如果是0， return*/
 static inline int test_and_clear_bit(unsigned int nr, volatile unsigned long *p)
 {
 	long old;

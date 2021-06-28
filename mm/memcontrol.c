@@ -575,6 +575,7 @@ static void mem_cgroup_remove_exceeded(struct mem_cgroup_per_node *mz,
 	spin_unlock_irqrestore(&mctz->lock, flags);
 }
 
+/*超过了多少*/
 static unsigned long soft_limit_excess(struct mem_cgroup *memcg)
 {
 	unsigned long nr_pages = page_counter_read(&memcg->memory);
@@ -1580,6 +1581,10 @@ static bool mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 	return ret;
 }
 
+/*
+ * memcgroup v1中有可以设置softlimit，这对root memcg及其子memcg，进行回收
+ * 每个memcg尝试回收 SWAP_CLUSTER_MAX
+ */
 static int mem_cgroup_soft_reclaim(struct mem_cgroup *root_memcg,
 				   pg_data_t *pgdat,
 				   gfp_t gfp_mask,
@@ -1594,6 +1599,7 @@ static int mem_cgroup_soft_reclaim(struct mem_cgroup *root_memcg,
 		.pgdat = pgdat,
 	};
 
+	/*超过了多少？*/
 	excess = soft_limit_excess(root_memcg);
 
 	while (1) {
@@ -1620,6 +1626,7 @@ static int mem_cgroup_soft_reclaim(struct mem_cgroup *root_memcg,
 			}
 			continue;
 		}
+		/*每次回收 SWAP_CLUSTER_MAX 个页*/
 		total += mem_cgroup_shrink_node(victim, gfp_mask, false,
 					pgdat, &nr_scanned);
 		*total_scanned += nr_scanned;
@@ -3046,6 +3053,10 @@ static int mem_cgroup_resize_max(struct mem_cgroup *memcg,
 	return ret;
 }
 
+/*
+ * softlimit 是memcg v1 中的机制，用来对memcg 进行软限制，可以适当超出
+ * 这个用来回收超过幅度最大的memcg 的内存
+ */
 unsigned long mem_cgroup_soft_limit_reclaim(pg_data_t *pgdat, int order,
 					    gfp_t gfp_mask,
 					    unsigned long *total_scanned)

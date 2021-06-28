@@ -25,8 +25,12 @@
  */
 
 static struct tick_device tick_broadcast_device;
-static cpumask_var_t tick_broadcast_mask __cpumask_var_read_mostly;
-static cpumask_var_t tick_broadcast_on __cpumask_var_read_mostly;
+
+/*该变量中的每一位表示对应的CPU是否需要Tick广播层提供Tick周期广播服务，如果需要则对应的位被置位*/
+static cpumask_var_t tick_broadcast_mask;
+
+/*这个变量是用来控制打开或关闭Tick周期广播服务的开关，如果当前CPU有可能会进入深度休眠状态，则对应该CPU的位会被置位。*/
+static cpumask_var_t tick_broadcast_on;
 static cpumask_var_t tmpmask __cpumask_var_read_mostly;
 static int tick_broadcast_forced;
 
@@ -522,9 +526,13 @@ void tick_resume_broadcast(void)
 
 #ifdef CONFIG_TICK_ONESHOT
 
-static cpumask_var_t tick_broadcast_oneshot_mask __cpumask_var_read_mostly;
-static cpumask_var_t tick_broadcast_pending_mask __cpumask_var_read_mostly;
-static cpumask_var_t tick_broadcast_force_mask __cpumask_var_read_mostly;
+/*当Tick广播层被切换到单次触发模式后，用来记录哪些CPU已经进入的深度休眠模式，也就是本地定时事件设备被关闭了，需要Tick广播层提供服务*/
+static cpumask_var_t tick_broadcast_oneshot_mask;
+
+/*用来处理特殊的竞态情况*/
+static cpumask_var_t tick_broadcast_pending_mask;
+/*用来处理特殊的竞态情况*/
+static cpumask_var_t tick_broadcast_force_mask;
 
 /*
  * Exposed for debugging: see timer_list.c

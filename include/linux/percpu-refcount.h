@@ -169,6 +169,7 @@ static inline bool __ref_is_percpu(struct percpu_ref *ref,
 	 * then we'd have to mask off DEAD separately as DEAD may be
 	 * visible without ATOMIC if we race with percpu_ref_kill().  DEAD
 	 * implies ATOMIC anyway.  Test them together.
+	 * 被kill了就返回false
 	 */
 	if (unlikely(percpu_ptr & __PERCPU_REF_ATOMIC_DEAD))
 		return false;

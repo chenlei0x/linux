@@ -1416,6 +1416,7 @@ int tick_check_oneshot_change(int allow_nohz)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 
 	/*原始为 1,便继续, 所以事先得调用tick_oneshot_notify 或者 tick_clock_notify*/
+	/*返回原值，如果是0， return*/
 	if (!test_and_clear_bit(0, &ts->check_clocks))
 		return 0;
 

@@ -1026,6 +1026,9 @@ atomic_sub_and_test(int i, atomic_t *v)
  * Atomically decrements @v by 1 and
  * returns true if the result is 0, or false for all other
  * cases.
+ *
+ * v-= 1
+ * return v==0
  */
 static inline bool
 atomic_dec_and_test(atomic_t *v)

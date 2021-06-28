@@ -118,6 +118,7 @@ struct scan_control {
 	s8 order;
 
 	/* Scan (total_size >> priority) pages at once */
+	/*越小优先级越高，甚至可以回写磁盘这种代价较重的操作*/
 	s8 priority;
 
 	/* The highest zone to isolate pages for reclaim from */
@@ -1059,6 +1060,7 @@ static void page_check_dirty_writeback(struct page *page,
 	 * Anonymous pages are not handled by flushers and must be written
 	 * from reclaim context. Do not stall reclaim based on them
 	 */
+	 /*不是file cache 有可能是tmpfs 的page 或者其他*/
 	if (!page_is_file_cache(page) ||
 	    (PageAnon(page) && !PageSwapBacked(page))) {
 		*dirty = false;
@@ -1126,6 +1128,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		if (!sc->may_unmap && page_mapped(page))
 			goto keep_locked;
 
+		/* #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO) */
 		may_enter_fs = (sc->gfp_mask & __GFP_FS) ||
 			(PageSwapCache(page) && (sc->gfp_mask & __GFP_IO));
 
@@ -1279,6 +1282,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 					count_vm_event(THP_SWPOUT_FALLBACK);
 #endif
+					/*====================================*/
 					if (!add_to_swap(page))
 						goto activate_locked_split;
 				}
@@ -1315,12 +1319,13 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 			if (unlikely(PageTransHuge(page)))
 				flags |= TTU_SPLIT_HUGE_PMD;
+			/*unmap =====================*/
 			if (!try_to_unmap(page, flags)) {
 				stat->nr_unmap_fail += nr_pages;
 				goto activate_locked;
 			}
 		}
-
+		/*脏页*/
 		if (PageDirty(page)) {
 			/*
 			 * Only kswapd can writeback filesystem pages
@@ -1375,6 +1380,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				 * A synchronous write - probably a ramdisk.  Go
 				 * ahead and try to reclaim the page.
 				 */
+				 /*pageout 里面回调用aops中的write page函数，该函数返回时，会解锁page*/
 				if (!trylock_page(page))
 					goto keep;
 				if (PageDirty(page) || PageWriteback(page))
@@ -2788,6 +2794,7 @@ again:
 		 */
 		anon = node_page_state(pgdat, NR_INACTIVE_ANON);
 
+		/*file 在node中占比很少*/
 		sc->file_is_tiny =
 			file + free <= total_high_wmark &&
 			!(sc->may_deactivate & DEACTIVATE_ANON) &&
@@ -2997,10 +3004,11 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		}
 
 		/* See comment about same check for global reclaim above */
+		/*保证每个node 只被shrink 一次*/
 		if (zone->zone_pgdat == last_pgdat)
 			continue;
 		last_pgdat = zone->zone_pgdat;
-		/*回收内存*/
+		/*回收内存, node级别*/
 		shrink_node(zone->zone_pgdat, sc);
 	}
 
@@ -3306,6 +3314,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 #ifdef CONFIG_MEMCG
 
 /* Only used by soft limit reclaim. Do not reuse for anything else. */
+/*从 @memcg中， 查找到@pgdat 对应的lruvec， 然后进行回收*/
 unsigned long mem_cgroup_shrink_node(struct mem_cgroup *memcg,
 						gfp_t gfp_mask, bool noswap,
 						pg_data_t *pgdat,
@@ -3391,12 +3400,14 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 }
 #endif
 
+/*从 active anon 列表 挪到 inactive anon*/
 static void age_active_anon(struct pglist_data *pgdat,
 				struct scan_control *sc)
 {
 	struct mem_cgroup *memcg;
 	struct lruvec *lruvec;
 
+	/*swap 所有分区能够容纳的page数量*/
 	if (!total_swap_pages)
 		return;
 
@@ -3683,6 +3694,7 @@ restart:
 		 * pages a chance to be referenced before reclaiming. All
 		 * pages are rotated regardless of classzone as this is
 		 * about consistent aging.
+		 * 对于每个memcg 搬移 anon   active ==》 inactive
 		 */
 		age_active_anon(pgdat, &sc);
 
@@ -3696,6 +3708,7 @@ restart:
 		/* Call soft limit reclaim before calling shrink_node. */
 		sc.nr_scanned = 0;
 		nr_soft_scanned = 0;
+		/*针对softlimit 超幅最大的memcg 进行回收*/
 		nr_soft_reclaimed = mem_cgroup_soft_limit_reclaim(pgdat, sc.order,
 						sc.gfp_mask, &nr_soft_scanned);
 		sc.nr_reclaimed += nr_soft_reclaimed;
@@ -3891,6 +3904,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
  * If there are applications that are active memory-allocators
  * (most normal use), this basically shouldn't matter.
  */
+ /*每个node 一个*/
 static int kswapd(void *p)
 {
 	unsigned int alloc_order, reclaim_order;
