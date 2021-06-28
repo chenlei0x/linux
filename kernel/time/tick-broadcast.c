@@ -318,6 +318,8 @@ static bool tick_do_periodic_broadcast(void)
 
 /*
  * Event handler for periodic broadcast ticks
+ *
+ * 兄弟 tick_broadcast_setup_oneshot
  */
 static void tick_handle_periodic_broadcast(struct clock_event_device *dev)
 {
@@ -757,6 +759,7 @@ int __tick_broadcast_oneshot_control(enum tick_broadcast_state state)
 			goto out;
 		}
 
+		/*把自己加入到broadcast oneshot mask中*/
 		if (!cpumask_test_and_set_cpu(cpu, tick_broadcast_oneshot_mask)) {
 			WARN_ON_ONCE(cpumask_test_cpu(cpu, tick_broadcast_pending_mask));
 
@@ -776,6 +779,7 @@ int __tick_broadcast_oneshot_control(enum tick_broadcast_state state)
 			if (cpumask_test_cpu(cpu, tick_broadcast_force_mask)) {
 				ret = -EBUSY;
 			} else if (dev->next_event < bc->next_event) {
+			/*local tick device 的下一次超时时间 < bc 的下一次超时时间,则把bc 的下一次超时设置为 local device 的*/
 				tick_broadcast_set_event(bc, cpu, dev->next_event);
 				/*
 				 * In case of hrtimer broadcasts the
@@ -792,6 +796,7 @@ int __tick_broadcast_oneshot_control(enum tick_broadcast_state state)
 			}
 		}
 	} else {
+		/*之前深睡, local timer 关闭了 现在醒了,不再需要bc了*/
 		if (cpumask_test_and_clear_cpu(cpu, tick_broadcast_oneshot_mask)) {
 			clockevents_switch_state(dev, CLOCK_EVT_STATE_ONESHOT);
 			/*
@@ -887,6 +892,8 @@ static void tick_broadcast_init_next_event(struct cpumask *mask,
 
 /**
  * tick_broadcast_setup_oneshot - setup the broadcast device
+ *
+ * 兄弟 tick_handle_periodic_broadcast
  */
 static void tick_broadcast_setup_oneshot(struct clock_event_device *bc)
 {
