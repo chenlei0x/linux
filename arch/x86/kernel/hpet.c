@@ -60,7 +60,7 @@ static void __iomem			*hpet_virt_address;
 static struct hpet_base			hpet_base;
 
 static bool				hpet_legacy_int_enabled;
-static unsigned long			hpet_freq;
+static unsigned long			hpet_freq; /*173 机器上为 14318179  14M*/
 
 bool					boot_hpet_disable;
 bool					hpet_force_user;
@@ -412,6 +412,7 @@ static void hpet_init_clockevent(struct hpet_channel *hc, unsigned int rating)
 	}
 }
 
+/**/
 static void __init hpet_legacy_clockevent_register(struct hpet_channel *hc)
 {
 	/*
@@ -538,7 +539,9 @@ static int hpet_setup_msi_irq(struct hpet_channel *hc)
 	return 0;
 }
 
-/* Invoked from the hotplug callback on @cpu */
+/* Invoked from the hotplug callback on @cpu 
+ * hotplug cpu会调用该函数
+ */
 static void init_one_hpet_msi_clockevent(struct hpet_channel *hc, int cpu)
 {
 	struct clock_event_device *evt = &hc->evt;

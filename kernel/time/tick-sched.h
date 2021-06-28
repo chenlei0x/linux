@@ -10,6 +10,7 @@ enum tick_device_mode {
 };
 
 struct tick_device {
+	/*173系统上这个字段为hpet*/
 	struct clock_event_device *evtdev;
 	enum tick_device_mode mode;
 };

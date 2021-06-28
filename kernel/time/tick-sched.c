@@ -67,6 +67,7 @@ static void tick_do_update_jiffies64(ktime_t now)
 	/* Reevaluate with jiffies_lock held */
 	write_seqlock(&jiffies_lock);
 
+	/*now - 上次更新的时间必须 > tick_period*/
 	delta = ktime_sub(now, last_jiffies_update);
 	if (delta >= tick_period) {
 
@@ -89,6 +90,7 @@ static void tick_do_update_jiffies64(ktime_t now)
 		do_timer(++ticks);
 
 		/* Keep the tick_next_period variable up to date */
+		/*下次更新的时间*/
 		tick_next_period = ktime_add(last_jiffies_update, tick_period);
 	} else {
 		write_sequnlock(&jiffies_lock);
@@ -1252,6 +1254,7 @@ static void tick_nohz_switch_to_nohz(void)
 	/* Get the next period */
 	next = tick_init_jiffy_update();
 
+	/*先set 再forward*/
 	hrtimer_set_expires(&ts->sched_timer, next);
 	hrtimer_forward_now(&ts->sched_timer, tick_period);
 	tick_program_event(hrtimer_get_expires(&ts->sched_timer), 1);
@@ -1410,6 +1413,9 @@ void tick_oneshot_notify(void)
  *
  * 在系统初始化过程中，基于local timer的per cpu tick总是从periodic mode开始工作，
  * 然后在softirq中周期性的检测是否切换到one shot mode（以便可以真正实现高精度timer）
+ *
+ * 在timer的软中断上下文中，会调用该函数
+ * 进行是否切换到one shot模式的检查
  */
 int tick_check_oneshot_change(int allow_nohz)
 {

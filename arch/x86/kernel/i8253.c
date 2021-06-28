@@ -16,6 +16,8 @@
 /*
  * HPET replaces the PIT, when enabled. So we need to know, which of
  * the two timers is used
+ *
+ * timer_interrupt 中会调用这里面的handler
  */
 struct clock_event_device *global_clock_event;
 

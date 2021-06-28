@@ -19,6 +19,8 @@
 
 /**
  * tick_program_event
+ *
+ * 设置下次tick 的时间
  */
 int tick_program_event(ktime_t expires, int force)
 {

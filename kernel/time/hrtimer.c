@@ -697,6 +697,7 @@ __setup("highres=", setup_hrtimer_hres);
 
 /*
  * hrtimer_high_res_enabled - query, if the highres mode is enabled
+ * 默认为 true
  */
 static inline int hrtimer_is_hres_enabled(void)
 {
@@ -1738,7 +1739,9 @@ void hrtimer_run_queues(void)
 	 * there only sets the check bit in the tick_oneshot code,
 	 * otherwise we might deadlock vs. xtime_lock.
 	 */
+	 /*oneshot_change 进入nohz模式,也就是lowres*/
 	if (tick_check_oneshot_change(!hrtimer_is_hres_enabled())) {
+		/*进入hight res模式*/
 		hrtimer_switch_to_hres();
 		return;
 	}
