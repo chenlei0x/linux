@@ -461,6 +461,7 @@ static void __init hpet_legacy_clockevent_register(struct hpet_channel *hc)
 
 	clockevents_config_and_register(&hc->evt, hpet_freq,
 					HPET_MIN_PROG_DELTA, 0x7FFFFFFF);
+	/*设置为global event device*/
 	global_clock_event = &hc->evt;
 	pr_debug("Clockevent registered\n");
 }

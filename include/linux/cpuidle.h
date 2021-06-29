@@ -75,6 +75,12 @@ struct cpuidle_state {
 #define CPUIDLE_FLAG_NONE       (0x00)
 #define CPUIDLE_FLAG_POLLING	BIT(0) /* polling state */
 #define CPUIDLE_FLAG_COUPLED	BIT(1) /* state applies to multiple cpus */
+/*启动setup broadcast tick过程*/
+/*
+ * CPUIDLE_FLAG_TIMER_STOP说明CPU core在进入该idle state时，
+ * 会停掉该CPU的local timer，这时候local timer停止运作，
+ * 无法驱动software timer，需要broadcast tick device的协助。
+*/
 #define CPUIDLE_FLAG_TIMER_STOP BIT(2) /* timer is stopped on this state */
 #define CPUIDLE_FLAG_UNUSABLE	BIT(3) /* avoid using this state */
 

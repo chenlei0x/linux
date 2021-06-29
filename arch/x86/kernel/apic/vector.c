@@ -254,6 +254,7 @@ assign_vector_locked(struct irq_data *irqd, const struct cpumask *dest)
 	return 0;
 }
 
+/*申请一个vector 然后关联irq*/
 static int assign_irq_vector(struct irq_data *irqd, const struct cpumask *dest)
 {
 	unsigned long flags;

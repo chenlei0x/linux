@@ -156,6 +156,12 @@ extern char spurious_entries_start[];
 #define VECTOR_SHUTDOWN		((void *)-1L)
 #define VECTOR_RETRIGGERED	((void *)-2L)
 
+/*内核中使用per-cpu变量vector_irq来描述irq号和vector号的关联，
+对每个CPU，vector_irq是一个数组，在X86架构下成员数量为256，
+其数组的index为vector，值为irq,如果为-1则表示该CPU上的这个vector尚未分配。
+
+* irq_desc
+*/
 typedef struct irq_desc* vector_irq_t[NR_VECTORS];
 DECLARE_PER_CPU(vector_irq_t, vector_irq);
 

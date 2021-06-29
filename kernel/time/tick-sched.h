@@ -9,6 +9,7 @@ enum tick_device_mode {
 	TICKDEV_MODE_ONESHOT,
 };
 
+/*这里也是hpet*/
 struct tick_device {
 	/*173系统上这个字段为hpet*/
 	struct clock_event_device *evtdev;

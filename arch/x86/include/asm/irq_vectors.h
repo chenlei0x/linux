@@ -104,7 +104,7 @@
 #define HYPERV_STIMER0_VECTOR		0xed
 #endif
 
-#define LOCAL_TIMER_VECTOR		0xec
+#define LOCAL_TIMER_VECTOR		0xec  /*对应的是 smp_apic_timer_interrupt */
 
 #define NR_VECTORS			 256
 

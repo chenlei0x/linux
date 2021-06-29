@@ -72,8 +72,10 @@ int tick_is_oneshot_available(void)
 
 	if (!dev || !(dev->features & CLOCK_EVT_FEAT_ONESHOT))
 		return 0;
+	/*如果深睡我还能继续工作，那确实可以进入oneshot模式*/
 	if (!(dev->features & CLOCK_EVT_FEAT_C3STOP))
 		return 1;
+	/*深睡状态本cpu的tick device也会睡眠的话，需要broadcast模式可行*/
 	return tick_broadcast_oneshot_available();
 }
 

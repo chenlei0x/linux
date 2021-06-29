@@ -58,6 +58,7 @@ EXPORT_SYMBOL(profile_pc);
  */
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
+	/* tick_handle_oneshot_broadcast */
 	global_clock_event->event_handler(global_clock_event);
 	return IRQ_HANDLED;
 }
