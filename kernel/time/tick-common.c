@@ -409,6 +409,7 @@ int tick_broadcast_oneshot_control(enum tick_broadcast_state state)
 {
 	struct tick_device *td = this_cpu_ptr(&tick_cpu_device);
 
+	/*如果c3 状态下local timer 不会stop,那么没必要使用broadcast*/
 	if (!(td->evtdev->features & CLOCK_EVT_FEAT_C3STOP))
 		return 0;
 

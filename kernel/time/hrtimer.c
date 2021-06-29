@@ -758,11 +758,6 @@ void clock_was_set_delayed(void)
 	schedule_work(&hrtimer_work);
 }
 
-#else
-
-static inline int hrtimer_is_hres_enabled(void) { return 0; }
-static inline void hrtimer_switch_to_hres(void) { }
-static inline void retrigger_next_event(void *arg) { }
 
 #endif /* CONFIG_HIGH_RES_TIMERS */
 

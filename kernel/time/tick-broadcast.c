@@ -24,6 +24,12 @@
  * timer stops in C3 state.
  */
 
+/*
+tick_broadcast_oneshot_mask和tick_broadcast_mask类似，不同的是tick_broadcast_mask用在周期性tick的场景下，
+而 tick_broadcast_oneshot_mask 用于one shot mode的场景。tick_broadcast_pending_mask和tick_broadcast_force_mask在后面的代码分析中会具体描述
+
+*/
+
 static struct tick_device tick_broadcast_device;
 
 /*该变量中的每一位表示对应的CPU是否需要Tick广播层提供Tick周期广播服务，如果需要则对应的位被置位*/
@@ -527,6 +533,9 @@ void tick_resume_broadcast(void)
 }
 
 #ifdef CONFIG_TICK_ONESHOT
+
+/*tick_broadcast_oneshot_mask和tick_broadcast_mask类似，不同的是tick_broadcast_mask用在周期性tick的场景下，
+而tick_broadcast_oneshot_mask用于one shot mode的场景。tick_broadcast_pending_mask和tick_broadcast_force_mask在后面的代码分析中会具体描述*/
 
 /*当Tick广播层被切换到单次触发模式后，用来记录哪些CPU已经进入的深度休眠模式，也就是本地定时事件设备被关闭了，需要Tick广播层提供服务*/
 static cpumask_var_t tick_broadcast_oneshot_mask;
