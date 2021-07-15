@@ -96,46 +96,9 @@ static inline void tick_resume(void) { }
 #endif /* !GENERIC_CLOCKEVENTS */
 
 /* Oneshot related functions */
-#ifdef CONFIG_TICK_ONESHOT
-extern void tick_setup_oneshot(struct clock_event_device *newdev,
-			       void (*handler)(struct clock_event_device *),
-			       ktime_t nextevt);
-extern int tick_program_event(ktime_t expires, int force);
-extern void tick_oneshot_notify(void);
-extern int tick_switch_to_oneshot(void (*handler)(struct clock_event_device *));
-extern void tick_resume_oneshot(void);
-static inline bool tick_oneshot_possible(void) { return true; }
-extern int tick_oneshot_mode_active(void);
-extern void tick_clock_notify(void);
-extern int tick_check_oneshot_change(int allow_nohz);
-extern int tick_init_highres(void);
-#else /* !CONFIG_TICK_ONESHOT: */
-static inline
-void tick_setup_oneshot(struct clock_event_device *newdev,
-			void (*handler)(struct clock_event_device *),
-			ktime_t nextevt) { BUG(); }
-static inline void tick_resume_oneshot(void) { BUG(); }
-static inline int tick_program_event(ktime_t expires, int force) { return 0; }
-static inline void tick_oneshot_notify(void) { }
-static inline bool tick_oneshot_possible(void) { return false; }
-static inline int tick_oneshot_mode_active(void) { return 0; }
-static inline void tick_clock_notify(void) { }
-static inline int tick_check_oneshot_change(int allow_nohz) { return 0; }
-#endif /* !CONFIG_TICK_ONESHOT */
 
-/* Functions related to oneshot broadcasting */
-#if defined(CONFIG_GENERIC_CLOCKEVENTS_BROADCAST) && defined(CONFIG_TICK_ONESHOT)
-extern void tick_broadcast_switch_to_oneshot(void);
-extern int tick_broadcast_oneshot_active(void);
-extern void tick_check_oneshot_broadcast_this_cpu(void);
-bool tick_broadcast_oneshot_available(void);
-extern struct cpumask *tick_get_broadcast_oneshot_mask(void);
-#else /* !(BROADCAST && ONESHOT): */
-static inline void tick_broadcast_switch_to_oneshot(void) { }
-static inline int tick_broadcast_oneshot_active(void) { return 0; }
-static inline void tick_check_oneshot_broadcast_this_cpu(void) { }
-static inline bool tick_broadcast_oneshot_available(void) { return tick_oneshot_possible(); }
-#endif /* !(BROADCAST && ONESHOT) */
+
+
 
 #if defined(CONFIG_GENERIC_CLOCKEVENTS_BROADCAST) && defined(CONFIG_HOTPLUG_CPU)
 extern void tick_broadcast_offline(unsigned int cpu);

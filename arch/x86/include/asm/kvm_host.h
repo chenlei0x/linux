@@ -391,7 +391,7 @@ struct kvm_mmu {
 	void (*invlpg)(struct kvm_vcpu *vcpu, gva_t gva, hpa_t root_hpa);
 	void (*update_pte)(struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp,
 			   u64 *spte, const void *pte);
-	hpa_t root_hpa;
+	hpa_t root_hpa; /*保存了EPT表的基地址或者保存影子页表基地址*/
 	gpa_t root_cr3;
 	union kvm_mmu_role mmu_role;
 	u8 root_level;

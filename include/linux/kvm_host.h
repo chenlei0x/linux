@@ -340,6 +340,7 @@ static inline int kvm_vcpu_exiting_guest_mode(struct kvm_vcpu *vcpu)
  */
 #define KVM_MEM_MAX_NR_PAGES ((1UL << 31) - 1)
 
+/*代表段物理RAM*/
 struct kvm_memory_slot {
 	gfn_t base_gfn;
 	unsigned long npages;
@@ -1061,6 +1062,7 @@ __gfn_to_memslot(struct kvm_memslots *slots, gfn_t gfn)
 	return search_memslots(slots, gfn);
 }
 
+/*guest 物理内存转化为 host qemu进程的虚拟地址*/
 static inline unsigned long
 __gfn_to_hva_memslot(struct kvm_memory_slot *slot, gfn_t gfn)
 {

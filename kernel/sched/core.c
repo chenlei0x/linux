@@ -504,7 +504,9 @@ void wake_up_q(struct wake_q_head *head)
  * On UP this means the setting of the need_resched flag, on SMP it
  * might also involve a cross-CPU call to trigger the scheduler on
  * the target CPU.
+ *
  */
+/* 标记当前进程需要被调度出去 */
 void resched_curr(struct rq *rq)
 {
 	struct task_struct *curr = rq->curr;
@@ -4807,6 +4809,7 @@ recheck:
 	if ((p->mm && attr->sched_priority > MAX_USER_RT_PRIO-1) ||
 	    (!p->mm && attr->sched_priority > MAX_RT_PRIO-1))
 		return -EINVAL;
+	/*sched_priority 只对rt有效*/
 	if ((dl_policy(policy) && !__checkparam_dl(attr)) ||
 	    (rt_policy(policy) != (attr->sched_priority != 0)))
 		return -EINVAL;
@@ -5629,6 +5632,7 @@ SYSCALL_DEFINE0(sched_yield)
 #ifndef CONFIG_PREEMPTION
 int __sched _cond_resched(void)
 {
+	/*如果打上了TIF_NEED_RESCHED 标记，就得schedule了*/
 	if (should_resched(0)) {
 		preempt_schedule_common();
 		return 1;

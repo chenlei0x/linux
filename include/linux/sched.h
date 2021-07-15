@@ -452,6 +452,7 @@ struct sched_entity {
 	unsigned long			runnable_weight;
 	struct rb_node			run_node;
 	struct list_head		group_node;
+	/*dequeue_entity 置0*/
 	unsigned int			on_rq;
 
 	u64				exec_start;

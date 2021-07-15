@@ -169,6 +169,8 @@ static void tick_device_setup_broadcast_func(struct clock_event_device *dev)
 /*
  * Check, if the device is disfunctional and a place holder, which
  * needs to be handled by the broadcast device.
+ *
+ * 主要是检查当前per cpu tick device的HW timer的特性并确定是否要启用broadcast tick设备
  */
 int tick_device_uses_broadcast(struct clock_event_device *dev, int cpu)
 {
@@ -325,7 +327,7 @@ static bool tick_do_periodic_broadcast(void)
 /*
  * Event handler for periodic broadcast ticks
  *
- * 兄弟 tick_broadcast_setup_oneshot
+ * 兄弟 tick_handle_oneshot_broadcast
  */
 static void tick_handle_periodic_broadcast(struct clock_event_device *dev)
 {
@@ -619,6 +621,9 @@ void tick_check_oneshot_broadcast_this_cpu(void)
 
 /*
  * Handle oneshot mode broadcasting
+ * 
+ *
+ * tick_handle_periodic_broadcast
  */
 static void tick_handle_oneshot_broadcast(struct clock_event_device *dev)
 {

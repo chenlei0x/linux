@@ -166,7 +166,7 @@ void tick_setup_periodic(struct clock_event_device *dev, int broadcast)
 			seq = read_seqbegin(&jiffies_lock);
 			next = tick_next_period;
 		} while (read_seqretry(&jiffies_lock, seq));
-
+		/*可以转入oneshot模式了*/
 		clockevents_switch_state(dev, CLOCK_EVT_STATE_ONESHOT);
 
 		for (;;) {

@@ -1660,6 +1660,7 @@ static int hva_to_pfn_remapped(struct vm_area_struct *vma,
  * 2): @write_fault = false && @writable, @writable will tell the caller
  *     whether the mapping is writable.
  */
+ /* /计算 HVA 对应的 pfn，同时确保该物理页在内存中，这个过程实际上就是普通进程的缺页中断的过程了 */
 static kvm_pfn_t hva_to_pfn(unsigned long addr, bool atomic, bool *async,
 			bool write_fault, bool *writable)
 {
@@ -1676,6 +1677,7 @@ static kvm_pfn_t hva_to_pfn(unsigned long addr, bool atomic, bool *async,
 	if (atomic)
 		return KVM_PFN_ERR_FAULT;
 
+	/*得走满速申请了，可能会触发缺页*/
 	npages = hva_to_pfn_slow(addr, async, write_fault, writable, &pfn);
 	if (npages == 1)
 		return pfn;
@@ -1712,6 +1714,7 @@ kvm_pfn_t __gfn_to_pfn_memslot(struct kvm_memory_slot *slot, gfn_t gfn,
 			       bool atomic, bool *async, bool write_fault,
 			       bool *writable)
 {
+	/*guest page fn 转换为 虚拟机进程的用户态qemu进程的va，这样qemu也能访问这个内存*/
 	unsigned long addr = __gfn_to_hva_many(slot, gfn, NULL, write_fault);
 
 	if (addr == KVM_HVA_ERR_RO_BAD) {
@@ -1732,6 +1735,7 @@ kvm_pfn_t __gfn_to_pfn_memslot(struct kvm_memory_slot *slot, gfn_t gfn,
 		writable = NULL;
 	}
 
+	/*va 这时候可能没有映射到具体的物理page上，这时候需要主动分配*/
 	return hva_to_pfn(addr, atomic, async, write_fault,
 			  writable);
 }

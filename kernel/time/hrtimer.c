@@ -1735,6 +1735,7 @@ void hrtimer_run_queues(void)
 	 * otherwise we might deadlock vs. xtime_lock.
 	 */
 	 /*oneshot_change 进入nohz模式,也就是lowres*/
+	/*这里入参传入的是false， 表明不允许 nohz模式，这样oneshot_change 会返回1， 直接转到hres模式*/
 	if (tick_check_oneshot_change(!hrtimer_is_hres_enabled())) {
 		/*进入hight res模式*/
 		hrtimer_switch_to_hres();

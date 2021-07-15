@@ -3348,6 +3348,7 @@ static int __direct_map(struct kvm_vcpu *vcpu, gpa_t gpa, int write,
 
 		drop_large_spte(vcpu, it.sptep);
 		if (!is_shadow_present_pte(*it.sptep)) {
+			/*页表多级映射的，中间级别的页表项也需要页来承载，如果没有，需要申请*/
 			sp = kvm_mmu_get_page(vcpu, base_gfn, it.addr,
 					      it.level - 1, true, ACC_ALL);
 
@@ -4212,16 +4213,19 @@ static bool try_async_pf(struct kvm_vcpu *vcpu, bool prefault, gfn_t gfn,
 	if (!async)
 		return false; /* *pfn has correct page already */
 
+	/*判断vcpu是否允许注入中断*/
 	if (!prefault && kvm_can_do_async_pf(vcpu)) {
 		trace_kvm_try_async_get_page(cr2_or_gpa, gfn);
-		if (kvm_find_async_pf_gfn(vcpu, gfn)) {
+		if (kvm_find_async_pf_gfn(vcpu, gfn)) {/*是否已经为该gfn建立了异步寻页机制呢？*/
+			/*/暂停vcp，等待 异步过程完成后在进入guest*/
 			trace_kvm_async_pf_doublefault(cr2_or_gpa, gfn);
 			kvm_make_request(KVM_REQ_APF_HALT, vcpu);
 			return true;
-		} else if (kvm_arch_setup_async_pf(vcpu, cr2_or_gpa, gfn))
+		} else if (kvm_arch_setup_async_pf(vcpu, cr2_or_gpa, gfn))/*建立异步寻页机制，向guest注入中断*/
 			return true;
 	}
 
+	/*不能使用异步机制就等待为gfn分配pfn，此时允许 IO wait*/
 	*pfn = __gfn_to_pfn_memslot(slot, gfn, false, NULL, write, writable);
 	return false;
 }
@@ -4314,6 +4318,16 @@ static int tdp_page_fault(struct kvm_vcpu *vcpu, gpa_t gpa, u32 error_code,
 	mmu_seq = vcpu->kvm->mmu_notifier_seq;
 	smp_rmb();
 
+	/*异步page fault，让虚拟机能够切换进程运行*/
+	
+	/* https://xingguotian.github.io/2019/08/23/qemu-kvm%20%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/ */
+	/* kvm_arch_setup_async_pf 、kvm_async_page_present_sync 函数中分别会将 
+	KVM_PV_REASON_PAGE_NOT_PRESENT 和 KVM_PV_REASON_PAGE_READY 中断
+	以 KVM_REQ_EVENT形式注入到子机，子机中会调用 do_async_page_fault 函数处理中断。
+	总的来说，对于swapout mem，可以选择异步模式获取物理页。
+	向guest中发送async page fault 中断，
+	可以帮助子机切换进程，物理页取回来之后再告诉子机把原来的进程调度回来。
+	当子机不能切换进程，此时可以暂停子机。大致流程见下图：*/
 	if (try_async_pf(vcpu, prefault, gfn, gpa, &pfn, write, &map_writable))
 		return RET_PF_RETRY;
 

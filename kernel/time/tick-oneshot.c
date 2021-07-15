@@ -71,6 +71,8 @@ void tick_setup_oneshot(struct clock_event_device *newdev,
 
 /**
  * tick_switch_to_oneshot - switch to oneshot mode
+ *
+ * tick device 转入 
  */
 int tick_switch_to_oneshot(void (*handler)(struct clock_event_device *))
 {
@@ -96,6 +98,7 @@ int tick_switch_to_oneshot(void (*handler)(struct clock_event_device *))
 	td->mode = TICKDEV_MODE_ONESHOT;
 	dev->event_handler = handler;
 	clockevents_switch_state(dev, CLOCK_EVT_STATE_ONESHOT);
+	/*broadcast 转入oneshot模式*/
 	tick_broadcast_switch_to_oneshot();
 	return 0;
 }

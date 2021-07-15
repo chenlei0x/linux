@@ -37,6 +37,13 @@
  *
  * (default: 6ms * (1 + ilog(ncpus)), units: nanoseconds)
  */
+
+/*
+设定一个调度周期（sched_latency_ns），目标是让每个进程在这个周期内至少有机会运行一次，
+换一种说法就是每个进程等待CPU的时间最长不超过这个调度周期；然后根据进程的数量，大家平
+分这个调度周期内的CPU使用权
+
+*/
 unsigned int sysctl_sched_latency			= 6000000ULL;
 static unsigned int normalized_sysctl_sched_latency	= 6000000ULL;
 
@@ -699,6 +706,7 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		cfs_rq = cfs_rq_of(se);
 		load = &cfs_rq->load;
 
+		/*如果不在run q上，权重应该已经释放掉了，重新加上*/
 		if (unlikely(!se->on_rq)) {
 			lw = cfs_rq->load;
 
@@ -5313,6 +5321,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
+		/*se的父se 可能没有孩子了，所以页需要dequeue*/
 		dequeue_entity(cfs_rq, se, flags);
 
 		/*

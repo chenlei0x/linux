@@ -1277,9 +1277,7 @@ static inline void tick_nohz_irq_enter(void)
 
 #else
 
-static inline void tick_nohz_switch_to_nohz(void) { }
-static inline void tick_nohz_irq_enter(void) { }
-static inline void tick_nohz_activate(struct tick_sched *ts, int mode) { }
+
 
 #endif /* CONFIG_NO_HZ_COMMON */
 
@@ -1299,6 +1297,8 @@ void tick_irq_enter(void)
 /*
  * We rearm the timer until we get disabled by the idle code.
  * Called with interrupts disabled.
+ *
+ * per cpu 调度的timer
  */
 static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 {
@@ -1313,7 +1313,7 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 	 * Do not call, when we are not in irq context and have
 	 * no valid regs pointer
 	 */
-	if (regs)
+	if (regs) /*调度相关的处理*/
 		tick_sched_handle(ts, regs);
 	else
 		ts->next_tick = 0;
@@ -1322,6 +1322,7 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 	if (unlikely(ts->tick_stopped))
 		return HRTIMER_NORESTART;
 
+	/*设置下一次调度的timer expire 时间*/
 	hrtimer_forward(timer, now, tick_period);
 
 	return HRTIMER_RESTART;
@@ -1349,6 +1350,7 @@ void tick_setup_sched_timer(void)
 	 * Emulate tick processing via per-CPU hrtimers:
 	 */
 	hrtimer_init(&ts->sched_timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS_HARD);
+	/*调度timer*/
 	ts->sched_timer.function = tick_sched_timer;
 
 	/* Get the next period (per-CPU) */
@@ -1384,6 +1386,9 @@ void tick_cancel_sched_timer(int cpu)
 
 /**
  * Async notification about clocksource changes
+ *
+ * 告诉其他cpu，可能可以进入oneshot 模式了（包括hres 或者nohz模式），因为现在有了broadcast设备，
+ * 所以tick_is_oneshot_available 可能会返回true
  */
 void tick_clock_notify(void)
 {
@@ -1395,6 +1400,8 @@ void tick_clock_notify(void)
 
 /*
  * Async notification about clock event changes
+ *
+ * tick_check_new_device 中会调用，也就是注册tick 设备时
  */
 void tick_oneshot_notify(void)
 {
@@ -1421,8 +1428,9 @@ int tick_check_oneshot_change(int allow_nohz)
 {
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 
-	/*原始为 1,便继续, 所以事先得调用tick_oneshot_notify 或者 tick_clock_notify*/
+	/*原始为 1,便继续, 所以事先得调用 tick_oneshot_notify 或者 tick_clock_notify*/
 	/*返回原值，如果是0， return*/
+	/*如果当前cpu的tick device支持one shot模式， 这里就会被set*/
 	if (!test_and_clear_bit(0, &ts->check_clocks))
 		return 0;
 
