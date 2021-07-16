@@ -323,7 +323,7 @@ struct sched_info {
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
 
 struct load_weight {
-	unsigned long			weight;
+	unsigned long			weight; /*默认值就是 1 << 20*/
 	u32				inv_weight;
 };
 

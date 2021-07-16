@@ -694,6 +694,8 @@ static u64 __sched_period(unsigned long nr_running)
  * proportional to the weight.
  *
  * s = p*P[w/rw]
+ *
+ * 分配给每个进程时间
  */
 static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
@@ -823,15 +825,7 @@ void post_init_entity_util_avg(struct task_struct *p)
 }
 
 #else /* !CONFIG_SMP */
-void init_entity_runnable_average(struct sched_entity *se)
-{
-}
-void post_init_entity_util_avg(struct task_struct *p)
-{
-}
-static void update_tg_load_avg(struct cfs_rq *cfs_rq, int force)
-{
-}
+
 #endif /* CONFIG_SMP */
 
 /*
@@ -2875,14 +2869,7 @@ dequeue_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	sub_positive(&cfs_rq->avg.load_sum, se_weight(se) * se->avg.load_sum);
 }
 #else
-static inline void
-enqueue_runnable_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se) { }
-static inline void
-dequeue_runnable_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se) { }
-static inline void
-enqueue_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se) { }
-static inline void
-dequeue_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se) { }
+
 #endif
 
 static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
@@ -3113,9 +3100,7 @@ static void update_cfs_group(struct sched_entity *se)
 }
 
 #else /* CONFIG_FAIR_GROUP_SCHED */
-static inline void update_cfs_group(struct sched_entity *se)
-{
-}
+
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
 static inline void cfs_rq_util_change(struct cfs_rq *cfs_rq, int flags)
@@ -10580,7 +10565,7 @@ void free_fair_sched_group(struct task_group *tg)
 	kfree(tg->cfs_rq);
 	kfree(tg->se);
 }
-
+/*创建一个新的tg，并对每个cpu 的rq创建对应的se === cfs_rq*/
 int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 {
 	struct sched_entity *se;
