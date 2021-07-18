@@ -565,6 +565,7 @@ struct cfs_rq {
 	 * leaf_cfs_rq_list ties together list of leaf cfs_rq's in a CPU.
 	 * This list is used during load balance.
 	 */
+	 /*list_add_leaf_cfs_rq 中置为1, 也就是作为叶子加入到tree中的时候, 被置1*/
 	int			on_list;
 	struct list_head	leaf_cfs_rq_list;
 	struct task_group	*tg;	/* group that "owns" this runqueue */
