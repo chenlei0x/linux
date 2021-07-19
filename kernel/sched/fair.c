@@ -2816,6 +2816,7 @@ dequeue_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 #endif
 
+/*update_cfs_group 调用该函数时, weight == runnable*/
 static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 			    unsigned long weight, unsigned long runnable)
 {
@@ -2833,6 +2834,12 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 
 #ifdef CONFIG_SMP
 	do {
+		/* 在commit 625ed2bf049d5（sched/cfs: Make util/load_avg more stable）
+	     * 中对此对了解释：
+	     *      LOAD_AVG_MAX*y + 1024(us) = LOAD_AVG_MAX        (1)
+	     *      max_value = LOAD_AVG_MAX*y + sa->period_contrib (2)
+	     *      根据(1)、(2)，精确的负载最大值应为LOAD_AVG_MAX - 1024 + sa->period_contrib
+	     */
 		u32 divider = LOAD_AVG_MAX - 1024 + se->avg.period_contrib;
 
 		se->avg.load_avg = div_u64(se_weight(se) * se->avg.load_sum, divider);

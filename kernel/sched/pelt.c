@@ -132,9 +132,13 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 		 /*d1 = 1024 - sa->period_contrib  也就是说 period - d1 */
 		delta %= 1024; /*对应d1*/
 
-		
-		contrib = __accumulate_pelt_segments(periods,
-				1024 - sa->period_contrib, delta);
+		/*
+		 * periods 代表d2
+		 * delta 此时代表d1
+		 * 1024 - sa->period_contrib 代表d3
+		 */
+		contrib = __accumulate_pelt_segments(periods/*d2*/,
+				1024 - sa->period_contrib /*d3*/, delta /*d1*/);
 	}
 	/*
 	 * period_contribe 代表一个周期内已经算进load中的数量, 

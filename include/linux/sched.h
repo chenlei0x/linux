@@ -400,6 +400,7 @@ struct util_est {
  */
 struct sched_avg {
 	u64				last_update_time;
+	/*以下三个字段 见 accumulate_sum*/
 	u64				load_sum;
 	u64				runnable_load_sum;
 	u32				util_sum;
@@ -451,6 +452,12 @@ struct sched_statistics {
 struct sched_entity {
 	/* For load-balancing: */
 	struct load_weight		load;
+	/*
+	 * 对于task se:
+	 * se->runnable_weight = se->load.weight;
+	 *
+	 * 针对group se，runnable_weight的值总是小于等于weight。
+	 */
 	unsigned long			runnable_weight;
 	struct rb_node			run_node;
 	struct list_head		group_node;
