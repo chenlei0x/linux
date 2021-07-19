@@ -134,7 +134,7 @@ extern long calc_load_fold_active(struct rq *this_rq, long adjust);
  *  scale_load(sched_prio_to_weight[USER_PRIO(NICE_TO_PRIO(0))]) == NICE_0_LOAD
  *
  */
-#define NICE_0_LOAD		(1L << NICE_0_LOAD_SHIFT)
+#define NICE_0_LOAD		(1L << NICE_0_LOAD_SHIFT) /*1<<20*/
 
 /*
  * Single value that decides SCHED_DEADLINE internal math precision.
@@ -360,7 +360,7 @@ struct task_group {
 	struct sched_entity	**se;
 	/* runqueue "owned" by this group on each CPU */
 	struct cfs_rq		**cfs_rq;
-	unsigned long		shares;
+	unsigned long		shares; /*这个值是通过cgroup接口配置的 cpu_files */
 
 #ifdef	CONFIG_SMP
 	/*
@@ -368,7 +368,11 @@ struct task_group {
 	 * it in its own cacheline separated from the fields above which
 	 * will also be accessed at each tick.
 	 */
-	atomic_long_t		load_avg ____cacheline_aligned;
+	 /*
+	  * tg->load_avg指所有的group cfs_rq负载贡献和  
+	  * update_tg_load_avg 函数进行改动
+	  */
+	atomic_long_t		load_avg;
 #endif
 #endif
 
@@ -538,6 +542,10 @@ struct cfs_rq {
 	} removed;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
+	/*
+	 * update_tg_load_avg 中更新
+	 * cfs_rq->tg_load_avg_contrib = cfs_rq->avg.load_avg
+	 */
 	unsigned long		tg_load_avg_contrib;
 	long			propagate;
 	long			prop_runnable_sum;
@@ -910,9 +918,10 @@ struct rq {
 	struct mm_struct	*prev_mm;
 
 	unsigned int		clock_update_flags;
+	/*update_rq_clock 中进行更新*/
 	u64			clock;
 	/* Ensure that all clocks are in the same cache line */
-	u64			clock_task ____cacheline_aligned;
+	u64			clock_task;
 	u64			clock_pelt;
 	unsigned long		lost_idle_time;
 

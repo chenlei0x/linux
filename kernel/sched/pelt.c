@@ -120,6 +120,7 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 	 * Step 1: decay old *_sum if we crossed period boundaries.
 	 */
 	if (periods) {
+		/*先把旧值统一衰减了, 衰减 periods个单位*/
 		sa->load_sum = decay_load(sa->load_sum, periods);
 		sa->runnable_load_sum =
 			decay_load(sa->runnable_load_sum, periods);
@@ -128,12 +129,20 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
 		/*
 		 * Step 2
 		 */
-		delta %= 1024;
+		 /*d1 = 1024 - sa->period_contrib  也就是说 period - d1 */
+		delta %= 1024; /*对应d1*/
+
+		
 		contrib = __accumulate_pelt_segments(periods,
 				1024 - sa->period_contrib, delta);
 	}
+	/*
+	 * period_contribe 代表一个周期内已经算进load中的数量, 
+	 * 这样下次通过1024 - period_contribe  就可以算出 d1
+	 */
 	sa->period_contrib = delta;
 
+	/*更新以下三个字段 ___update_load_avg 会用到*/
 	if (load)
 		sa->load_sum += load * contrib;
 	if (runnable)

@@ -319,7 +319,7 @@ struct sched_info {
 # define SCHED_FIXEDPOINT_SCALE		(1L << SCHED_FIXEDPOINT_SHIFT)
 
 /* Increase resolution of cpu_capacity calculations */
-# define SCHED_CAPACITY_SHIFT		SCHED_FIXEDPOINT_SHIFT
+# define SCHED_CAPACITY_SHIFT		SCHED_FIXEDPOINT_SHIFT /*10*/
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
 
 struct load_weight {
@@ -404,7 +404,9 @@ struct sched_avg {
 	u64				runnable_load_sum;
 	u32				util_sum;
 	u32				period_contrib;
+	/*load_avg包含了所有调度实体的可运行状态以及阻塞状态的负载信息。*/
 	unsigned long			load_avg;
+	/*runnable_load_avg是只包含可运行进程的负载信息*/
 	unsigned long			runnable_load_avg;
 	unsigned long			util_avg;
 	struct util_est			util_est;
