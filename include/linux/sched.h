@@ -386,6 +386,8 @@ struct util_est {
  *
  * [Overflow issue]
  *
+ *
+ * 注意: 88761 对应的是nice = -20 时, 换算出来的weight值
  * The 64-bit load_sum can have 4353082796 (=2^64/47742/88761) entities
  * with the highest load (=88761), always runnable on a single cfs_rq,
  * and should not overflow as the number already hits PID_MAX_LIMIT.
@@ -397,6 +399,8 @@ struct util_est {
  *
  * Then it is the load_weight's responsibility to consider overflow
  * issues.
+ *
+ * 
  */
 struct sched_avg {
 	u64				last_update_time;
