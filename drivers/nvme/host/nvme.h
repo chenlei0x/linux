@@ -449,6 +449,7 @@ static inline sector_t nvme_lba_to_sect(struct nvme_ns *ns, u64 lba)
 	return lba << (ns->lba_shift - SECTOR_SHIFT);
 }
 
+/*中断之后这里第一次对req所在的页进行修改*/
 static inline void nvme_end_request(struct request *req, __le16 status,
 		union nvme_result result)
 {

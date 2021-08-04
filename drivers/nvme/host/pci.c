@@ -172,8 +172,9 @@ struct nvme_queue {
 	u32 __iomem *q_db;
 	u16 q_depth;
 	u16 cq_vector;
-	u16 sq_tail;
-	u16 last_sq_tail;
+	u16 sq_tail; /*始终指向下一个空白*/
+	/*用来记录上次提交的sq_tail， 下次提交时，sq tail 最多 = last sq tail - 1*/
+	u16 last_sq_tail; /* nvme_write_sq_db 更新， 初始为 0*/
 	u16 cq_head;
 	u16 qid;
 	u8 cq_phase;
@@ -451,7 +452,9 @@ static int nvme_pci_map_queues(struct blk_mq_tag_set *set)
  */
 static inline void nvme_write_sq_db(struct nvme_queue *nvmeq, bool write_sq)
 {
+	/* 如果可以，不通知nvme盘有新req 的产生了 */
 	if (!write_sq) {
+		/*sq tail 在调用者中已经更新 +1 */
 		u16 next_tail = nvmeq->sq_tail + 1;
 
 		if (next_tail == nvmeq->q_depth)
@@ -471,6 +474,8 @@ static inline void nvme_write_sq_db(struct nvme_queue *nvmeq, bool write_sq)
  * @nvmeq: The queue to use
  * @cmd: The command to send
  * @write_sq: whether to write to the SQ doorbell
+ *
+ * nvme_queue_rq 会调用这个函数
  */
 static void nvme_submit_cmd(struct nvme_queue *nvmeq, struct nvme_command *cmd,
 			    bool write_sq)
@@ -480,7 +485,7 @@ static void nvme_submit_cmd(struct nvme_queue *nvmeq, struct nvme_command *cmd,
 	       cmd, sizeof(*cmd));
 	if (++nvmeq->sq_tail == nvmeq->q_depth)
 		nvmeq->sq_tail = 0;
-	/*敲钟了 提交给nvme了*/
+	/* 这里根据 write_sq 来决定是否敲钟 提交给nvme了*/
 	nvme_write_sq_db(nvmeq, write_sq);
 	spin_unlock(&nvmeq->sq_lock);
 }

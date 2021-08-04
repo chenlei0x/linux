@@ -1438,6 +1438,7 @@ struct nvme_completion {
 	} result;
 	__le16	sq_head;	/* how much of this queue may be reclaimed */
 	__le16	sq_id;		/* submission queue that generated this entry */
+	/* 这个域是用户自定义的，用来映射到req上， 所以= req数组index */
 	__u16	command_id;	/* of the command which completed */
 	__le16	status;		/* did the command fail, and if so, why? */
 };

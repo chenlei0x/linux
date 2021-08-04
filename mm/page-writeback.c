@@ -1678,6 +1678,7 @@ static void balance_dirty_pages(struct bdi_writeback *wb,
 			bg_thresh = gdtc->bg_thresh;
 		}
 
+		/*memory domain  dirty throttle control */
 		if (mdtc) {
 			unsigned long filepages, headroom, writeback;
 

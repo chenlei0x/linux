@@ -323,7 +323,12 @@ struct sched_info {
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
 
 struct load_weight {
+	/*load.weight 对于task se来说是从nice 值反应出来的*/
+	/*对于 group se， 初始为 NICE0， init_tg_cfs_entry
+	 * 后面在cgroup share接口中改动 cpu_shares_write_u64, 其实最后就是share值
+	 */
 	unsigned long			weight; /*默认值就是 1 << 20*/
+	
 	u32				inv_weight;
 };
 
@@ -465,9 +470,10 @@ struct sched_entity {
 	unsigned long			runnable_weight;
 	struct rb_node			run_node;
 	struct list_head		group_node;
-	/*dequeue_entity 置0*/
+	/*dequeue_entity 置0, 在rq上,但是不一定在tree上*/
 	unsigned int			on_rq;
 
+	/*nsec*/
 	u64				exec_start;
 	u64				sum_exec_runtime;
 	u64				vruntime;
@@ -479,7 +485,7 @@ struct sched_entity {
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	int				depth;
-	struct sched_entity		*parent;
+	struct sched_entity		*parent; /*指向自己所处的group se*/
 
 	/*init_tg_cfs_entry*/
 	/* rq on which this entity is (to be) queued: */
@@ -694,7 +700,8 @@ struct task_struct {
 	unsigned int			rt_priority;
 
 	const struct sched_class	*sched_class;
-	struct sched_entity		se;
+	/*三种sched_entity*/
+	struct sched_entity		se; /*对应cfs se*/
 	struct sched_rt_entity		rt;
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;

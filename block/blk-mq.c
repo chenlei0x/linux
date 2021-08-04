@@ -661,6 +661,7 @@ static void __blk_mq_complete_request(struct request *rq)
 		rq->csd.flags = 0;
 		smp_call_function_single_async(ctx->cpu, &rq->csd);
 	} else {
+		/* nvme_pci_complete_rq */
 		q->mq_ops->complete(rq); /*核心！*/
 	}
 	put_cpu();
@@ -769,6 +770,7 @@ static void __blk_mq_requeue_request(struct request *rq)
 	}
 }
 
+/* nvme_retry_req 中调用时 @kick_requeus_list = false*/
 void blk_mq_requeue_request(struct request *rq, bool kick_requeue_list)
 {
 	__blk_mq_requeue_request(rq);
@@ -855,6 +857,7 @@ EXPORT_SYMBOL(blk_mq_kick_requeue_list);
 void blk_mq_delay_kick_requeue_list(struct request_queue *q,
 				    unsigned long msecs)
 {
+	/* blk_mq_requeue_work */
 	kblockd_mod_delayed_work_on(WORK_CPU_UNBOUND, &q->requeue_work,
 				    msecs_to_jiffies(msecs));
 }
@@ -1346,7 +1349,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		}
 
 		/*向驱动层提交req！！！！！
-		 驱动注册的 如 nvme_queue_rq， 这里会敲钟
+		 驱动注册的 如 nvme_queue_rq ， 这里如果是最后一个的话，会敲钟
 		 */
 		ret = q->mq_ops->queue_rq(hctx, &bd);
 		if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {
@@ -1380,7 +1383,7 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 	 * Any items that need requeuing? Stuff them into hctx->dispatch,
 	 * that is where we will continue on next queue run.
 	 *
-	 * 可能拿不到tag， 所以@list中还有内容
+	 * 可能拿不到tag， 或者驱动queue 已经满了 所以@list中还有内容
 	 */
 	if (!list_empty(list)) {
 		bool needs_restart;
@@ -1821,6 +1824,7 @@ void blk_mq_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	LIST_HEAD(rq_list);
 	unsigned int depth;
 
+	/*mq_list ==> list上*/
 	list_splice_init(&plug->mq_list, &list);
 
 	if (plug->rq_count > 2 && plug->multiple_queues)
@@ -1837,6 +1841,7 @@ void blk_mq_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 		rq = list_entry_rq(list.next);
 		list_del_init(&rq->queuelist);
 		BUG_ON(!rq->q);
+		/*rq_list 代表属于同一对 mq_ctx && mq_hctx 的所有rq */
 		if (rq->mq_hctx != this_hctx || rq->mq_ctx != this_ctx) {
 			if (this_hctx) {
 				trace_block_unplug(this_q, depth, !from_schedule);
@@ -2105,6 +2110,7 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 		blk_mq_run_hw_queue(data.hctx, true);
 	} else if (plug && (q->nr_hw_queues == 1 || q->mq_ops->commit_rqs ||
 				!blk_queue_nonrot(q))) {
+		/* blk_mq_ops nvme_mq_ops.commit_rqs	= nvme_commit_rqs */
 		/*
 		 * Use plugging if we have a ->commit_rqs() hook as well, as
 		 * we know the driver uses bd->last in a smart fashion.

@@ -221,12 +221,16 @@ static void __update_inv_weight(struct load_weight *lw)
  *
  * Or, weight =< lw.weight (because lw.weight is the runqueue weight), thus
  * weight/lw.weight <= 1, and therefore our shift will also be positive.
+ *
+ * @weight = NICE_0_LOAD
  */
 static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight *lw)
 {
+	/*fact = weight << 10*/
 	u64 fact = scale_load_down(weight);
 	int shift = WMULT_SHIFT;
 
+	/*更新inv weight = 2^32 / lw->weight*/
 	__update_inv_weight(lw);
 
 	if (unlikely(fact >> 32)) {
@@ -236,6 +240,7 @@ static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight
 		}
 	}
 
+	/*fact = (weight << 10) * lw->inv_weight*/
 	fact = mul_u32_u32(fact, lw->inv_weight);
 
 	while (fact >> 32) {
@@ -243,6 +248,15 @@ static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight
 		shift--;
 	}
 
+	/*
+	 * 当weight 通常 = NICE_0_LOAD
+	 * return (delta_exec * fact) << shift
+	 *      = delta_exec * ((weight << 10) * inv_weight) << 32
+	 		= delta_exec * (weight << 10) * 2^32 / lw->weight << 32
+	 		= delta_exec * NICE_0_LOAD<<10 / lw->weight
+	 		nice 越小 优先级越高 lw->weight越大, 这样 ret值越小
+	 		
+	 */
 	return mul_u64_u32_shr(delta_exec, fact, shift);
 }
 
@@ -402,6 +416,7 @@ is_same_group(struct sched_entity *se, struct sched_entity *pse)
 	return NULL;
 }
 
+/*gse*/
 static inline struct sched_entity *parent_entity(struct sched_entity *se)
 {
 	return se->parent;
@@ -546,6 +561,7 @@ static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	rb_erase_cached(&se->run_node, &cfs_rq->tasks_timeline);
 }
 
+/*最左的节点*/
 struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
 {
 	struct rb_node *left = rb_first_cached(&cfs_rq->tasks_timeline);
@@ -638,8 +654,9 @@ static u64 __sched_period(unsigned long nr_running)
  *
  * s = p*P[w/rw]
  *
- * 分配给每个进程时间
- * __sched_period 
+ * 分配给每个任务时间 = 大周期 ==> 按照weight 分配到的时间
+ * __sched_period 代表大周期
+ *
  */
 static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
@@ -652,7 +669,10 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		cfs_rq = cfs_rq_of(se);
 		load = &cfs_rq->load;
 
-		/*如果不在run q上，权重应该已经释放掉了，重新加上*/
+		/*
+		 * 还没加到rq中, 说明curr 不是他,也不再tree上,
+		 * 这时候临时把se的weight算进去
+		 */
 		if (unlikely(!se->on_rq)) {
 			lw = cfs_rq->load;
 
@@ -781,6 +801,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	u64 now = rq_clock_task(rq_of(cfs_rq));
 	u64 delta_exec;
 
+	/*curr 要是空就没意义了,直接返回*/
 	if (unlikely(!curr))
 		return;
 
@@ -788,6 +809,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	if (unlikely((s64)delta_exec <= 0))
 		return;
 
+	/*这里单位都是nsec*/
 	curr->exec_start = now;
 
 	schedstat_set(curr->statistics.exec_max,
@@ -807,6 +829,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 		account_group_exec_runtime(curtask, delta_exec);
 	}
 
+	/*bandwidth throttle 相关*/
 	account_cfs_rq_runtime(cfs_rq, delta_exec);
 }
 
@@ -2816,12 +2839,14 @@ dequeue_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 #endif
 
-/*update_cfs_group 调用该函数时, weight == runnable*/
+/**/
+/*@se 从属于 @cfs_rq*/
 static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 			    unsigned long weight, unsigned long runnable)
 {
 	if (se->on_rq) {
 		/* commit outstanding execution time */
+		/*curr == se 是 on_rq == 1 的情况的子集*/
 		if (cfs_rq->curr == se)
 			update_curr(cfs_rq);
 		account_entity_dequeue(cfs_rq, se);
@@ -2877,7 +2902,7 @@ void reweight_task(struct task_struct *p, int prio)
  *
  *                     tg->weight * grq->load.weight
  *   ge->load.weight = -----------------------------               (1)
- *			  \Sum grq->load.weight
+ *			                \Sum grq->load.weight
  *
  * Now, because computing that sum is prohibitively expensive to compute (been
  * there, done that) we approximate it with this average stuff. The average
@@ -2887,11 +2912,16 @@ void reweight_task(struct task_struct *p, int prio)
  *
  *   grq->load.weight -> grq->avg.load_avg                         (2)
  *
+ * 运行过程中 load_avg 逐渐趋近于 load.weight
+ *
  * which yields the following:
  *
  *                     tg->weight * grq->avg.load_avg
  *   ge->load.weight = ------------------------------              (3)
- *				tg->load_avg
+ *				                tg->load_avg
+ *
+ * tg->load_avg = 所有的group cfs_rq负载贡献和, 只是是慢慢同步的,有一定的延迟
+ * 见 : update_tg_load_avg
  *
  * Where: tg->load_avg ~= \Sum grq->avg.load_avg
  *
@@ -2907,7 +2937,7 @@ void reweight_task(struct task_struct *p, int prio)
  *
  *                     tg->weight * grq->load.weight
  *   ge->load.weight = ----------------------------- = tg->weight   (4)
- *			    grp->load.weight
+ *			                grp->load.weight
  *
  * That is, the sum collapses because all other CPUs are idle; the UP scenario.
  *
@@ -2920,13 +2950,22 @@ void reweight_task(struct task_struct *p, int prio)
  *     ---------------------------------------------------         (5)
  *     tg->load_avg - grq->avg.load_avg + grq->load.weight
  *
+ * tg->load_avg - grq->avg.load_avg + grq->load.weight
+ * 这个运算还是为了求得整个tg中的grp->load.weight之和.
+ * 因为load_avg 约等于 load.weight
+ * 而且tg->load_avg 是avg.load_avg慢慢同步过去的.所以
+ * tg->load_avg - grq->avg.load_avg 约等于 除了grq之外的所有其他grq的load weight
+ * 之和, 再加上grq 的真正的load.weight
+ *
  * But because grq->load.weight can drop to 0, resulting in a divide by zero,
  * we need to use grq->avg.load_avg as its lower bound, which then gives:
  *
+ * 但是(5)中的分母有可能为0,所以为了防止这个事情发生, 所以用 
+ * max(grq->load.weight, grq->avg.load_avg) 取代 grq->load.weight
  *
  *                     tg->weight * grq->load.weight
  *   ge->load.weight = -----------------------------		   (6)
- *				tg_load_avg'
+ *				               tg_load_avg'
  *
  * Where:
  *
@@ -2941,6 +2980,10 @@ void reweight_task(struct task_struct *p, int prio)
  *
  * hence icky!
  */
+/* 
+ * cpu cgroup 中的share接口只能配置tg 的load.weight， 但是tg并不直接参与调度
+ * 所以需要转换为对应的group se 的 load.weight
+ */
 static long calc_group_shares(struct cfs_rq *cfs_rq)
 {
 	long tg_weight, tg_shares, load, shares;
@@ -2948,6 +2991,7 @@ static long calc_group_shares(struct cfs_rq *cfs_rq)
 
 	tg_shares = READ_ONCE(tg->shares);
 
+	/*load.weight 对于task se来说是从nice 值反应出来的*/
 	load = max(scale_load_down(cfs_rq->load.weight), cfs_rq->avg.load_avg);
 
 	tg_weight = atomic_long_read(&tg->load_avg);
@@ -2986,9 +3030,9 @@ static long calc_group_shares(struct cfs_rq *cfs_rq)
  * Approximate the group entity's runnable weight per ratio from the group
  * runqueue:
  *
- *					     grq->avg.runnable_load_avg
+ *					                         grq->avg.runnable_load_avg
  *   ge->runnable_weight = ge->load.weight * -------------------------- (7)
- *						 grq->avg.load_avg
+ *						                           grq->avg.load_avg
  *
  * However, analogous to above, since the avg numbers are slow, this leads to
  * transients in the from-idle case. Instead we use:
@@ -3025,6 +3069,7 @@ static inline int throttled_hierarchy(struct cfs_rq *cfs_rq);
 /*
  * Recomputes the group entity based on the current state of its group
  * runqueue.
+ * @se 是一个group se
  */
 static void update_cfs_group(struct sched_entity *se)
 {
@@ -3043,6 +3088,7 @@ static void update_cfs_group(struct sched_entity *se)
 	if (likely(se->load.weight == shares))
 		return;
 #else
+	/*这个路径*/
 	shares   = calc_group_shares(gcfs_rq);
 	runnable = calc_group_runnable(gcfs_rq, shares);
 #endif
@@ -3527,6 +3573,7 @@ static void detach_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 #define DO_ATTACH	0x4
 
 /* Update task and its cfs_rq load average */
+/* @se  从属于     @cfs_rq*/
 static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
 	u64 now = cfs_rq_clock_pelt(cfs_rq);
@@ -3797,6 +3844,7 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 }
 
+/*对新进程的vruntime进行惩罚，也就是增加vruntime的值*/
 static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 {
@@ -4005,6 +4053,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 
 	clear_buddies(cfs_rq, se);
 
+	/*如果se 和 cfs_rq->curr相等,说明se 已经从那个tree中摘出来了*/
 	if (se != cfs_rq->curr)
 		__dequeue_entity(cfs_rq, se);
 	se->on_rq = 0;
@@ -4036,6 +4085,8 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 
 /*
  * Preempt the current task with a newly woken task if needed:
+ -
+ * entity_tick 函数中会调用这个函数,用来检查curr 是否应该被抢占
  */
 static void
 check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
@@ -4044,9 +4095,11 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	struct sched_entity *se;
 	s64 delta;
 
+	/*给curr 分配的run 时间*/
 	ideal_runtime = sched_slice(cfs_rq, curr);
 	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
 	if (delta_exec > ideal_runtime) {
+		/*超过了分配的时间了, 标记需要调度吧*/
 		resched_curr(rq_of(cfs_rq));
 		/*
 		 * The current task ran long enough, ensure it doesn't get
@@ -4272,6 +4325,7 @@ static inline u64 default_cfs_period(void)
 	return 100000000ULL;
 }
 
+/*每次从bandwidth中申请的时间片*/
 static inline u64 sched_cfs_bandwidth_slice(void)
 {
 	return (u64)sysctl_sched_cfs_bandwidth_slice * NSEC_PER_USEC;
@@ -4296,6 +4350,7 @@ static inline struct cfs_bandwidth *tg_cfs_bandwidth(struct task_group *tg)
 }
 
 /* returns 0 on failure to allocate runtime */
+/*本cfs_rq 向 tg 申请一定的运行时间*/
 static int assign_cfs_rq_runtime(struct cfs_rq *cfs_rq)
 {
 	struct task_group *tg = cfs_rq->tg;
@@ -4309,6 +4364,7 @@ static int assign_cfs_rq_runtime(struct cfs_rq *cfs_rq)
 	if (cfs_b->quota == RUNTIME_INF)
 		amount = min_amount;
 	else {
+		/*设置上定时器, 打开period active 标记,定时器到了之后进入下一个bandwidth period*/
 		start_cfs_bandwidth(cfs_b);
 
 		if (cfs_b->runtime > 0) {
@@ -4332,6 +4388,7 @@ static void __account_cfs_rq_runtime(struct cfs_rq *cfs_rq, u64 delta_exec)
 	if (likely(cfs_rq->runtime_remaining > 0))
 		return;
 
+	/*remain runtime 用完了*/
 	if (cfs_rq->throttled)
 		return;
 	/*
@@ -4342,6 +4399,7 @@ static void __account_cfs_rq_runtime(struct cfs_rq *cfs_rq, u64 delta_exec)
 		resched_curr(rq_of(cfs_rq));
 }
 
+/*统计这个 墙上时钟过去的时间@delta_exec 占用了多少带宽*/
 static __always_inline
 void account_cfs_rq_runtime(struct cfs_rq *cfs_rq, u64 delta_exec)
 {
@@ -4378,7 +4436,7 @@ static inline int throttled_lb_pair(struct task_group *tg,
 	return throttled_hierarchy(src_cfs_rq) ||
 	       throttled_hierarchy(dest_cfs_rq);
 }
-
+/*解除throttle 状态*/
 static int tg_unthrottle_up(struct task_group *tg, void *data)
 {
 	struct rq *rq = data;
@@ -4397,6 +4455,7 @@ static int tg_unthrottle_up(struct task_group *tg, void *data)
 	return 0;
 }
 
+/*这个cfs_rq 被限制了,但是没有触及到限制*/
 static int tg_throttle_down(struct task_group *tg, void *data)
 {
 	struct rq *rq = data;
@@ -4412,6 +4471,7 @@ static int tg_throttle_down(struct task_group *tg, void *data)
 	return 0;
 }
 
+/*真正触及到限制了,需要被throttle*/
 static void throttle_cfs_rq(struct cfs_rq *cfs_rq)
 {
 	struct rq *rq = rq_of(cfs_rq);
@@ -4802,6 +4862,7 @@ static void sync_throttle(struct task_group *tg, int cpu)
 }
 
 /* conditionally throttle active cfs_rq's from put_prev_entity() */
+/*检查一下 bandwidth 是不是已经吵了?*/
 static bool check_cfs_rq_runtime(struct cfs_rq *cfs_rq)
 {
 	if (!cfs_bandwidth_used())
@@ -5038,6 +5099,7 @@ static inline void unthrottle_offline_cfs_rqs(struct rq *rq) {}
  */
 
 #ifdef CONFIG_SCHED_HRTICK
+/*为了及时感知@p 时间片耗完, 所以怎么的也得给他上个高精度时钟*/
 static void hrtick_start_fair(struct rq *rq, struct task_struct *p)
 {
 	struct sched_entity *se = &p->se;
@@ -5075,14 +5137,7 @@ static void hrtick_update(struct rq *rq)
 		hrtick_start_fair(rq, curr);
 }
 #else /* !CONFIG_SCHED_HRTICK */
-static inline void
-hrtick_start_fair(struct rq *rq, struct task_struct *p)
-{
-}
 
-static inline void hrtick_update(struct rq *rq)
-{
-}
 #endif
 
 #ifdef CONFIG_SMP
@@ -5219,9 +5274,10 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	int task_sleep = flags & DEQUEUE_SLEEP;
 	int idle_h_nr_running = task_has_idle_policy(p);
 
+	/*se的父se 可能没有孩子了，所以页需要dequeue*/
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
-		/*se的父se 可能没有孩子了，所以页需要dequeue*/
+		/*se->on_rq = 0*/
 		dequeue_entity(cfs_rq, se, flags);
 
 		/*
@@ -6426,9 +6482,11 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
 {
 	s64 gran, vdiff = curr->vruntime - se->vruntime;
 
+	/*curr vrt < se->vrt 那不能抢占*/
 	if (vdiff <= 0)
 		return -1;
 
+	/*是比我多, 但是没多那么多的话,也不能抢占*/
 	gran = wakeup_gran(se);
 	if (vdiff > gran)
 		return 1;
@@ -6468,6 +6526,9 @@ static void set_skip_buddy(struct sched_entity *se)
 
 /*
  * Preempt the current task with a newly woken task if needed:
+ *
+ * @p 是新的任务
+ * @rq->curr 是当前运行的任务
  */
 static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 {
@@ -6608,6 +6669,7 @@ again:
 		}
 
 		se = pick_next_entity(cfs_rq, curr);
+		/*se 对应的cfs rq*/
 		cfs_rq = group_cfs_rq(se);
 	} while (cfs_rq);
 
@@ -6642,6 +6704,7 @@ again:
 	goto done;
 simple:
 #endif
+	/**/
 	if (prev)
 		put_prev_task(rq, prev);
 
@@ -6663,6 +6726,7 @@ done: __maybe_unused;
 	list_move(&p->se.group_node, &rq->cfs_tasks);
 #endif
 
+	/*没使能*/
 	if (hrtick_enabled(rq))
 		hrtick_start_fair(rq, p);
 
@@ -6703,6 +6767,7 @@ static struct task_struct *__pick_next_task_fair(struct rq *rq)
 
 /*
  * Account for a descheduled task:
+ *
  */
 static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
 {
@@ -10231,6 +10296,23 @@ static void task_fork_fair(struct task_struct *p)
 		resched_curr(rq);
 	}
 
+	/*
+	 * 这里为什么要减去cfs_rq->min_vruntime呢？
+	 * 因为现在计算进程的vruntime是基于当前cpu上的cfs_rq，
+	 * 并且现在还没有加入当前cfs_rq的就绪队列上。等到当前
+	 * 进程创建完毕开始唤醒的时候，加入的就绪队列就不一定
+	 * 是现在计算基于的cpu。所以，在加入就绪队列的函数中会
+	 * 根据情况加上当前就绪队列cfs_rq->min_vruntime。为什
+	 * 么要“先减后加”处理呢？假设cpu0上的cfs就绪队列的最小
+	 * 虚拟时间min_vruntime的值是1000000，此时创建进程的
+	 * 时候赋予当前进程虚拟时间是1000500。但是，唤醒此进
+	 * 程加入的就绪队列却是cpu1上CFS就绪队列，cpu1上的cfs
+	 * 就绪队列的最小虚拟时间min_vruntime的值如果是9000000。
+	 * 如果不采用“先减后加”的方法，那么该进程在cpu1上运行肯定是“乐坏”了，
+	 * 疯狂的运行。
+	 * 现在的处理计算得到的调度实体的虚拟时间是
+	 * 1000500 - 1000000 + 9000000 = 9000500，因此事情就不是那么的糟糕
+	 */
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
 }
@@ -10321,6 +10403,7 @@ static void detach_entity_cfs_rq(struct sched_entity *se)
 	propagate_entity_cfs_rq(se);
 }
 
+/*@se 属于某个tg, 是一个group se*/
 static void attach_entity_cfs_rq(struct sched_entity *se)
 {
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
@@ -10334,6 +10417,7 @@ static void attach_entity_cfs_rq(struct sched_entity *se)
 #endif
 
 	/* Synchronize entity with its cfs_rq */
+	/*ATTACH_AGE_LOAD = true*/
 	update_load_avg(cfs_rq, se, sched_feat(ATTACH_AGE_LOAD) ? 0 : SKIP_AGE_LOAD);
 	attach_entity_load_avg(cfs_rq, se, 0);
 	update_tg_load_avg(cfs_rq, false);
@@ -10592,6 +10676,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 
 	se->my_q = cfs_rq;
 	/* guarantee group entities always have weight */
+	/*se->load.weight = NICE_0_LOAD*/
 	update_load_set(&se->load, NICE_0_LOAD);
 	se->parent = parent;
 }
@@ -10637,16 +10722,7 @@ done:
 }
 #else /* CONFIG_FAIR_GROUP_SCHED */
 
-void free_fair_sched_group(struct task_group *tg) { }
 
-int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
-{
-	return 1;
-}
-
-void online_fair_sched_group(struct task_group *tg) { }
-
-void unregister_fair_sched_group(struct task_group *tg) { }
 
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 

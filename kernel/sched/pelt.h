@@ -54,6 +54,7 @@ static inline void cfs_se_util_change(struct sched_avg *avg)
  * @ half capacity ------************---------************---------
  * clock pelt      | 1| 2|    3|    4| 7| 8| 9|   10|   11|14|15|16
  *
+ * @delta 是墙上时间, 这个函数可以认为所干的事情就是 clock_pelt += delta
  */
 static inline void update_rq_clock_pelt(struct rq *rq, s64 delta)
 {
@@ -79,7 +80,17 @@ static inline void update_rq_clock_pelt(struct rq *rq, s64 delta)
 	 * Scale the elapsed time to reflect the real amount of
 	 * computation
 	 */
+	 /*
+	  * 获取不同CPU影响因子,表示 
+	  * (当前cpu最大运算能力 相对 所有cpu中最大的运算能力 的比值) * (cpufreq_policy的最大频率 相对 本cpu最大频率 的比值)，
+	  * ：scale_cpu = cpu_scale * max_freq_scale / 1024。cpu_scale表示 
+	  * 当前cpu最大运算能力 相对 所有cpu中最大的运算能力 的比值：
+	  * cpu_scale = ((cpu_max_freq * efficiency) / max_cpu_perf) * 1024
+	  */
 	delta = cap_scale(delta, arch_scale_cpu_capacity(cpu_of(rq)));
+	/* 获取不同freq影响因子,当前freq 相对 本cpu最大freq 的比值：
+	 * scale_freq = (cpu_curr_freq / cpu_max_freq) * 1024
+	 */
 	delta = cap_scale(delta, arch_scale_freq_capacity(cpu_of(rq)));
 
 	rq->clock_pelt += delta;

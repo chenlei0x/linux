@@ -41,7 +41,7 @@ struct bdev_inode {
 	struct inode vfs_inode;
 };
 
-static const struct address_space_operations def_blk_aops;
+
 
 static inline struct bdev_inode *BDEV_I(struct inode *inode)
 {

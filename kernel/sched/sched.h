@@ -331,8 +331,10 @@ extern struct list_head task_groups;
 struct cfs_bandwidth {
 #ifdef CONFIG_CFS_BANDWIDTH
 	raw_spinlock_t		lock;
+	/*用户指定的period 和 quota*/
 	ktime_t			period;
 	u64			quota;
+	/*runtime = quota, 然后随着每次申请逐渐递减, 等到下一个period 恢复为quota*/
 	u64			runtime;
 	s64			hierarchical_quota;
 
@@ -360,6 +362,12 @@ struct task_group {
 	struct sched_entity	**se;
 	/* runqueue "owned" by this group on each CPU */
 	struct cfs_rq		**cfs_rq;
+
+	/*
+	alloc_fair_sched_group
+		tg->shares = NICE_0_LOAD;
+	默认 NICE_0_LOAD
+	*/
 	unsigned long		shares; /*这个值是通过cgroup接口配置的 cpu_files */
 
 #ifdef	CONFIG_SMP
@@ -492,6 +500,10 @@ struct cfs_bandwidth { };
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
+	/*
+	 * 这个load 就是其下面的所有se的总load weight
+	 * account_entity_enqueue
+	 */
 	struct load_weight	load;
 	unsigned long		runnable_weight;
 	/*
@@ -545,6 +557,10 @@ struct cfs_rq {
 	/*
 	 * update_tg_load_avg 中更新
 	 * cfs_rq->tg_load_avg_contrib = cfs_rq->avg.load_avg
+	 *
+	 * 当 @tg_load_avg_contrib > cfs_rq->avg.load_avg 到一定程度时,
+	 * 才会把diff 值加到 tg->load_avg
+	 *
 	 */
 	unsigned long		tg_load_avg_contrib;
 	long			propagate;
@@ -579,13 +595,25 @@ struct cfs_rq {
 	struct task_group	*tg;	/* group that "owns" this runqueue */
 
 #ifdef CONFIG_CFS_BANDWIDTH
+	/*
+	 * 该就绪队列是否已经开启带宽限制，默认带宽限制是关闭的，
+	 * 如果带宽限制使能，runtime_enabled的值为1
+	 */
 	int			runtime_enabled;
+	/*cfs_rq从全局时间池申请的时间片剩余时间，
+	当剩余时间小于等于0的时候，就需要重新申请时间片。*/
 	s64			runtime_remaining;
 
 	u64			throttled_clock;
 	u64			throttled_clock_task;
 	u64			throttled_clock_task_time;
+	/*
+	 * 达到限制了, 就置为1
+	 * 如果cfs_rq被throttle后，throttled变量置1，unthrottle的时候，throttled变量置0；
+	 */
 	int			throttled;
+	/*表明我自己身上有多少个限制, 比如本cgroup,父亲cgroup, 只要有一层有限制,就+1*/
+	/* throttled_hierarchy */
 	int			throttle_count;
 	struct list_head	throttled_list;
 #endif /* CONFIG_CFS_BANDWIDTH */
@@ -921,6 +949,7 @@ struct rq {
 	/*update_rq_clock 中进行更新*/
 	u64			clock;
 	/* Ensure that all clocks are in the same cache line */
+	/*task 运行时间合计*/
 	u64			clock_task;
 	u64			clock_pelt;
 	unsigned long		lost_idle_time;
@@ -1594,6 +1623,7 @@ static __always_inline bool static_branch_##name(struct static_key *key) \
 #include "features.h"
 #undef SCHED_FEAT
 
+/* !!!!!!!! sys/kernel/debug/sched_features */
 extern struct static_key sched_feat_keys[__SCHED_FEAT_NR];
 #define sched_feat(x) (static_branch_##x(&sched_feat_keys[__SCHED_FEAT_##x]))
 
@@ -1726,12 +1756,14 @@ struct sched_class {
 	void (*enqueue_task) (struct rq *rq, struct task_struct *p, int flags);
 	void (*dequeue_task) (struct rq *rq, struct task_struct *p, int flags);
 	void (*yield_task)   (struct rq *rq);
+	/*指定转向某个task @p*/
 	bool (*yield_to_task)(struct rq *rq, struct task_struct *p, bool preempt);
 
 	void (*check_preempt_curr)(struct rq *rq, struct task_struct *p, int flags);
 
 	struct task_struct *(*pick_next_task)(struct rq *rq);
 
+	/*只要进程让出cpu,就会调用这个函数*/
 	void (*put_prev_task)(struct rq *rq, struct task_struct *p);
 	void (*set_next_task)(struct rq *rq, struct task_struct *p, bool first);
 
@@ -1779,6 +1811,7 @@ struct sched_class {
 static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
 {
 	WARN_ON_ONCE(rq->curr != prev);
+	/* put_prev_task_fair */
 	prev->sched_class->put_prev_task(rq, prev);
 }
 

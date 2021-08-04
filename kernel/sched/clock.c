@@ -60,8 +60,10 @@
  * Scheduler clock - returns current time in nanosec units.
  * This is default implementation.
  * Architectures and sub-architectures can override this.
+ *
+ * x86 下面用的就是这个
  */
-unsigned long long __weak sched_clock(void)
+unsigned long long  sched_clock(void)
 {
 	return (unsigned long long)(jiffies - INITIAL_JIFFIES)
 					* (NSEC_PER_SEC / HZ);

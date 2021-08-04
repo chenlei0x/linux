@@ -452,12 +452,14 @@ void blk_mq_sched_insert_requests(struct blk_mq_hw_ctx *hctx,
 	if (e && e->type->ops.insert_requests)
 		e->type->ops.insert_requests(hctx, list, false);
 	else {
+		/*nvme 通常走这个路径,因为没有elevator*/
 		/*
 		 * try to issue requests directly if the hw queue isn't
 		 * busy in case of 'none' scheduler, and this way may save
 		 * us one extra enqueue & dequeue to sw queue.
 		 */
 		if (!hctx->dispatch_busy && !e && !run_queue_async) {
+			/*直接派发*/
 			blk_mq_try_issue_list_directly(hctx, list);
 			if (list_empty(list))
 				goto out;

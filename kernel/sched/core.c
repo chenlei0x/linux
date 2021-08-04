@@ -1315,6 +1315,7 @@ static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 	}
 
 	uclamp_rq_dec(rq, p);
+	/* dequeue_task_fair */
 	p->sched_class->dequeue_task(rq, p, flags);
 }
 
@@ -1422,6 +1423,7 @@ void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
 	const struct sched_class *class;
 
 	if (p->sched_class == rq->curr->sched_class) {
+		/*cfs 对应的 check_preempt_wakeup*/
 		rq->curr->sched_class->check_preempt_curr(rq, p, flags);
 	} else {
 		for_each_class(class) {
@@ -3960,6 +3962,7 @@ restart:
 
 	/*每种class 遍历， 找到一个合适的就退出*/
 	for_each_class(class) {
+		/* pick_next_task_fair */
 		p = class->pick_next_task(rq);
 		if (p)
 			return p;
@@ -4045,7 +4048,15 @@ static void __sched notrace __schedule(bool preempt)
 
 	switch_count = &prev->nivcsw;
 	if (!preempt && prev->state) {
-		/*这种情况下就是自愿放弃cpu，比如拿锁等IO等*/
+		/*
+		 * 这种情况下就是自愿放弃cpu，比如拿锁等IO等
+		 * 因为调用这个函数之前通常都会设置 state域,比如UNINTERRUPTABLE等
+		 * 使得state != 0
+		 *
+		 * 常见用法见 rwsem_down_write_slowpath
+		 * set_current_stat(TASK_UNINTERRUPTABLE)
+		 * schedule
+		 */
 		if (signal_pending_state(prev->state, prev)) {
 			prev->state = TASK_RUNNING;
 		} else {

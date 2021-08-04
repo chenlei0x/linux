@@ -108,6 +108,7 @@ static u32 __accumulate_pelt_segments(u64 periods, u32 d1, u32 d3)
  */
 static __always_inline u32
 accumulate_sum(u64 delta, struct sched_avg *sa,
+			/*load.weight*/		/*runnable_weight*/		/*0 或者 1*/
 	       unsigned long load, unsigned long runnable, int running)
 {
 	u32 contrib = (u32)delta; /* p == 0 -> delta < 1024 */
@@ -272,6 +273,7 @@ divider = LOAD_AVG_MAX - 1024 + sa->period_contrib
 表明: 历史值为 LOAD_AVG_MAX, 这次计算的时候需要衰减一次 + 当前的负载值
 
 */
+/* 对于se来说 load 就是他的load.weight, runnable = se.runnable_weight*/
 static __always_inline void
 ___update_load_avg(struct sched_avg *sa, unsigned long load, unsigned long runnable)
 {
@@ -325,6 +327,7 @@ int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 
 int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	/*se->load_sum 不带权, load_avg 带权*/
 	if (___update_load_sum(now, &se->avg, !!se->on_rq, !!se->on_rq,
 				cfs_rq->curr == se)) {
 
@@ -339,6 +342,7 @@ int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se
 
 int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 {
+	/*cfs_rq->load_sum 带权, load_avg 不需要加权了,已经自带权重了*/
 	if (___update_load_sum(now, &cfs_rq->avg,
 				scale_load_down(cfs_rq->load.weight),
 				scale_load_down(cfs_rq->runnable_weight),

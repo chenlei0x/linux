@@ -2196,6 +2196,7 @@ readpage:
 		 */
 		ClearPageError(page);
 		/* Start the actual read. The read will unlock the page. */
+		/*读页*/
 		error = mapping->a_ops->readpage(filp, page);
 
 		if (unlikely(error)) {
@@ -2311,6 +2312,7 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 
 		file_accessed(file);
 
+		/* blk_def_aops :: blkdev_direct_IO */
 		retval = mapping->a_ops->direct_IO(iocb, iter);
 		if (retval >= 0) {
 			iocb->ki_pos += retval;
