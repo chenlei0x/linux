@@ -1650,6 +1650,7 @@ nest_cancel:
 	return ret;
 }
 
+/* 把 @dev 的相关信息 组成数据包 放到 skb中 */
 static int rtnl_fill_ifinfo(struct sk_buff *skb,
 			    struct net_device *dev, struct net *src_net,
 			    int type, u32 pid, u32 seq, u32 change,
@@ -1996,7 +1997,8 @@ static int rtnl_valid_dump_ifinfo_req(const struct nlmsghdr *nlh,
 				      extack);
 }
 
-static int rtnl_dump_ifinfo(struct sk_buff *skb, struct netlink_callback *cb)
+static int rtnl_dump_ifinfo(struct sk_buff *skb,
+		struct netlink_callback *cb)
 {
 	struct netlink_ext_ack *extack = cb->extack;
 	const struct nlmsghdr *nlh = cb->nlh;
@@ -5342,6 +5344,7 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 	int family;
 	int type;
 
+	/*ip a 命令 这里 nlmsg_type = RTM_GETLINK */
 	type = nlh->nlmsg_type;
 	if (type > RTM_MAX)
 		return -EOPNOTSUPP;
@@ -5364,6 +5367,10 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 		rtnl_dumpit_func dumpit;
 		u16 min_dump_alloc = 0;
 
+		/*
+			rtnl_register(PF_UNSPEC, RTM_GETLINK, rtnl_getlink,
+		      rtnl_dump_ifinfo, 0);
+		 */
 		link = rtnl_get_link(family, type);
 		if (!link || !link->dumpit) {
 			family = PF_UNSPEC;
@@ -5372,7 +5379,7 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 				goto err_unlock;
 		}
 		owner = link->owner;
-		dumpit = link->dumpit;
+		dumpit = link->dumpit; /* rtnl_dump_ifinfo */
 
 		if (type == RTM_GETLINK - RTM_BASE)
 			min_dump_alloc = rtnl_calcit(skb, nlh);

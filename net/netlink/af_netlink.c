@@ -2240,8 +2240,10 @@ static int netlink_dump(struct sock *sk)
 	skb_reserve(skb, skb_tailroom(skb) - alloc_size);
 	netlink_skb_set_owner_r(skb, sk);
 
+	/*__netlink_dump_start 中 初始为 INT_MAX */
 	if (nlk->dump_done_errno > 0) {
 		cb->extack = &extack;
+		/*重点    rtnl_dump_ifinfo */
 		nlk->dump_done_errno = cb->dump(skb, cb);
 		cb->extack = NULL;
 	}
