@@ -24,11 +24,17 @@
 #include <linux/spinlock.h>
 #include <net/protocol.h>
 
-struct net_protocol __rcu *inet_protos[MAX_INET_PROTOS] __read_mostly;
+struct net_protocol __rcu *inet_protos[MAX_INET_PROTOS];
 EXPORT_SYMBOL(inet_protos);
-const struct net_offload __rcu *inet_offloads[MAX_INET_PROTOS] __read_mostly;
+const struct net_offload __rcu *inet_offloads[MAX_INET_PROTOS];
 EXPORT_SYMBOL(inet_offloads);
 
+
+/*IP层在把报文往上送的时候，e.g. ip_local_deliver_finish，
+实际上就是根据skb的protocol在inet_protos里找到对应的net_protocol结构，
+然后调用net_protocol->handler函数，e.g. 如果是TCP协议的skb，
+这时就调用tcp_v4_rcv
+*/
 int inet_add_protocol(const struct net_protocol *prot, unsigned char protocol)
 {
 	if (!prot->netns_ok) {

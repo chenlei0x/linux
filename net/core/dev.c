@@ -4028,6 +4028,11 @@ out:
 	return rc;
 }
 
+/*
+使用dev_queue_xmit函数将sk_buff从协议层发送到网络设备。
+dev_queue_xmit函数会将sk_buff添加到底层网络设备驱动程序
+最终要传输的队列中（网络设备在net_device或者sk_buff->dev中定义）
+*/
 int dev_queue_xmit(struct sk_buff *skb)
 {
 	return __dev_queue_xmit(skb, NULL);

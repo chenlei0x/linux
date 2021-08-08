@@ -525,6 +525,8 @@ out:
 
 /*
  * IP receive entry point
+ *
+ * ipv4  数据包的主接受方法
  */
 int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 	   struct net_device *orig_dev)
@@ -535,6 +537,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 	if (skb == NULL)
 		return NET_RX_DROP;
 
+	/*ip_rcv_finish 做主要工作*/
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,
 		       net, NULL, skb, dev, NULL,
 		       ip_rcv_finish);

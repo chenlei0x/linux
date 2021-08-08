@@ -2,6 +2,8 @@
 #ifndef _LINUX_INDIRECT_CALL_WRAPPER_H
 #define _LINUX_INDIRECT_CALL_WRAPPER_H
 
+
+/* 没有定义 */
 #ifdef CONFIG_RETPOLINE
 
 /*

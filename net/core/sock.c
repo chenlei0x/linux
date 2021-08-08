@@ -3405,6 +3405,7 @@ int proto_register(struct proto *prot, int alloc_slab)
 	}
 
 	mutex_lock(&proto_list_mutex);
+	/*给proto 分配一个index, 这个index 是全局系统的*/
 	ret = assign_proto_idx(prot);
 	if (ret) {
 		mutex_unlock(&proto_list_mutex);

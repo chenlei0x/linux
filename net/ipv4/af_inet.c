@@ -122,6 +122,11 @@
 /* The inetsw table contains everything that inet_create needs to
  * build a new socket.
  */
+ /*实际上是一个hash 结构, hash = inet_protosw::type
+ 然后比对 p->protocol值,找到match 的一个
+
+ 见 void inet_register_protosw(struct inet_protosw *p)
+ */
 static struct list_head inetsw[SOCK_MAX];
 static DEFINE_SPINLOCK(inetsw_lock);
 
@@ -243,7 +248,7 @@ EXPORT_SYMBOL(inet_listen);
 /*
  *	Create an inet socket.
  */
-
+/*socket 函数 会调用这个函数*/
 static int inet_create(struct net *net, struct socket *sock, int protocol,
 		       int kern)
 {
@@ -264,6 +269,7 @@ static int inet_create(struct net *net, struct socket *sock, int protocol,
 lookup_protocol:
 	err = -ESOCKTNOSUPPORT;
 	rcu_read_lock();
+	/* SOCK_DGRAM 对应了 udp_prot 和 ping_prot 两个, 但是如果@protocol = 0 时, 会选择udp_prot*/
 	list_for_each_entry_rcu(answer, &inetsw[sock->type], list) {
 
 		err = 0;
@@ -274,6 +280,7 @@ lookup_protocol:
 		} else {
 			/* Check for the two wild cases. */
 			if (IPPROTO_IP == protocol) {
+				/*type 对应的list中第一个不为0 的*/
 				protocol = answer->protocol;
 				break;
 			}
@@ -311,6 +318,7 @@ lookup_protocol:
 		goto out_rcu_unlock;
 
 	sock->ops = answer->ops;
+	/* udp_prot tcp_prot */
 	answer_prot = answer->prot;
 	answer_flags = answer->flags;
 	rcu_read_unlock();
@@ -318,6 +326,7 @@ lookup_protocol:
 	WARN_ON(!answer_prot->slab);
 
 	err = -ENOBUFS;
+	/* sk->sk_prot = sk->sk_prot_creator = prot; */
 	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot, kern);
 	if (!sk)
 		goto out;
@@ -454,6 +463,7 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 }
 EXPORT_SYMBOL(inet_bind);
 
+/*@uaddr 表明的是本机的ip port*/
 int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 		bool force_bind_address_no_port, bool with_lock)
 {
@@ -980,6 +990,7 @@ static int inet_compat_ioctl(struct socket *sock, unsigned int cmd, unsigned lon
 }
 #endif
 
+/*tcp 协议*/
 const struct proto_ops inet_stream_ops = {
 	.family		   = PF_INET,
 	.owner		   = THIS_MODULE,
@@ -1016,6 +1027,7 @@ const struct proto_ops inet_stream_ops = {
 };
 EXPORT_SYMBOL(inet_stream_ops);
 
+/* udp 协议 */
 const struct proto_ops inet_dgram_ops = {
 	.family		   = PF_INET,
 	.owner		   = THIS_MODULE,
@@ -1136,6 +1148,7 @@ void inet_register_protosw(struct inet_protosw *p)
 		goto out_illegal;
 
 	/* If we are trying to override a permanent protocol, bail. */
+	/**/
 	last_perm = &inetsw[p->type];
 	list_for_each(lh, &inetsw[p->type]) {
 		answer = list_entry(lh, struct inet_protosw, list);
@@ -1900,7 +1913,7 @@ static int __init ipv4_offload_init(void)
 
 fs_initcall(ipv4_offload_init);
 
-static struct packet_type ip_packet_type __read_mostly = {
+static struct packet_type ip_packet_type  = {
 	.type = cpu_to_be16(ETH_P_IP),
 	.func = ip_rcv,
 	.list_func = ip_list_rcv,
@@ -1914,6 +1927,7 @@ static int __init inet_init(void)
 
 	sock_skb_cb_check_size(sizeof(struct inet_skb_parm));
 
+	/*只是初始化,并没有向内核挂狗子*/
 	rc = proto_register(&tcp_prot, 1);
 	if (rc)
 		goto out;
@@ -1959,6 +1973,7 @@ static int __init inet_init(void)
 	for (r = &inetsw[0]; r < &inetsw[SOCK_MAX]; ++r)
 		INIT_LIST_HEAD(r);
 
+	/*tcp_prot udp_prot 都在inetsw_array 中*/
 	for (q = inetsw_array; q < &inetsw_array[INETSW_ARRAY_LEN]; ++q)
 		inet_register_protosw(q);
 

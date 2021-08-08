@@ -157,7 +157,8 @@ static const struct file_operations socket_file_ops = {
  */
 
 static DEFINE_SPINLOCK(net_family_lock);
-static const struct net_proto_family __rcu *net_families[NPROTO] __read_mostly;
+/* sock_register(&inet_family_ops); */
+static const struct net_proto_family __rcu *net_families[NPROTO];
 
 /*
  * Support routines.
@@ -636,6 +637,7 @@ INDIRECT_CALLABLE_DECLARE(int inet6_sendmsg(struct socket *, struct msghdr *,
 					    size_t));
 static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg)
 {
+	/*int ret = sock->ops->sendmsg(sock,  msg, msg_data_left(msg)) */
 	int ret = INDIRECT_CALL_INET(sock->ops->sendmsg, inet6_sendmsg,
 				     inet_sendmsg, sock, msg,
 				     msg_data_left(msg));
@@ -884,6 +886,7 @@ static inline int sock_recvmsg_nosec(struct socket *sock, struct msghdr *msg,
  *	Receives @msg from @sock, passing through LSM. Returns the total number
  *	of bytes received, or an error.
  */
+ /*核心呀*/
 int sock_recvmsg(struct socket *sock, struct msghdr *msg, int flags)
 {
 	int err = security_socket_recvmsg(sock, msg, msg_data_left(msg), flags);
@@ -971,6 +974,7 @@ static ssize_t sock_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	return res;
 }
 
+/*socket 发送函数*/
 static ssize_t sock_write_iter(struct kiocb *iocb, struct iov_iter *from)
 {
 	struct file *file = iocb->ki_filp;
@@ -1402,6 +1406,14 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 #endif
 
 	rcu_read_lock();
+	/*
+	
+	static const struct net_proto_family inet_family_ops = {
+		.family = PF_INET,
+		.create = inet_create,
+		.owner	= THIS_MODULE,
+	};
+	*/
 	pf = rcu_dereference(net_families[family]);
 	err = -EAFNOSUPPORT;
 	if (!pf)
@@ -1417,6 +1429,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	/* Now protected by module ref count */
 	rcu_read_unlock();
 
+	/*inet_create*/
 	err = pf->create(net, sock, protocol, kern);
 	if (err < 0)
 		goto out_module_put;
@@ -1517,6 +1530,9 @@ int __sys_socket(int family, int type, int protocol)
 	return sock_map_fd(sock, flags & (O_CLOEXEC | O_NONBLOCK));
 }
 
+/*用户态把 family 称为 domain , 指 AF_INET AF_INET6 AF_NETLINK*/
+/* type 指 SOCK_DGRAM 或者 SOCK_STREAM */
+/* protocol  默认为0  由系统选择*/
 SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 {
 	return __sys_socket(family, type, protocol);
