@@ -22,9 +22,15 @@
 struct sk_buff;
 
 struct dst_entry {
+	/*该路由的输出网络设备接口*/
 	struct net_device       *dev;
 	struct  dst_ops	        *ops;
 	unsigned long		_metrics;
+	/* 
+	 * expires是一个超时时间值，定时器rt_periodic_timer定期扫描路由缓存表rt_hash_table，
+	 * 如果发现expires值为0，或者小于当前系统时间值，并符合其它超时条件，
+	 * 则把该路由从缓存表中删除
+	 */
 	unsigned long           expires;
 #ifdef CONFIG_XFRM
 	struct xfrm_state	*xfrm;
@@ -65,8 +71,10 @@ struct dst_entry {
 	 * input/output/ops or performance tanks badly
 	 */
 #ifdef CONFIG_64BIT
+	/* __refcnt是目的入口的引用计数，创建成功后即设为1*/
 	atomic_t		__refcnt;	/* 64-bit offset 64 */
 #endif
+	/* __use是一个统计数值，该目的入口被使用一次(发送一个IP数据报)，__use就加1 */
 	int			__use;
 	unsigned long		lastuse;
 	struct lwtunnel_state   *lwtstate;
@@ -431,12 +439,26 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 }
 
 /* Output packet to network from transport.  */
+/*
+进入这个入口的数据包是什么样的。
+
+已经经过路由子系统选择好了路由，即skb->dst已经准备好了（包括后面的skb->dst->input指针所指向的内容）
+已经封装好了IP首部，意味着后面的工作其实就是在想办法让这个数据包能够从正确的路径发送出去。
+
+*/
 static inline int dst_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	return skb_dst(skb)->output(net, sk, skb);
 }
 
 /* Input packet from network to transport.  */
+/* ip网络用的 ip_output 
+ip_input
+
+*/
+
+
+/* ip_forward 或者 ip_local_deliver */
 static inline int dst_input(struct sk_buff *skb)
 {
 	return skb_dst(skb)->input(skb);

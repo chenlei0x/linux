@@ -7,6 +7,10 @@
 #include <net/ip_fib.h>
 #include <net/nexthop.h>
 
+/*
+ * fib_alias 和 fib_info 多对一 
+ * 比如 173.2.1.1  (alias) 173.2.2.2(alias) 对应的下一跳都是 1.1.1.1(fib_info)
+ */
 struct fib_alias {
 	struct hlist_node	fa_list;
 	struct fib_info		*fa_info;

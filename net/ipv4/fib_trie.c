@@ -1311,6 +1311,7 @@ static inline t_key prefix_mismatch(t_key key, struct key_vector *n)
 }
 
 /* should be called with rcu_read_lock */
+/*从 @fb 中找到一条路由 放到@res中*/
 int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
 		     struct fib_result *res, int fib_flags)
 {
@@ -1318,6 +1319,10 @@ int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
 #ifdef CONFIG_IP_FIB_TRIE_STATS
 	struct trie_use_stats __percpu *stats = t->stats;
 #endif
+	/* 
+	 * 根据查询路由的目的IP地址(key)在其路由哈
+	 * 希表(struct fn_hash)中找到一个路由域(struct fn_zone)
+	 */
 	const t_key key = ntohl(flp->daddr);
 	struct key_vector *n, *pn;
 	struct fib_alias *fa;

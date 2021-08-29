@@ -298,6 +298,7 @@ jumped:
 		} else if (rule->action == FR_ACT_NOP)
 			continue;
 		else
+			/*对于ipv4，fib4_rules_ops->action 即为 fib4_rule_action*/
 			err = ops->action(rule, fl, flags, arg);
 
 		if (!err && ops->suppress && ops->suppress(rule, arg))

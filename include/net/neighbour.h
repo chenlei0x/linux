@@ -131,6 +131,10 @@ struct neigh_statistics {
 
 #define NEIGH_CACHE_STAT_INC(tbl, field) this_cpu_inc((tbl)->stats->field)
 
+/*
+表示一个具体的邻居，包含邻居的MAC地址，邻居状态，确认时间,output函数，数据缓冲队列
+
+*/
 struct neighbour {
 	struct neighbour __rcu	*next;
 	struct neigh_table	*tbl;

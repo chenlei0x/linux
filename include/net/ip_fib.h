@@ -268,6 +268,7 @@ void fib_table_flush_external(struct fib_table *table);
 void fib_free_table(struct fib_table *tb);
 
 #ifndef CONFIG_IP_MULTIPLE_TABLES
+/*已经定义了*/
 
 #define TABLE_LOCAL_INDEX	(RT_TABLE_LOCAL & (FIB_TABLE_HASHSZ - 1))
 #define TABLE_MAIN_INDEX	(RT_TABLE_MAIN  & (FIB_TABLE_HASHSZ - 1))
@@ -356,6 +357,10 @@ static inline int fib_lookup(struct net *net, struct flowi4 *flp,
 	int err = -ENETUNREACH;
 
 	flags |= FIB_LOOKUP_NOREF;
+	/*
+	 * rule 和 路由的规则
+	 * https://www.cnblogs.com/EasonJim/p/8424731.html
+	 */
 	if (net->ipv4.fib_has_custom_rules)
 		return __fib_lookup(net, flp, res, flags);
 

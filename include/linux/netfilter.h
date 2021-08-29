@@ -208,6 +208,8 @@ void nf_hook_slow_list(struct list_head *head, struct nf_hook_state *state,
  *	okfn must be invoked by the caller in this case.  Any other return
  *	value indicates the packet has been consumed by the hook.
  */
+
+/* https://www.ebpf.top/post/iptalbes_ebpf/ */
 static inline int nf_hook(u_int8_t pf, unsigned int hook, struct net *net,
 			  struct sock *sk, struct sk_buff *skb,
 			  struct net_device *indev, struct net_device *outdev,

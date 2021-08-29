@@ -56,6 +56,15 @@ struct netns_ipv4 {
 	struct fib_rules_ops	*rules_ops;
 	bool			fib_has_custom_rules;
 	unsigned int		fib_rules_require_fldissect;
+
+	/*
+	32766 匹配任何条件 查询路由表main(ID 254) 路由表main(ID 254)是一个通常的表，
+	包含所有的无策略路由。系统管理员可以删除或者使用另外的规则覆盖这条规则。
+
+	32767 匹配任何条件 查询路由表default(ID 253) 路由表default(ID 253)是一个空表，
+	它是为一些后续处理保留的。对于前面的缺省策略没有匹配到的数据包，
+	系统使用这个策略进行处理。这个规则也可以删除。
+	*/
 	struct fib_table __rcu	*fib_main;
 	struct fib_table __rcu	*fib_default;
 #endif

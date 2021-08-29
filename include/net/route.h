@@ -47,10 +47,30 @@ struct fib_nh;
 struct fib_info;
 struct uncached_list;
 struct rtable {
+	/* 核心 */
 	struct dst_entry	dst;
 
 	int			rt_genid;
+	/*
+	按目的入口查询的执行顺序：
+	如果路由使用本地环回接口，则rt_flags上加标志RTCF_LOCAL，
+	如果路由结果类 型是广播，则加标志RTCF_BROADCAST和RTCF_LOCAL，
+	如果结果是组播，则加标志RTCF_MULTICAST和 RTCF_LOCAL，
+
+	该标志最终决定了目的入口使用哪一个IP数据报输入函数和输出函数，
+	如果是RTCF_LOCAL，则使用输入函数 ip_local_deliver，
+	如果是RTCF_BROADCAST或RTCF_MULTICAST，并且带有RTCF_LOCAL标志，并且输出设 备不是环回接口设备，则使用输出函数ip_mc_output，
+	否则使用输出函数ip_output。
+	*/
 	unsigned int		rt_flags;
+	/*
+	rt_type是路由类型，
+	如果路由是LOOPBACK，则置类型为RTN_LOCAL，单播路由类型为RTN_UNICAST，
+	如果目的地址为 0xFFFFFFFF，则路由类型为RTN_BROADCAST，
+	如果目的地址是组播地址，则路由类型为RTN_MULTICAST。
+	rt_type跟 rt_flags关系比较密切。
+
+	*/
 	__u16			rt_type;
 	__u8			rt_is_input;
 	__u8			rt_uses_gateway;
@@ -189,6 +209,7 @@ int ip_route_use_hint(struct sk_buff *skb, __be32 dst, __be32 src,
 		      u8 tos, struct net_device *devin,
 		      const struct sk_buff *hint);
 
+/*@devin  表明从 这个设备上收到的包*/
 static inline int ip_route_input(struct sk_buff *skb, __be32 dst, __be32 src,
 				 u8 tos, struct net_device *devin)
 {

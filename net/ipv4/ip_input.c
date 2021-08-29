@@ -311,6 +311,8 @@ static bool ip_can_use_hint(const struct sk_buff *skb, const struct iphdr *iph,
 
 INDIRECT_CALLABLE_DECLARE(int udp_v4_early_demux(struct sk_buff *));
 INDIRECT_CALLABLE_DECLARE(int tcp_v4_early_demux(struct sk_buff *));
+
+/*收到包*/
 static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 			      struct sk_buff *skb, struct net_device *dev,
 			      const struct sk_buff *hint)
