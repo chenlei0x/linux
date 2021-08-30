@@ -927,6 +927,9 @@ static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 	return max(size_goal, mss_now);
 }
 
+/*
+TCP连接建立时，收发双方协商通信时每一个报文段所能承载的最大数据长度（不包含头）
+*/
 static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 {
 	int mss_now;
@@ -1189,6 +1192,11 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size)
 
 	flags = msg->msg_flags;
 
+	/*
+	 * 用户态传下来的FLAG MSG_ZEROCOPY
+	 * tools/testing/selftests/net/msg_zerocopy.c 195 
+	 * 默认没开
+	 */
 	if (flags & MSG_ZEROCOPY && size && sock_flag(sk, SOCK_ZEROCOPY)) {
 		skb = tcp_write_queue_tail(sk);
 		uarg = sock_zerocopy_realloc(sk, size, skb_zcopy(skb));
@@ -1240,6 +1248,10 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size)
 	}
 
 	sockcm_init(&sockc, sk);
+	/* 
+		__sys_sendto in socket.c (net) : 	msg.msg_controllen = 0;
+		__sys_recvfrom in socket.c (net) : 	msg.msg_controllen = 0;
+	 */
 	if (msg->msg_controllen) {
 		err = sock_cmsg_send(sk, msg, &sockc);
 		if (unlikely(err)) {
@@ -1261,9 +1273,11 @@ restart:
 	if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN))
 		goto do_error;
 
+	/*真正开始发送的地方*/
 	while (msg_data_left(msg)) {
 		int copy = 0;
 
+		/*发送队列的最后一个skb*/
 		skb = tcp_write_queue_tail(sk);
 		if (skb)
 			copy = size_goal - skb->len;
@@ -1288,7 +1302,7 @@ new_segment:
 
 			process_backlog++;
 			skb->ip_summed = CHECKSUM_PARTIAL;
-
+			/*这里挂到队列中*/
 			skb_entail(sk, skb);
 			copy = size_goal;
 
@@ -1306,12 +1320,14 @@ new_segment:
 
 		/* Where to copy to? */
 		if (skb_availroom(skb) > 0 && !zc) {
+			/*当前要发送的数据可以和发送队列中的最后一个skb进行合并，多么美妙的事情*/
 			/* We have some space in skb head. Superb! */
 			copy = min_t(int, copy, skb_availroom(skb));
 			err = skb_add_data_nocache(sk, skb, &msg->msg_iter, copy);
 			if (err)
 				goto do_fault;
 		} else if (!zc) {
+			/*默认没有zero copy的， 所以需要申请一个新的skb*/
 			bool merge = true;
 			int i = skb_shinfo(skb)->nr_frags;
 			struct page_frag *pfrag = sk_page_frag(sk);
@@ -1369,8 +1385,10 @@ new_segment:
 
 		copied += copy;
 		if (!msg_data_left(msg)) {
+			/*没有数据了，都拷贝完毕，而且挂到队列里了*/
 			if (unlikely(flags & MSG_EOR))
 				TCP_SKB_CB(skb)->eor = 1;
+			/*这里会强制调用tcp_push, 从队列中推送数据*/
 			goto out;
 		}
 
@@ -1430,6 +1448,7 @@ int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 {
 	int ret;
 
+	/*串行， recvmsg中也会加锁*/
 	lock_sock(sk);
 	ret = tcp_sendmsg_locked(sk, msg, size);
 	release_sock(sk);

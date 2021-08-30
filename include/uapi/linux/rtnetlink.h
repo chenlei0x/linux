@@ -317,6 +317,19 @@ enum rt_class_t {
 /* User defined values */
 	RT_TABLE_COMPAT=252,
 	RT_TABLE_DEFAULT=253,
+	/*
+	main表中存放的是路由类型为RTN_UNICAST的所有路由项，
+	即网关或直接连接的路由。在myfib_add_ifaddr函数中是
+	这样添加 main表项的：对于某个网络设备接口的一个IP地
+	址，如果目的地址的网络号不是零网络（网络号与子网
+	号全为零），并且它是primary地址，同时，它不是D类地
+	址（网络号与子网号占32位）。最后一个条件是：它不是
+	一个环回地址(device上有flag IFF_LOOPBACK）。那么，
+	就添加为main表项，
+
+	如果是环回地址，则添加为local表的一个表项。
+
+	*/
 	RT_TABLE_MAIN=254,
 	RT_TABLE_LOCAL=255,
 	RT_TABLE_MAX=0xFFFFFFFF

@@ -123,7 +123,7 @@ static const struct Qdisc_class_ops ingress_class_ops = {
 	.unbind_tcf	=	ingress_unbind_filter,
 };
 
-static struct Qdisc_ops ingress_qdisc_ops __read_mostly = {
+static struct Qdisc_ops ingress_qdisc_ops  = {
 	.cl_ops			=	&ingress_class_ops,
 	.id			=	"ingress",
 	.priv_size		=	sizeof(struct ingress_sched_data),

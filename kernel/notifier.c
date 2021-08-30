@@ -32,7 +32,7 @@ static int notifier_chain_register(struct notifier_block **nl,
 		nl = &((*nl)->next);
 	}
 	n->next = *nl;
-	rcu_assign_pointer(*nl, n);
+	rcu_assign_pointer(*nl, n); /*rcu 赋值*/
 	return 0;
 }
 

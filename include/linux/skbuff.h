@@ -515,6 +515,11 @@ struct skb_shared_info {
 	unsigned short	gso_size;
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
+	/*
+	 * 对于frag_list来说，一般我们在分片的时候里面装入每个
+	 * 片的信息，注意，每个片最终也都是被封装成一个小
+	 * 的skb，这个必须     的！
+	 */
 	struct sk_buff	*frag_list;
 	struct skb_shared_hwtstamps hwtstamps;
 	unsigned int	gso_type;
@@ -529,6 +534,14 @@ struct skb_shared_info {
 	 * remains valid until skb destructor */
 	void *		destructor_arg;
 
+	/* 当数据真的很多，而且在线性数据区域装不下的时候，
+	 * 需要使用这个，skb_frag_t中是一页一页的数据，
+	 * 其中每个元素保存的是一个page 指针， 这些page 用来存储数据
+	 * 只有在DMA支持物理分散页的Scatter/Gather（SG，分散/聚集）
+	 * 操作时候才可以使用frags[]来保存剩下的数据，否则，
+	 * 只能扩展线性数据区域进行保存！！！
+	 * frags 是对skb->data 数据区的补充
+	 */
 	/* must be last field, see pskb_expand_head() */
 	skb_frag_t	frags[MAX_SKB_FRAGS];
 };
@@ -717,7 +730,7 @@ struct sk_buff {
 	 * want to keep them across layers you have to do a skb_clone()
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
-	char			cb[48] __aligned(8);
+	char			cb[48]/* __aligned(8)*/;
 
 	union {
 		struct {
@@ -730,6 +743,9 @@ struct sk_buff {
 #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 	unsigned long		 _nfct;
 #endif
+	/*len  data_len 见 
+	 * https://blog.csdn.net/shanshanpt/article/details/21024465
+	*/
 	unsigned int		len,
 				data_len;
 	__u16			mac_len,
@@ -1400,6 +1416,7 @@ static inline unsigned int skb_end_offset(const struct sk_buff *skb)
 #endif
 
 /* Internal */
+/*skb 转 shinfo */
 #define skb_shinfo(SKB)	((struct skb_shared_info *)(skb_end_pointer(SKB)))
 
 static inline struct skb_shared_hwtstamps *skb_hwtstamps(struct sk_buff *skb)

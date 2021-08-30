@@ -1794,6 +1794,12 @@ enum netdev_priv_flags {
  *	moves out.
  */
 
+/*
+net_device结构主要用于内核自身（设备驱动、上层协议等）对网络设备的操作；
+in_device主要是保存用户态对此设备的配置信息，比如IP地址的配置，
+其保存在in_device的成员ifa_list中。两个结构体通过指针互指联系在一起。
+*/
+
 struct net_device {
 	char			name[IFNAMSIZ];
 	struct netdev_name_node	*name_node;
@@ -1835,7 +1841,10 @@ struct net_device {
 	netdev_features_t	mpls_features;
 	netdev_features_t	gso_partial_features;
 
-	int			ifindex;
+	/*
+	 * register_netdevice ==> dev_new_index
+	 */
+	int			ifindex; /*net ns 内唯一*/
 	int			group;
 
 	struct net_device_stats	stats;

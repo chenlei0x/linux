@@ -714,6 +714,7 @@ int fib_gw_from_via(struct fib_config *cfg, struct nlattr *nla,
 	return 0;
 }
 
+/*route message 转 fib_config*/
 static int rtm_to_fib_config(struct net *net, struct sk_buff *skb,
 			     struct nlmsghdr *nlh, struct fib_config *cfg,
 			     struct netlink_ext_ack *extack)
@@ -764,6 +765,7 @@ static int rtm_to_fib_config(struct net *net, struct sk_buff *skb,
 			if (cfg->fc_gw4)
 				cfg->fc_gw_family = AF_INET;
 			break;
+			/*通常走这个路径*/
 		case RTA_VIA:
 			has_via = true;
 			err = fib_gw_from_via(cfg, attr, extack);
@@ -873,6 +875,7 @@ static int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (err < 0)
 		goto errout;
 
+	/*默认都是 RT_TABLE_UNSPEC*/
 	tb = fib_new_table(net, cfg.fc_table);
 	if (!tb) {
 		err = -ENOBUFS;

@@ -22,10 +22,17 @@ struct ipv4_devconf {
 
 #define MC_HASH_SZ_LOG 9
 
+/*
+net_device结构主要用于内核自身（设备驱动、上层协议等）对网络设备的操作；
+in_device主要是保存用户态对此设备的配置信息，比如IP地址的配置，
+其保存在in_device的成员ifa_list中。两个结构体通过指针互指联系在一起。
+*/
 struct in_device {
 	struct net_device	*dev;
 	refcount_t		refcnt;
 	int			dead;
+	/*指向 in_ifaddr架构链表，in_ifaddr中存储了网络设备的IP地址，
+	因为一个网络设备可以配置多个IP地址，因此使用链表来存储。*/
 	struct in_ifaddr	__rcu *ifa_list;/* IP ifaddr chain		*/
 
 	struct ip_mc_list __rcu	*mc_list;	/* IP multicast filter chain    */
@@ -134,18 +141,25 @@ static inline void ipv4_devconf_setall(struct in_device *in_dev)
 #define IN_DEV_ARP_IGNORE(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_IGNORE)
 #define IN_DEV_ARP_NOTIFY(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_NOTIFY)
 
+/*IP地址块，存储主机的IP地址，子网掩码，广播地址等信息*/
 struct in_ifaddr {
 	struct hlist_node	hash;
 	struct in_ifaddr	__rcu *ifa_next;
 	struct in_device	*ifa_dev;
 	struct rcu_head		rcu_head;
+	/* 本地IP地址*/
 	__be32			ifa_local;
+	/*如果设备配置了支持广播，ifa_address和if_local一样，
+	也是本地IP地址；如果点对点链路，ifa_address表示对端的IP地址。*/
 	__be32			ifa_address;
+	/* 子网掩码 */
 	__be32			ifa_mask;
 	__u32			ifa_rt_priority;
 	__be32			ifa_broadcast;
+	/*RT_SCOPE_XXX*/
 	unsigned char		ifa_scope;
 	unsigned char		ifa_prefixlen;
+	/*IFA_F_xxx*/
 	__u32			ifa_flags;
 	char			ifa_label[IFNAMSIZ];
 

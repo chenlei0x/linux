@@ -2357,6 +2357,8 @@ void tcp_chrono_stop(struct sock *sk, const enum tcp_chrono type)
 
  * Returns true, if no segments are in flight and we have queued segments,
  * but cannot send anything now because of SWS or another problem.
+ *
+ * MSS 限制的是 TCP 载荷的长度，并不包含 TCP 首部长度和 IP 首部长度
  */
 static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			   int push_one, gfp_t gfp)
@@ -2383,6 +2385,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	}
 
 	max_segs = tcp_tso_segs(sk, mss_now);
+	/*发送队列是否有数据？*/
 	while ((skb = tcp_send_head(sk))) {
 		unsigned int limit;
 
@@ -2397,9 +2400,19 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		if (tcp_pacing_check(sk))
 			break;
 
+		/*这个skb 根据当前的mss 应该被分为几个tso seg*/
 		tso_segs = tcp_init_tso_segs(skb, mss_now);
 		BUG_ON(!tso_segs);
 
+		/* 检查congestion windows， 可以发送几个segment */
+		/* 检测拥塞窗口的大小，如果为0，则说明拥塞窗口已满，目前不能发送。
+		 * 拿拥塞窗口和正在网络上传输的包数目相比，如果拥塞窗口还大，
+		 * 则返回拥塞窗口减掉正在网络上传输的包数目剩下的大小。
+		 * 该函数目的是判断正在网络上传输的包数目是否超过拥塞窗口，
+		 * 如果超过了，则不发送。
+		 *
+		 * 窗口控制的对象是 包，而不是数据量 字节
+		 */
 		cwnd_quota = tcp_cwnd_test(tp, skb);
 		if (!cwnd_quota) {
 			if (push_one == 2)
@@ -2409,11 +2422,13 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 				break;
 		}
 
+		/* 检测当前报文是否完全处于发送窗口内，如果是则可以发送，否则不能发送 */
 		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now))) {
 			is_rwnd_limited = true;
 			break;
 		}
 
+		/* tso_segs=1表示无需tso分段 */
 		if (tso_segs == 1) {
 			if (unlikely(!tcp_nagle_test(tp, skb, mss_now,
 						     (tcp_skb_is_last(sk, skb) ?
@@ -2434,6 +2449,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 							  max_segs),
 						    nonagle);
 
+		/*过长， 需要分片*/
 		if (skb->len > limit &&
 		    unlikely(tso_fragment(sk, skb, limit, mss_now, gfp)))
 			break;
@@ -2625,6 +2641,8 @@ void __tcp_push_pending_frames(struct sock *sk, unsigned int cur_mss,
 	if (unlikely(sk->sk_state == TCP_CLOSE))
 		return;
 
+	/*如果还剩下segment，那就设置上定时器*/
+	/*push_one = 0*/
 	if (tcp_write_xmit(sk, cur_mss, nonagle, 0,
 			   sk_gfp_mask(sk, GFP_ATOMIC)))
 		tcp_check_probe_timer(sk);

@@ -246,6 +246,7 @@ int iov_iter_npages(const struct iov_iter *i, int maxpages);
 
 const void *dup_iter(struct iov_iter *new, struct iov_iter *old, gfp_t flags);
 
+/*还剩下多少数据需要处理 单位 字节*/
 static inline size_t iov_iter_count(const struct iov_iter *i)
 {
 	return i->count;

@@ -90,6 +90,7 @@ struct net {
 
 	struct ns_common	ns;
 
+	/* for_each_netdev net ns下的每一个设备net_device 都在这里*/
 	struct list_head 	dev_base_head;
 	struct proc_dir_entry 	*proc_net;
 	struct proc_dir_entry 	*proc_net_stat;
@@ -103,7 +104,9 @@ struct net {
 
 	struct uevent_sock	*uevent_sock;		/* uevent socket */
 
+	/*基于接口名字的查找, dev->name,对应的函数是dev_get_by_name()*/
 	struct hlist_head 	*dev_name_head;
+	/*基于接口索引的查找，dev->ifindex， 对应的函数是dev_get_by_index()*/
 	struct hlist_head	*dev_index_head;
 	struct raw_notifier_head	netdev_chain;
 

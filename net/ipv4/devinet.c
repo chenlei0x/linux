@@ -198,18 +198,7 @@ static BLOCKING_NOTIFIER_HEAD(inetaddr_validator_chain);
 static void inet_del_ifa(struct in_device *in_dev,
 			 struct in_ifaddr __rcu **ifap,
 			 int destroy);
-#ifdef CONFIG_SYSCTL
-static int devinet_sysctl_register(struct in_device *idev);
-static void devinet_sysctl_unregister(struct in_device *idev);
-#else
-static int devinet_sysctl_register(struct in_device *idev)
-{
-	return 0;
-}
-static void devinet_sysctl_unregister(struct in_device *idev)
-{
-}
-#endif
+
 
 /* Locks all the inet devices. */
 
@@ -2564,6 +2553,28 @@ static int __devinet_sysctl_register(struct net *net, char *dev_name,
 		t->devinet_vars[i].extra2 = net;
 	}
 
+	/*sysctl 中的相关注册  */
+	/*sysctl -a | grep net.ipv4.conf*/
+	/*
+		net.ipv4.conf.all.route_localnet = 1
+		net.ipv4.conf.all.rp_filter = 1
+		net.ipv4.conf.all.secure_redirects = 1
+		net.ipv4.conf.all.send_redirects = 1
+		net.ipv4.conf.all.shared_media = 1
+		net.ipv4.conf.all.src_valid_mark = 0
+		net.ipv4.conf.all.tag = 0
+		net.ipv4.conf.br0.accept_local = 0
+		net.ipv4.conf.br0.accept_redirects = 1
+		net.ipv4.conf.br0.accept_source_route = 1
+		net.ipv4.conf.br0.arp_accept = 0
+		net.ipv4.conf.br0.arp_announce = 0
+		net.ipv4.conf.br0.arp_filter = 0
+		net.ipv4.conf.br0.arp_ignore = 0
+		net.ipv4.conf.br0.arp_notify = 0
+		net.ipv4.conf.br0.bc_forwarding = 0
+		net.ipv4.conf.br0.bootp_relay = 0
+		net.ipv4.conf.br0.disable_policy = 0
+	*/
 	snprintf(path, sizeof(path), "net/ipv4/conf/%s", dev_name);
 
 	t->sysctl_header = register_net_sysctl(net, path, t->devinet_vars);
@@ -2572,6 +2583,7 @@ static int __devinet_sysctl_register(struct net *net, char *dev_name,
 
 	p->sysctl = t;
 
+	/*相关notify*/
 	inet_netconf_notify_devconf(net, RTM_NEWNETCONF, NETCONFA_ALL,
 				    ifindex, p);
 	return 0;
@@ -2596,10 +2608,14 @@ static void __devinet_sysctl_unregister(struct net *net,
 	inet_netconf_notify_devconf(net, RTM_DELNETCONF, 0, ifindex, NULL);
 }
 
+/*
+ * @in_device 是 net_device 中 ip_prt 指向的目标
+ */
 static int devinet_sysctl_register(struct in_device *idev)
 {
 	int err;
 
+	/*判断网络设备的名称是否合法，不能为default，all*/
 	if (!sysctl_dev_name_is_allowed(idev->dev->name))
 		return -EINVAL;
 

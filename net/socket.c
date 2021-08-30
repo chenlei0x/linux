@@ -638,6 +638,7 @@ INDIRECT_CALLABLE_DECLARE(int inet6_sendmsg(struct socket *, struct msghdr *,
 static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg)
 {
 	/*int ret = sock->ops->sendmsg(sock,  msg, msg_data_left(msg)) */
+	/* inet_sendmsg */
 	int ret = INDIRECT_CALL_INET(sock->ops->sendmsg, inet6_sendmsg,
 				     inet_sendmsg, sock, msg,
 				     msg_data_left(msg));
@@ -653,6 +654,7 @@ static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg)
  *	Sends @msg through @sock, passing through LSM.
  *	Returns the number of bytes sent, or an error code.
  */
+ /*网络IO都走这个*/
 int sock_sendmsg(struct socket *sock, struct msghdr *msg)
 {
 	int err = security_socket_sendmsg(sock, msg,

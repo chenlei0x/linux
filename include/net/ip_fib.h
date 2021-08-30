@@ -36,6 +36,7 @@ struct fib_config {
 		__be32		fc_gw4;
 		struct in6_addr	fc_gw6;
 	};
+	/*ip route add dev eth0 中 eth0 对应的index*/
 	int			fc_oif;
 	u32			fc_flags;
 	u32			fc_priority;
@@ -153,6 +154,7 @@ struct fib_info {
 	bool			nh_updated;
 	struct nexthop		*nh;
 	struct rcu_head		rcu;
+	/*下一跳*/
 	struct fib_nh		fib_nh[0];
 };
 
@@ -234,10 +236,11 @@ int fib_notify(struct net *net, struct notifier_block *nb,
 
 struct fib_table {
 	struct hlist_node	tb_hlist;
+	/*RT_TABLE_LOCAL， RT_TABLE_MAIN等*/
 	u32			tb_id;
 	int			tb_num_default;
 	struct rcu_head		rcu;
-	unsigned long 		*tb_data;
+	unsigned long 		*tb_data; /*它包含了所在FIB的全部路由信息*/
 	unsigned long		__data[0];
 };
 

@@ -216,6 +216,16 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
+/*
+用户层可通过setsockopt系统调用设置TCP套接口的TCP_CORK选项。
+开启时，内核将阻塞不完整的报文，当关闭此选项时，发送阻塞的报文。
+此处的不完整指的是应用层发送的数据长度不足一个MSS长度。
+使用场景是在调用sendfile发送文件内容之前，
+提前发送一个描述文件信息的头部数据段，并且阻塞住此头部数据，
+与之后的sendfile数据一同发送。或者用于优化吞吐性能。
+但是，TCP_CORK最多只能将数据阻塞200毫秒，如果超过此时间值，
+内核将自动发送阻塞的数据。
+*/
 #define TCP_NAGLE_CORK		2	/* Socket is corked	    */
 #define TCP_NAGLE_PUSH		4	/* Cork is overridden for already queued data */
 
@@ -1760,6 +1770,7 @@ static inline struct sk_buff *tcp_send_head(const struct sock *sk)
 	return skb_peek(&sk->sk_write_queue);
 }
 
+/*最后一个skb*/
 static inline bool tcp_skb_is_last(const struct sock *sk,
 				   const struct sk_buff *skb)
 {

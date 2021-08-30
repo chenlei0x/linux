@@ -1133,11 +1133,13 @@ static int __register_pernet_operations(struct list_head *list,
 	int error;
 	LIST_HEAD(net_exit_list);
 
+	/*挂到最后*/
 	list_add_tail(&ops->list, list);
 	if (ops->init || (ops->id && ops->size)) {
 		/* We held write locked pernet_ops_rwsem, and parallel
 		 * setup_net() and cleanup_net() are not possible.
 		 */
+		 /*对已有的每个net 进行初始化*/
 		for_each_net(net) {
 			error = ops_init(ops, net);
 			if (error)

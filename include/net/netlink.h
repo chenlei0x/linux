@@ -1102,6 +1102,8 @@ static inline int nla_ok(const struct nlattr *nla, int remaining)
  *
  * Returns the next netlink attribute in the attribute stream and
  * decrements remaining by the size of the current attribute.
+ * nlattr 结构体有相关的帧格式介绍
+ *
  */
 static inline struct nlattr *nla_next(const struct nlattr *nla, int *remaining)
 {

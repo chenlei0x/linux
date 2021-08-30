@@ -1406,6 +1406,7 @@ struct fib_info *fib_create_info(struct fib_config *cfg,
 			goto failure;
 	}
 
+	/*申请了一个nh*/
 	fi = kzalloc(struct_size(fi, fib_nh, nhs), GFP_KERNEL);
 	if (!fi)
 		goto failure;
@@ -1445,6 +1446,7 @@ struct fib_info *fib_create_info(struct fib_config *cfg,
 			err = fib_get_nhs(fi, cfg->fc_mp, cfg->fc_mp_len, cfg,
 					  extack);
 		else
+			/*新的hop fi->fib_nh ， 这里nh->fib_nh_oif = cfg->fc_oif*/
 			err = fib_nh_init(net, fi->fib_nh, cfg, 1, extack);
 	}
 
