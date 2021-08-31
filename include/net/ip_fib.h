@@ -129,6 +129,7 @@ struct fib_nh {
 
 struct nexthop;
 
+/*fib_alias 和 fib_info  n:1  关系 */
 struct fib_info {
 	struct hlist_node	fib_hash;
 	struct hlist_node	fib_lhash;

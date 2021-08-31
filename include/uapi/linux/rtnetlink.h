@@ -303,6 +303,12 @@ enum rt_scope_t {
 	RT_SCOPE_UNIVERSE=0,
 /* User defined values  */
 	RT_SCOPE_SITE=200,
+
+	/*
+	 * 表明同一局域网内的路由， 比如LAN =10.0.1.0/24 
+	 * 则路由表里面就有可能有 一条路由 10.0.1.0/24 eth0 scope link
+	 * 这里不需要via，因为本来就在同一个lan中
+	 */
 	RT_SCOPE_LINK=253,
 	RT_SCOPE_HOST=254,
 	RT_SCOPE_NOWHERE=255
