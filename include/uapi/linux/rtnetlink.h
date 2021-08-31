@@ -227,6 +227,13 @@ struct rtmsg {
 
 /* rtm_type */
 
+/*
+rt_type是路由类型，如果路由是LOOPBACK，则置类型为RTN_LOCAL，
+单播路由类型为RTN_UNICAST，如果目的地址为0xFFFFFFFF，
+则路由类型为RTN_BROADCAST，如果目的地址是组播地址，
+则路由类型为RTN_MULTICAST。rt_type跟rt_flags关系比较密切。
+
+*/
 enum {
 	RTN_UNSPEC,
 	RTN_UNICAST,		/* Gateway or direct route	*/
