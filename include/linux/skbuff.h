@@ -1762,6 +1762,7 @@ static inline struct sk_buff *skb_peek(const struct sk_buff_head *list_)
 {
 	struct sk_buff *skb = list_->next;
 
+	/*初始化的时候 @list_ -> next == @list_ 回指！*/
 	if (skb == (struct sk_buff *)list_)
 		skb = NULL;
 	return skb;

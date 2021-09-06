@@ -274,7 +274,7 @@ static inline bool tcp_under_memory_pressure(const struct sock *sk)
  * The next routines deal with comparing 32 bit unsigned ints
  * and worry about wraparound (automatic with unsigned arithmetic).
  */
-
+/*seq1 < seq2*/
 static inline bool before(__u32 seq1, __u32 seq2)
 {
         return (__s32)(seq1-seq2) < 0;

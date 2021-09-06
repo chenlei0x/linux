@@ -643,6 +643,7 @@ static inline void tcp_mark_push(struct tcp_sock *tp, struct sk_buff *skb)
 	tp->pushed_seq = tp->write_seq;
 }
 
+/*write_seq 大于 pushed_seq, 差值超过tp->max_window >> 1 */
 static inline bool forced_push(const struct tcp_sock *tp)
 {
 	return after(tp->write_seq, tp->pushed_seq + (tp->max_window >> 1));
@@ -1227,6 +1228,7 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size)
 	 * (passive side) where data is allowed to be sent before a connection
 	 * is fully established.
 	 */
+	 /*sk_state 应该是一个状态机，表明当前socket 所处的状态， 如果还没建立连接，就等connect成功*/
 	if (((1 << sk->sk_state) & ~(TCPF_ESTABLISHED | TCPF_CLOSE_WAIT)) &&
 	    !tcp_passive_fastopen(sk)) {
 		err = sk_stream_wait_connect(sk, &timeo);
@@ -1323,6 +1325,7 @@ new_segment:
 			/*当前要发送的数据可以和发送队列中的最后一个skb进行合并，多么美妙的事情*/
 			/* We have some space in skb head. Superb! */
 			copy = min_t(int, copy, skb_availroom(skb));
+			/* 把@msg 中的内容拷贝到 @skb中 */
 			err = skb_add_data_nocache(sk, skb, &msg->msg_iter, copy);
 			if (err)
 				goto do_fault;
@@ -1379,6 +1382,7 @@ new_segment:
 		if (!copied)
 			TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_PSH;
 
+		/*这里影响着 forced_push (const struct tcp_sock * tp)*/
 		WRITE_ONCE(tp->write_seq, tp->write_seq + copy);
 		TCP_SKB_CB(skb)->end_seq += copy;
 		tcp_skb_pcount_set(skb, 0);

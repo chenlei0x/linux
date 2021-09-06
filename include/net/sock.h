@@ -321,7 +321,8 @@ struct bpf_sk_storage;
   *	@sk_txtime_unused: unused txtime flags
   */
 /*
-2、每个socket数据结构都有一个sock数据结构成员，sock是对socket的扩充，
+2、每个socket数据结构都有一个sock数据结构成员，
+sock是对socket的扩充!!!!
 两者一一对应，socket->sk指向对应的sock，sock->socket 指向对应的socket；
 
 3、socket和sock是同一事物的两个侧面，为什么不把两个数据结构合并成一个呢？

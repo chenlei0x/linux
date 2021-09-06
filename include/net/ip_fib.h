@@ -150,6 +150,7 @@ struct fib_info {
 #define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
 #define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
 #define fib_advmss fib_metrics->metrics[RTAX_ADVMSS-1]
+	/* fib_nh 数组有多少个元素*/
 	int			fib_nhs;
 	bool			fib_nh_is_v6;
 	bool			nh_updated;
