@@ -563,6 +563,7 @@ struct r5pending_data {
 	struct bio_list bios;
 };
 
+/* setup_conf */
 struct r5conf {
 	struct hlist_head	*stripe_hashtbl;
 	/* only protect corresponding hash list and inactive_list */
@@ -696,6 +697,7 @@ struct r5conf {
  */
 #define ALGORITHM_LEFT_ASYMMETRIC	0 /* Rotating Parity N with Data Restart */
 #define ALGORITHM_RIGHT_ASYMMETRIC	1 /* Rotating Parity 0 with Data Restart */
+/*常用*/
 #define ALGORITHM_LEFT_SYMMETRIC	2 /* Rotating Parity N with Data Continuation */
 #define ALGORITHM_RIGHT_SYMMETRIC	3 /* Rotating Parity 0 with Data Continuation */
 

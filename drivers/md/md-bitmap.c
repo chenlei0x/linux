@@ -218,6 +218,7 @@ static int write_sb_page(struct bitmap *bitmap, struct page *page, int wait)
 
 restart:
 	rdev = NULL;
+	/*针对每个rdev 进行super 写入*/
 	while ((rdev = next_active_rdev(rdev, mddev)) != NULL) {
 		int size = PAGE_SIZE;
 		loff_t offset = mddev->bitmap_info.offset;

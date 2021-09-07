@@ -176,6 +176,19 @@ struct bitmap_page {
 	unsigned int  count:30;
 };
 
+struct bitmap_storage {
+		struct file *file;		/* backing disk file */
+		struct page *sb_page;		/* cached copy of the bitmap
+						 * file superblock */
+		struct page **filemap;		/* list of cache pages for
+						 * the file */
+		unsigned long *filemap_attr;	/* attributes associated
+						 * w/ filemap pages */
+		unsigned long file_pages;	/* number of pages in the file*/
+		unsigned long bytes;		/* total bytes in the bitmap */
+};
+
+
 /* the main bitmap structure - one per mddev */
 struct bitmap {
 
@@ -197,17 +210,7 @@ struct bitmap {
 	__u64	events_cleared;
 	int need_sync;
 
-	struct bitmap_storage {
-		struct file *file;		/* backing disk file */
-		struct page *sb_page;		/* cached copy of the bitmap
-						 * file superblock */
-		struct page **filemap;		/* list of cache pages for
-						 * the file */
-		unsigned long *filemap_attr;	/* attributes associated
-						 * w/ filemap pages */
-		unsigned long file_pages;	/* number of pages in the file*/
-		unsigned long bytes;		/* total bytes in the bitmap */
-	} storage;
+	struct bitmap_storage storage;
 
 	unsigned long flags;
 

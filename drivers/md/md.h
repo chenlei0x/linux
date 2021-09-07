@@ -35,6 +35,8 @@
 /*
  * MD's 'extended' device
  */
+
+/*struct md_rdev 表示阵列中的单个磁盘设备*/
 struct md_rdev {
 	struct list_head same_set;	/* RAID devices within the same set */
 
@@ -271,11 +273,14 @@ struct wb_info {
 	struct list_head list;
 };
 
+/* struct mddev 表示阵列设备 */
 struct mddev {
 	void				*private;
+	/*用来实现raidX*/
 	struct md_personality		*pers;
 	dev_t				unit;
 	int				md_minor;
+	/*这个md device 含有多少个磁盘   rdev rdev->same_set*/
 	struct list_head		disks;
 	unsigned long			flags;
 	unsigned long			sb_flags;

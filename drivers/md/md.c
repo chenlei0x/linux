@@ -800,6 +800,7 @@ struct md_rdev *md_find_rdev_rcu(struct mddev *mddev, dev_t dev)
 }
 EXPORT_SYMBOL_GPL(md_find_rdev_rcu);
 
+/*找到对应的level*/
 static struct md_personality *find_pers(int level, char *clevel)
 {
 	struct md_personality *pers;
@@ -863,6 +864,7 @@ static void super_written(struct bio *bio)
 	if (atomic_dec_and_test(&mddev->pending_writes))
 		wake_up(&mddev->sb_wait);
 	rdev_dec_pending(rdev, mddev);
+	/*初始化为1    ，这里put操作释放bio*/
 	bio_put(bio);
 }
 
@@ -2276,6 +2278,7 @@ int md_integrity_add_rdev(struct md_rdev *rdev, struct mddev *mddev)
 }
 EXPORT_SYMBOL(md_integrity_add_rdev);
 
+/*互相绑定*/
 static int bind_rdev_to_array(struct md_rdev *rdev, struct mddev *mddev)
 {
 	char b[BDEVNAME_SIZE];
@@ -2291,9 +2294,11 @@ static int bind_rdev_to_array(struct md_rdev *rdev, struct mddev *mddev)
 		return -EROFS;
 
 	/* make sure rdev->sectors exceeds mddev->dev_sectors */
+	/*rdev 的大小 必须要大于mddev的*/
 	if (!test_bit(Journal, &rdev->flags) &&
 	    rdev->sectors &&
 	    (mddev->dev_sectors == 0 || rdev->sectors < mddev->dev_sectors)) {
+	    /*已经注册了， 那就没辙了*/
 		if (mddev->pers) {
 			/* Cannot change size, so fail
 			 * If mddev->level <= 0, then we don't care
@@ -2347,6 +2352,7 @@ static int bind_rdev_to_array(struct md_rdev *rdev, struct mddev *mddev)
 		/* failure here is OK */;
 	rdev->sysfs_state = sysfs_get_dirent_safe(rdev->kobj.sd, "state");
 
+	/* 把rdev 挂载到 mddev下*/
 	list_add_rcu(&rdev->same_set, &mddev->disks);
 	bd_link_disk_holder(rdev->bdev, mddev->gendisk);
 
@@ -3840,6 +3846,7 @@ level_store(struct mddev *mddev, const char *buf, size_t len)
 	if (clevel[slen-1] == '\n')
 		slen--;
 	clevel[slen] = 0;
+	/* char * clevel ==> int level*/
 	if (kstrtol(clevel, 10, &level))
 		level = LEVEL_NONE;
 
@@ -5679,6 +5686,7 @@ int md_run(struct mddev *mddev)
 	}
 
 	spin_lock(&pers_lock);
+	/*找到对应的pers    ， 比如raid5 对应的就是 raid5_personality*/
 	pers = find_pers(mddev->level, mddev->clevel);
 	if (!pers || !try_module_get(pers->owner)) {
 		spin_unlock(&pers_lock);

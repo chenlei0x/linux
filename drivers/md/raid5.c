@@ -2720,12 +2720,15 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 	int pd_idx, qd_idx;
 	int ddf_layout = 0;
 	sector_t new_sector;
+	/*ALGORITHM_LEFT_SYMMETRIC*/
 	int algorithm = previous ? conf->prev_algo
 				 : conf->algorithm;
+	/*1024*/
 	int sectors_per_chunk = previous ? conf->prev_chunk_sectors
 					 : conf->chunk_sectors;
+	
 	int raid_disks = previous ? conf->previous_raid_disks
-				  : conf->raid_disks;
+				  : conf->raid_disks; 
 	int data_disks = raid_disks - conf->max_degraded;
 
 	/* First compute the information on this sector */
@@ -2762,6 +2765,7 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 			if (*dd_idx >= pd_idx)
 				(*dd_idx)++;
 			break;
+			/*常用:: 算法*/
 		case ALGORITHM_LEFT_SYMMETRIC:
 			pd_idx = data_disks - sector_div(stripe2, raid_disks);
 			*dd_idx = (pd_idx + 1 + *dd_idx) % raid_disks;
@@ -5666,6 +5670,7 @@ static bool raid5_make_request(struct mddev *mddev, struct bio * bi)
 			spin_unlock_irq(&conf->device_lock);
 		}
 
+		/*logical_sector :md 的sector*/
 		new_sector = raid5_compute_sector(conf, logical_sector,
 						  previous,
 						  &dd_idx, NULL);
