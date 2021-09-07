@@ -2729,6 +2729,7 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 	
 	int raid_disks = previous ? conf->previous_raid_disks
 				  : conf->raid_disks; 
+	/*总盘数量 - 可以崩溃的盘的数量, raid5可崩溃 = 1*/
 	int data_disks = raid_disks - conf->max_degraded;
 
 	/* First compute the information on this sector */
@@ -2736,6 +2737,14 @@ sector_t raid5_compute_sector(struct r5conf *conf, sector_t r_sector,
 	/*
 	 * Compute the chunk number and the sector offset inside the chunk
 	 */
+
+	/*
+	 * ``uint32_t remainder = n % base;``
+	 * ``n = n / base;``
+ 	 *
+	 * Return: (uint32_t)remainder
+	 */
+	/*@chunk_offset  在chuank 内的sector offset*/
 	chunk_offset = sector_div(r_sector, sectors_per_chunk);
 	chunk_number = r_sector;
 
