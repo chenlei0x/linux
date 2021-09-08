@@ -2897,6 +2897,7 @@ static void __netif_reschedule(struct Qdisc *q)
 	q->next_sched = NULL;
 	*sd->output_queue_tailp = q;
 	sd->output_queue_tailp = &q->next_sched;
+	/*唤醒软中断*/
 	raise_softirq_irqoff(NET_TX_SOFTIRQ);
 	local_irq_restore(flags);
 }
@@ -3649,6 +3650,9 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				spin_unlock(&q->busylock);
 				contended = false;
 			}
+			/*
+			 调用 __netif_schedule(q);//激活发送软件中的，最终调用net_tx_action
+			*/
 			__qdisc_run(q);
 		}
 
@@ -3961,6 +3965,12 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 	else
 		skb_dst_force(skb);
 
+	/*
+	 选择一个发送队列，如果设备提供了select_queue回调函数就使用它，
+	 否则由内核选择一个队列,这里只是Linux内核多队列的实现，但是要
+	 真正的使用都队列，需要网卡支持多队列才可以，一般的网卡都只有
+	 一个队列。在调用alloc_etherdev分配net_device是，设置队列的个数
+	 */
 	txq = netdev_core_pick_tx(dev, skb, sb_dev);
 	q = rcu_dereference_bh(txq->qdisc);
 
@@ -4709,6 +4719,7 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
 {
 	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
 
+	/*用来释放已经完成的skb*/
 	if (sd->completion_queue) {
 		struct sk_buff *clist;
 

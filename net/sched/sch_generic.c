@@ -309,6 +309,7 @@ bool sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 
 	if (likely(skb)) {
 		HARD_TX_LOCK(dev, txq, smp_processor_id());
+		/*向硬件派发数据*/
 		if (!netif_xmit_frozen_or_stopped(txq))
 			skb = dev_hard_start_xmit(skb, dev, txq, &ret);
 
@@ -322,6 +323,7 @@ bool sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 	if (root_lock)
 		spin_lock(root_lock);
 
+	/*skb链上的某个 skb 发送失败了, 重新排队*/
 	if (!dev_xmit_complete(ret)) {
 		/* Driver returned NETDEV_TX_BUSY - requeue skb */
 		if (unlikely(ret != NETDEV_TX_BUSY))
@@ -373,6 +375,7 @@ static inline bool qdisc_restart(struct Qdisc *q, int *packets)
 	dev = qdisc_dev(q);
 	txq = skb_get_tx_queue(dev, skb);
 
+	/*向设备派发数据包*/
 	return sch_direct_xmit(skb, q, dev, txq, root_lock, validate);
 }
 
@@ -381,9 +384,14 @@ void __qdisc_run(struct Qdisc *q)
 	int quota = dev_tx_weight;
 	int packets;
 
+	/*这个函数是调用qdisc_restart去发送Q中的数据包，packet记录这次发送了多少...*/
+	/* 这个函数会真正向设备派发数据包*/
 	while (qdisc_restart(q, &packets)) {
+		/* 这边会有限定额度64个封包，如果超过64个就不能再次连续发了，
+         *  需要以后执行softirq去发送了*/
 		quota -= packets;
 		if (quota <= 0) {
+			/*激活发送软件中的，最终调用net_tx_action*/
 			__netif_schedule(q);
 			break;
 		}

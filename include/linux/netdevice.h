@@ -1261,6 +1261,7 @@ struct net_device_ops {
 	void			(*ndo_uninit)(struct net_device *dev);
 	int			(*ndo_open)(struct net_device *dev);
 	int			(*ndo_stop)(struct net_device *dev);
+	/*设备的发送函数*/
 	netdev_tx_t		(*ndo_start_xmit)(struct sk_buff *skb,
 						  struct net_device *dev);
 	netdev_features_t	(*ndo_features_check)(struct sk_buff *skb,
@@ -3033,6 +3034,9 @@ struct softnet_data {
 #ifdef CONFIG_NET_FLOW_LIMIT
 	struct sd_flow_limit __rcu *flow_limit;
 #endif
+	/*这两个域组成了一个list*/
+/*__netif_reschedule 会把QDisc 加入到 这个链表中*/
+/*mock : &q->next_sched;*/
 	struct Qdisc		*output_queue;
 	struct Qdisc		**output_queue_tailp;
 	struct sk_buff		*completion_queue;

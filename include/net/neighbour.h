@@ -500,17 +500,27 @@ static inline int neigh_hh_output(const struct hh_cache *hh, struct sk_buff *skb
 	}
 
 	__skb_push(skb, hh_len);
+	/* 重要的发送函数*/
 	return dev_queue_xmit(skb);
 }
 
+/*
+ip层在构造好ip头，检查完分片之后，会调用邻居子系统的输出函数
+neigh_output进行输出，输出分为有二层头缓存和没有两种情况，有
+缓存时调用neigh_hh_output进行快速输出，没有缓存时，则调用邻
+居子系统的输出回调函数进行慢速输出；
+
+*/
 static inline int neigh_output(struct neighbour *n, struct sk_buff *skb,
 			       bool skip_cache)
 {
 	const struct hh_cache *hh = &n->hh;
 
+	/* 连接状态  &&缓存的头部存在，使用缓存输出 */
 	if ((n->nud_state & NUD_CONNECTED) && hh->hh_len && !skip_cache)
 		return neigh_hh_output(hh, skb);
 	else
+		/* 使用邻居项的输出回调函数输出，在连接或者非连接状态下有不同的输出函数 */
 		return n->output(n, skb);
 }
 
