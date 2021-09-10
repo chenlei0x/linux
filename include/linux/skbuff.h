@@ -745,7 +745,9 @@ struct sk_buff {
 #endif
 	/*len  data_len 见 
 	 * https://blog.csdn.net/shanshanpt/article/details/21024465
-	*/
+	 *
+	 * skb->len是指数据长度（包括数据的包头），即data，tail指针所指的部分。
+	 */
 	unsigned int		len,
 				data_len;
 	__u16			mac_len,
@@ -2353,6 +2355,7 @@ static inline int skb_availroom(const struct sk_buff *skb)
  *	Increase the headroom of an empty &sk_buff by reducing the tail
  *	room. This is only allowed for an empty buffer.
  */
+ /*给所有的head腾一些位置*/
 static inline void skb_reserve(struct sk_buff *skb, int len)
 {
 	skb->data += len;

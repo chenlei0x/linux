@@ -1857,6 +1857,7 @@ EXPORT_SYMBOL_GPL(pskb_put);
  *	exceed the total buffer size the kernel will panic. A pointer to the
  *	first byte of the extra data is returned.
  */
+ /*给数据多延申一些长度*/
 void *skb_put(struct sk_buff *skb, unsigned int len)
 {
 	void *tmp = skb_tail_pointer(skb);

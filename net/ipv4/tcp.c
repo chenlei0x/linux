@@ -2169,6 +2169,7 @@ found_ok_skb:
 		copied += used;
 		len -= used;
 
+		/*调整rcv window*/
 		tcp_rcv_space_adjust(sk);
 
 skip_copy:

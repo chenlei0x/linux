@@ -118,6 +118,7 @@ struct socket {
 
 	struct file		*file;
 	struct sock		*sk;
+	/*通常在 socket create 路径上赋值  inet_create*/
 	const struct proto_ops	*ops;
 
 	struct socket_wq	wq;

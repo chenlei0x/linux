@@ -638,7 +638,9 @@ INDIRECT_CALLABLE_DECLARE(int inet6_sendmsg(struct socket *, struct msghdr *,
 static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg)
 {
 	/*int ret = sock->ops->sendmsg(sock,  msg, msg_data_left(msg)) */
-	/* inet_sendmsg */
+	/* inet_sendmsg
+	 * tap_sendmsg
+	 */
 	int ret = INDIRECT_CALL_INET(sock->ops->sendmsg, inet6_sendmsg,
 				     inet_sendmsg, sock, msg,
 				     msg_data_left(msg));
@@ -2975,6 +2977,7 @@ SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
  *	socket interface. The value ops->family corresponds to the
  *	socket system call protocol family.
  */
+ /*注册ops， socket syscall 调用时，调用ops->create函数*/
 int sock_register(const struct net_proto_family *ops)
 {
 	int err;

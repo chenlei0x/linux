@@ -635,6 +635,7 @@ static ssize_t tap_get_user(struct tap_queue *q, void *msg_control,
 	bool zerocopy = false;
 	size_t linear;
 
+	
 	if (q->flags & IFF_VNET_HDR) {
 		vnet_hdr_len = READ_ONCE(q->vnet_hdr_sz);
 
@@ -701,6 +702,7 @@ static ssize_t tap_get_user(struct tap_queue *q, void *msg_control,
 	if (err)
 		goto err_kfree;
 
+	/*重置header*/
 	skb_set_network_header(skb, ETH_HLEN);
 	skb_reset_mac_header(skb);
 	skb->protocol = eth_hdr(skb)->h_proto;

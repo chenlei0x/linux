@@ -67,9 +67,14 @@
 #define IFF_TAP		0x0002
 #define IFF_NAPI	0x0010
 #define IFF_NAPI_FRAGS	0x0020
+/*不需要提供包的信息*/
 #define IFF_NO_PI	0x1000
 /* This flag has no real effect */
 #define IFF_ONE_QUEUE	0x2000
+/*
+打开它则允许发送或接受大数据包时仅仅做部分的校验和检查。打开这个标识，可以提高virtio_net驱动的吞吐量。
+
+*/
 #define IFF_VNET_HDR	0x4000
 #define IFF_TUN_EXCL	0x8000
 #define IFF_MULTI_QUEUE 0x0100
