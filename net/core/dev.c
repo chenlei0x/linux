@@ -152,9 +152,9 @@
 
 static DEFINE_SPINLOCK(ptype_lock);
 static DEFINE_SPINLOCK(offload_lock);
-struct list_head ptype_base[PTYPE_HASH_SIZE] __read_mostly;
-struct list_head ptype_all __read_mostly;	/* Taps */
-static struct list_head offload_base __read_mostly;
+struct list_head ptype_base[PTYPE_HASH_SIZE];
+struct list_head ptype_all;	/* Taps */
+static struct list_head offload_base;
 
 static int netif_rx_internal(struct sk_buff *skb);
 static int call_netdevice_notifiers_info(unsigned long val,
@@ -420,7 +420,12 @@ EXPORT_PER_CPU_SYMBOL(softnet_data);
  *	change it and subsequent readers will get broken packet.
  *							--ANK (980803)
  */
-
+/*
+ * ptype_all 所有设备上的所有包 都要经过@pt 处理一下
+ * pt->dev->ptype_all   pt->dev 上的所有包都需要经过@pt 处理一下
+ * pt->dev->ptype_specific pt->dev 上 包的协议属于 ptype_specific 中的一个时,需要被处理
+ * ptype_base 所有设备上的符合这种协议 就需要被处理
+ */
 static inline struct list_head *ptype_head(const struct packet_type *pt)
 {
 	if (pt->type == htons(ETH_P_ALL))
@@ -4098,19 +4103,19 @@ EXPORT_SYMBOL(dev_direct_xmit);
  *			Receiver routines
  *************************************************************************/
 
-int netdev_max_backlog __read_mostly = 1000;
+int netdev_max_backlog  = 1000;
 EXPORT_SYMBOL(netdev_max_backlog);
 
-int netdev_tstamp_prequeue __read_mostly = 1;
-int netdev_budget __read_mostly = 300;
-unsigned int __read_mostly netdev_budget_usecs = 2000;
-int weight_p __read_mostly = 64;           /* old backlog weight */
-int dev_weight_rx_bias __read_mostly = 1;  /* bias for backlog weight */
-int dev_weight_tx_bias __read_mostly = 1;  /* bias for output_queue quota */
-int dev_rx_weight __read_mostly = 64;
-int dev_tx_weight __read_mostly = 64;
+int netdev_tstamp_prequeue  = 1;
+int netdev_budget  = 300;
+unsigned int  netdev_budget_usecs = 2000;
+int weight_p  = 64;           /* old backlog weight */
+int dev_weight_rx_bias  = 1;  /* bias for backlog weight */
+int dev_weight_tx_bias  = 1;  /* bias for output_queue quota */
+int dev_rx_weight  = 64;
+int dev_tx_weight  = 64;
 /* Maximum number of GRO_NORMAL skbs to batch up for list-RX */
-int gro_normal_batch __read_mostly = 8;
+int gro_normal_batch  = 8;
 
 /* Called with irq disabled */
 static inline void ____napi_schedule(struct softnet_data *sd,
@@ -4959,16 +4964,18 @@ static int __netif_receive_skb_core(struct sk_buff *skb, bool pfmemalloc,
 	struct packet_type *ptype, *pt_prev;
 	rx_handler_func_t *rx_handler;
 	struct net_device *orig_dev;
-	bool deliver_exact = false;
+	bool deliver_exact = false; /*默认不精确传递*/
 	int ret = NET_RX_DROP;
 	__be16 type;
 
+	//记录收包时间，netdev_tstamp_prequeue为0，表示可能有包延迟 
 	net_timestamp_check(!netdev_tstamp_prequeue, skb);
 
 	trace_netif_receive_skb(skb);
 
 	orig_dev = skb->dev;
 
+	/*//重置network header，此时skb指向IP头（没有vlan的情况下）*/
 	skb_reset_network_header(skb);
 	if (!skb_transport_header_was_set(skb))
 		skb_reset_transport_header(skb);
@@ -4977,6 +4984,7 @@ static int __netif_receive_skb_core(struct sk_buff *skb, bool pfmemalloc,
 	pt_prev = NULL;
 
 another_round:
+	/*设置接收设备索引号  */
 	skb->skb_iif = skb->dev->ifindex;
 
 	__this_cpu_inc(softnet_data.processed);
@@ -4993,6 +5001,7 @@ another_round:
 		skb_reset_mac_len(skb);
 	}
 
+	/*vxlan报文处理，剥除vxlan头*/
 	if (skb->protocol == cpu_to_be16(ETH_P_8021Q) ||
 	    skb->protocol == cpu_to_be16(ETH_P_8021AD)) {
 		skb = skb_vlan_untag(skb);
@@ -5006,7 +5015,14 @@ another_round:
 	if (pfmemalloc)
 		goto skip_taps;
 
+	/*
+	 * ptype_all 所有设备上的所有包 都要经过@pt 处理一下
+	 * pt->dev->ptype_all   pt->dev 上的所有包都需要经过@pt 处理一下
+	 * pt->dev->ptype_specific pt->dev 上 包的协议属于 ptype_specific 中的一个时,需要被处理
+	 * ptype_base 所有设备上的符合这种协议 就需要被处理
+	 */
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
+		/*总是遍历到下一个 然后掉 上一个ptype 的 func*/
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev);
 		pt_prev = ptype;
@@ -5044,6 +5060,13 @@ skip_classify:
 		else if (unlikely(!skb))
 			goto out;
 	}
+
+	/*
+	 * 如果一个dev被添加到一个bridge（做为bridge的一个接口)，这个接口设备的
+	 * rx_handler将被设置为br_handle_frame函数，这是在br_add_if函数中设置的，
+	 * 而br_add_if (net/bridge/br_if.c)是在向网桥设备上添加接口时设置的。
+	 * 进入br_handle_frame也就进入了bridge的逻辑代码。
+	 */
 
 	rx_handler = rcu_dereference(skb->dev->rx_handler);
 	if (rx_handler) {
@@ -5107,6 +5130,16 @@ check_vlan_id:
 	type = skb->protocol;
 
 	/* deliver only exact match when indicated */
+	/*
+ 	 * pt->dev->ptype_specific pt->dev 上 包的协议属于 pt->dev->ptype_specific 中的一个时,需要被处理
+	 * ptype_base 所有设备上的符合这种协议 就需要被处理
+	 *
+	 * 这里就会走到ip 层相关的控制
+	 * 这个   ptype_base 列表会在各个协议初始化过程中通过 dev_add_pack 加入进去
+	 *
+	 * inet_init in af_inet.c (net\ipv4) : 	dev_add_pack(&ip_packet_type);
+	 * ipv6_packet_init in af_inet6.c (net\ipv6) : 	dev_add_pack(&ipv6_packet_type);
+	 */
 	if (likely(!deliver_exact)) {
 		deliver_ptype_list_skb(skb, &pt_prev, orig_dev, type,
 				       &ptype_base[ntohs(type) &
@@ -6167,6 +6200,9 @@ bool napi_schedule_prep(struct napi_struct *n)
 		/* Sets STATE_MISSED bit if STATE_SCHED was already set
 		 * This was suggested by Alexander Duyck, as compiler
 		 * emits better code than :
+		 * 
+		 * 以下这一行语句等价于:
+		 *
 		 * if (val & NAPIF_STATE_SCHED)
 		 *     new |= NAPIF_STATE_MISSED;
 		 */
@@ -6174,6 +6210,7 @@ bool napi_schedule_prep(struct napi_struct *n)
 						   NAPIF_STATE_MISSED;
 	} while (cmpxchg(&n->state, val, new) != val);
 
+	/*NAPIF_STATE_SCHED 标记消失才返回true*/
 	return !(val & NAPIF_STATE_SCHED);
 }
 EXPORT_SYMBOL(napi_schedule_prep);
@@ -6447,6 +6484,7 @@ static void init_gro_hash(struct napi_struct *napi)
 	napi->gro_bitmask = 0;
 }
 
+/*把网络设备跟NAPI相关联*/
 void netif_napi_add(struct net_device *dev, struct napi_struct *napi,
 		    int (*poll)(struct napi_struct *, int), int weight)
 {
@@ -6534,6 +6572,7 @@ static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 	 */
 	work = 0;
 	if (test_bit(NAPI_STATE_SCHED, &n->state)) {
+		/*netif_napi_add 中注册poll 函数*/
 		work = n->poll(n, weight);
 		trace_napi_poll(n, work, weight);
 	}
@@ -6579,12 +6618,13 @@ out_unlock:
 	return work;
 }
 
+/*对所有网卡的收包都在这里*/
 static __latent_entropy void net_rx_action(struct softirq_action *h)
 {
 	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
 	unsigned long time_limit = jiffies +
-		usecs_to_jiffies(netdev_budget_usecs);
-	int budget = netdev_budget;
+		usecs_to_jiffies(netdev_budget_usecs); /*2ms*/
+	int budget = netdev_budget; /*300*/
 	LIST_HEAD(list);
 	LIST_HEAD(repoll);
 
@@ -7872,6 +7912,7 @@ static void dev_change_rx_flags(struct net_device *dev, int flags)
 		ops->ndo_change_rx_flags(dev, flags);
 }
 
+/*设置混杂模式, 最终调用设备ops 中的回调函数*/
 static int __dev_set_promiscuity(struct net_device *dev, int inc, bool notify)
 {
 	unsigned int old_flags = dev->flags;

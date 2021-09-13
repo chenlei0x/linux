@@ -312,6 +312,7 @@ enum req_opf {
 	/* write sectors to the device */
 	REQ_OP_WRITE		= 1,
 	/* flush the volatile write cache */
+	/*REQ_FLUSH：表示把磁盘cache中的data刷新到磁盘介质中，防止掉电丢失*/
 	REQ_OP_FLUSH		= 2,
 	/* discard sectors */
 	REQ_OP_DISCARD		= 3,
@@ -388,6 +389,9 @@ enum req_flag_bits {
 #define REQ_NOMERGE		(1ULL << __REQ_NOMERGE)
 #define REQ_IDLE		(1ULL << __REQ_IDLE)
 #define REQ_INTEGRITY		(1ULL << __REQ_INTEGRITY)
+
+/*REQ_FUA （force unit access）：绕过磁盘cache，直接把数据写到磁盘介质中。*/
+
 #define REQ_FUA			(1ULL << __REQ_FUA)
 #define REQ_PREFLUSH		(1ULL << __REQ_PREFLUSH)
 /*预读的页会打上这个标记*/

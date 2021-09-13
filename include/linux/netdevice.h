@@ -327,6 +327,7 @@ struct napi_struct {
 	unsigned long		state;
 	int			weight;
 	unsigned long		gro_bitmask;
+	/*netif_napi_add 中注册poll 函数*/
 	int			(*poll)(struct napi_struct *, int);
 #ifdef CONFIG_NETPOLL
 	int			poll_owner;
@@ -343,6 +344,8 @@ struct napi_struct {
 };
 
 enum {
+	/* 表示该NAPI有报文 需要接收。即把NAPI挂到softnet_data 时要设置该状态，
+	处理完从softnet_data 上摘除该NAPI时要清除该状态 */
 	NAPI_STATE_SCHED,	/* Poll is scheduled */
 	NAPI_STATE_MISSED,	/* reschedule a napi */
 	NAPI_STATE_DISABLE,	/* Disable pending */
@@ -415,7 +418,9 @@ typedef enum gro_result gro_result_t;
 
 enum rx_handler_result {
 	RX_HANDLER_CONSUMED,
+		/*已经改动改动 skb->dev 所以重新进行收包流程*/
 	RX_HANDLER_ANOTHER,
+	/*netif_recive_skb不会将skb交给上层协议处理。*/
 	RX_HANDLER_EXACT,
 	RX_HANDLER_PASS,
 };
@@ -442,6 +447,7 @@ bool napi_schedule_prep(struct napi_struct *n);
 static inline void napi_schedule(struct napi_struct *n)
 {
 	if (napi_schedule_prep(n))
+		/*NAPIF_STATE_SCHED 标记消失才返回true*/
 		__napi_schedule(n);
 }
 
@@ -1919,6 +1925,7 @@ struct net_device {
 	unsigned short          dev_port;
 	spinlock_t		addr_list_lock;
 	unsigned char		name_assign_type;
+	/*uc: unicast  ms: multi cast*/
 	bool			uc_promisc;
 	struct netdev_hw_addr_list	uc;
 	struct netdev_hw_addr_list	mc;

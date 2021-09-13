@@ -2091,6 +2091,7 @@ static int packet_rcv(struct sk_buff *skb, struct net_device *dev,
 		goto drop_n_acct;
 
 	if (skb_shared(skb)) {
+		/*克隆skb*/
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
 		if (nskb == NULL)
 			goto drop_n_acct;
