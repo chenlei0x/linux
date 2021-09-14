@@ -768,6 +768,7 @@ inode_switch_wbs
 	/*&sb->s_inode_wblist_lock 链表的anchor*/
 	struct list_head	i_wb_list;	/* backing dev writeback list */
 	union {
+		/*dentry->d_u.d_alias 链表*/
 		struct hlist_head	i_dentry;
 		struct rcu_head		i_rcu;
 	};

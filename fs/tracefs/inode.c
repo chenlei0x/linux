@@ -330,6 +330,7 @@ static struct dentry *start_creating(const char *name, struct dentry *parent)
 		parent = tracefs_mount->mnt_root;
 
 	inode_lock(parent->d_inode);
+	/*这会不仅仅会lookup  也会创建*/
 	dentry = lookup_one_len(name, parent, strlen(name));
 	if (!IS_ERR(dentry) && dentry->d_inode) {
 		dput(dentry);

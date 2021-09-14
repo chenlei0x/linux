@@ -101,6 +101,15 @@ static unsigned long text_ip_addr(unsigned long ip)
 	 * the kernel identity mapping instead of the kernel text mapping
 	 * to modify the kernel text.
 	 *
+	 * 内核有identity mapping (物理地址和虚拟地址中间差了一个offset)
+	 * 同时还有text mapping (虚拟地址为 _text , _etext), 这个是映射代码段的
+	 * 也就是说 代码段会被映射到两个mapping上
+	 * 因为text mapping 是只读的, 但是我们需要改内存,所以只能通过identity mapping
+	 * 所以 我们需要如下转换:
+	 * text mapping ===> phy addr ===> identity mapping
+	 * 最终返回 identity mapping 中的虚拟地址
+	 * 
+	 *
 	 * For 32bit kernels, these mappings are same and we can use
 	 * kernel identity mapping to modify code.
 	 */
@@ -135,6 +144,7 @@ ftrace_modify_code_direct(unsigned long ip, unsigned const char *old_code,
 	if (probe_kernel_read(replaced, (void *)ip, MCOUNT_INSN_SIZE))
 		return -EFAULT;
 
+	/*确定一下,   被替换的指令就是call __fentry__ 否则替换错了就傻逼了*/
 	/* Make sure it is what we expect it to be */
 	if (memcmp(replaced, old_code, MCOUNT_INSN_SIZE) != 0)
 		return -EINVAL;
@@ -142,6 +152,7 @@ ftrace_modify_code_direct(unsigned long ip, unsigned const char *old_code,
 	ip = text_ip_addr(ip);
 
 	/* replace the text with the new text */
+	/*写入*/
 	if (probe_kernel_write((void *)ip, new_code, MCOUNT_INSN_SIZE))
 		return -EPERM;
 
@@ -156,6 +167,7 @@ int ftrace_make_nop(struct module *mod,
 	unsigned const char *new, *old;
 	unsigned long ip = rec->ip;
 
+	/*生成 ip 为 @ip 地址上 call @addr 的 call执行*/
 	old = ftrace_call_replace(ip, addr);
 	new = ftrace_nop_replace();
 

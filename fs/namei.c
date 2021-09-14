@@ -2546,6 +2546,8 @@ EXPORT_SYMBOL(try_lookup_one_len);
  * not be called by generic code.
  *
  * The caller must hold base->i_mutex.
+ *
+ * 从@base 中 找@name
  */
 struct dentry *lookup_one_len(const char *name, struct dentry *base, int len)
 {
@@ -2559,7 +2561,9 @@ struct dentry *lookup_one_len(const char *name, struct dentry *base, int len)
 	if (err)
 		return ERR_PTR(err);
 
+	/*从dentry cache中找*/
 	dentry = lookup_dcache(&this, base, 0);
+	/*从文件系统中捞了*/
 	return dentry ? dentry : __lookup_slow(&this, base, 0);
 }
 EXPORT_SYMBOL(lookup_one_len);

@@ -1810,7 +1810,7 @@ in_device主要是保存用户态对此设备的配置信息，比如IP地址的
 struct net_device {
 	char			name[IFNAMSIZ];
 	struct netdev_name_node	*name_node;
-	struct dev_ifalias	__rcu *ifalias;
+	struct dev_ifalias	/*__rcu*/ *ifalias;
 	/*
 	 *	I/O specific fields
 	 *	FIXME: Merge these and struct ifmap into one
@@ -1998,7 +1998,7 @@ struct net_device {
 /*
  * Cache lines mostly used on transmit path
  */
-	struct netdev_queue	*_tx ____cacheline_aligned_in_smp;
+	struct netdev_queue	*_tx /*____cacheline_aligned_in_smp*/;
 	unsigned int		num_tx_queues;
 	unsigned int		real_num_tx_queues;
 	struct Qdisc		*qdisc;

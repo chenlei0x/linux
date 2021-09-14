@@ -3973,7 +3973,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	check_schedstat_required();
 	update_stats_enqueue(cfs_rq, se, flags);
 	check_spread(cfs_rq, se);
-	if (!curr)
+	if (!curr) /*入红黑树*/
 		__enqueue_entity(cfs_rq, se);
 	se->on_rq = 1;
 

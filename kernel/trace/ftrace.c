@@ -80,18 +80,18 @@ enum {
 	FTRACE_MODIFY_MAY_SLEEP_FL	= (1 << 1),
 };
 
-struct ftrace_ops ftrace_list_end __read_mostly = {
+struct ftrace_ops ftrace_list_end  = {
 	.func		= ftrace_stub,
 	.flags		= FTRACE_OPS_FL_RECURSION_SAFE | FTRACE_OPS_FL_STUB,
 	INIT_OPS_HASH(ftrace_list_end)
 };
 
 /* ftrace_enabled is a method to turn ftrace on or off */
-int ftrace_enabled __read_mostly;
+int ftrace_enabled ;
 static int last_ftrace_enabled;
 
 /* Current function tracing op */
-struct ftrace_ops *function_trace_op __read_mostly = &ftrace_list_end;
+struct ftrace_ops *function_trace_op  = &ftrace_list_end;
 /* What to set function_trace_op to */
 static struct ftrace_ops *set_function_trace_op;
 
@@ -113,12 +113,12 @@ static void ftrace_update_trampoline(struct ftrace_ops *ops);
  * ftrace_disabled is set when an anomaly is discovered.
  * ftrace_disabled is much stronger than ftrace_enabled.
  */
-static int ftrace_disabled __read_mostly;
+static int ftrace_disabled;
 
 DEFINE_MUTEX(ftrace_lock);
 
-struct ftrace_ops __rcu *ftrace_ops_list __read_mostly = &ftrace_list_end;
-ftrace_func_t ftrace_trace_function __read_mostly = ftrace_stub;
+struct ftrace_ops /*__rcu*/ *ftrace_ops_list  = &ftrace_list_end;
+ftrace_func_t ftrace_trace_function  = ftrace_stub;
 struct ftrace_ops global_ops;
 
 #if ARCH_SUPPORTS_FTRACE_OPS
@@ -427,7 +427,7 @@ struct ftrace_profile_stat {
 #define PROFILES_PER_PAGE					\
 	(PROFILE_RECORDS_SIZE / sizeof(struct ftrace_profile))
 
-static int ftrace_profile_enabled __read_mostly;
+static int ftrace_profile_enabled ;
 
 /* ftrace_profile_lock - synchronize the enable and disable of the profiler */
 static DEFINE_MUTEX(ftrace_profile_lock);
@@ -879,7 +879,7 @@ static void unregister_ftrace_profiler(void)
 	unregister_ftrace_graph(&fprofiler_ops);
 }
 #else
-static struct ftrace_ops ftrace_profile_ops __read_mostly = {
+static struct ftrace_ops ftrace_profile_ops  = {
 	.func		= function_profile_call,
 	.flags		= FTRACE_OPS_FL_RECURSION_SAFE | FTRACE_OPS_FL_INITIALIZED,
 	INIT_OPS_HASH(ftrace_profile_ops)
@@ -1115,7 +1115,58 @@ struct ftrace_page {
 /* estimate from running different kernels */
 #define NR_TO_INIT		10000
 
+
+
+	/*
+
+ftrace_pages_start
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|							  | 	|arch	   |		  | 	|		   |		  |
+|next						  | 	+----------+----------+ 	+----------+----------+
+|	 (struct ftrace_page*)	  |
++-----------------------------+
+  |
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|next						  | 	|arch	   |		  | 	|		   |		  |
+|	 (struct ftrace_page*)	  | 	+----------+----------+ 	+----------+----------+
++-----------------------------+
+  |
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|next						  | 	|arch	   |		  | 	|		   |		  |
+|	 (struct ftrace_page*)	  | 	+----------+----------+ 	+----------+----------+
++-----------------------------+
+
+*/
+
 static struct ftrace_page	*ftrace_pages_start;
+/*记录page 链表的尾巴,用来加速尾插*/
 static struct ftrace_page	*ftrace_pages;
 
 static __always_inline unsigned long
@@ -3720,6 +3771,7 @@ ftrace_regex_open(struct ftrace_ops *ops, int flag,
 	struct ftrace_iterator *iter;
 	struct ftrace_hash *hash;
 	struct list_head *mod_head;
+	/**/
 	struct trace_array *tr = ops->private;
 	int ret = -ENOMEM;
 
@@ -3744,10 +3796,12 @@ ftrace_regex_open(struct ftrace_ops *ops, int flag,
 
 	mutex_lock(&ops->func_hash->regex_lock);
 
+	/*set_ftrace_notrace 文件打开*/
 	if (flag & FTRACE_ITER_NOTRACE) {
 		hash = ops->func_hash->notrace_hash;
 		mod_head = tr ? &tr->mod_notrace : NULL;
 	} else {
+		/*set_ftrace_filter 文件打开*/
 		hash = ops->func_hash->filter_hash;
 		mod_head = tr ? &tr->mod_trace : NULL;
 	}
@@ -3801,9 +3855,11 @@ ftrace_regex_open(struct ftrace_ops *ops, int flag,
 	return ret;
 }
 
+/*打开 set_ftrace_filter 会走到这里*/
 static int
 ftrace_filter_open(struct inode *inode, struct file *file)
 {
+	/*ftrace_init_dyn_tracefs*/
 	struct ftrace_ops *ops = inode->i_private;
 
 	/* Checks for tracefs lockdown */
@@ -3812,6 +3868,8 @@ ftrace_filter_open(struct inode *inode, struct file *file)
 			inode, file);
 }
 
+
+/*open set_ftrace_notrace 会走到这里 */
 static int
 ftrace_notrace_open(struct inode *inode, struct file *file)
 {
@@ -3826,7 +3884,7 @@ ftrace_notrace_open(struct inode *inode, struct file *file)
 struct ftrace_glob {
 	char *search;
 	unsigned len;
-	int type;
+	int type; /*MATCH_MIDDLE_ONLY 等*/
 };
 
 /*
@@ -3874,24 +3932,27 @@ static int ftrace_match(char *str, struct ftrace_glob *g)
 	return matched;
 }
 
+/*把@rec 从hash中删除或者添加*/
 static int
 enter_record(struct ftrace_hash *hash, struct dyn_ftrace *rec, int clear_filter)
 {
 	struct ftrace_func_entry *entry;
 	int ret = 0;
 
+	/*在这个hash中查找rec->ip*/
 	entry = ftrace_lookup_ip(hash, rec->ip);
 	if (clear_filter) {
 		/* Do nothing if it doesn't exist */
+		/*我是为了删除，而且又不存在，完美 啥都不用干 拜拜~*/
 		if (!entry)
 			return 0;
-
+		/*释放之*/
 		free_hash_entry(hash, entry);
 	} else {
 		/* Do nothing if it exists */
 		if (entry)
 			return 0;
-
+		/*加入到hash中*/
 		ret = add_hash_entry(hash, rec->ip);
 	}
 	return ret;
@@ -3922,6 +3983,12 @@ add_rec_by_index(struct ftrace_hash *hash, struct ftrace_glob *func_g,
 	return 0;
 }
 
+/*
+ * 大体流程：
+ * 通过@rec找符号表 找到对应的符号名
+ * 然后看这个@符号名 和 两个glob 是否match
+ * 返回匹配结果
+ */
 static int
 ftrace_match_record(struct dyn_ftrace *rec, struct ftrace_glob *func_g,
 		struct ftrace_glob *mod_g, int exclude_mod)
@@ -3929,6 +3996,7 @@ ftrace_match_record(struct dyn_ftrace *rec, struct ftrace_glob *func_g,
 	char str[KSYM_SYMBOL_LEN];
 	char *modname;
 
+	/*通过 ip 找 symbol*/
 	kallsyms_lookup(rec->ip, NULL, NULL, &modname, str);
 
 	if (mod_g) {
@@ -3957,6 +4025,7 @@ func_match:
 			return 1;
 	}
 
+	/*返回是否符合 这个 glob表达式*/
 	return ftrace_match(str, func_g);
 }
 
@@ -3971,6 +4040,11 @@ match_records(struct ftrace_hash *hash, char *func, int len, char *mod)
 	int exclude_mod = 0;
 	int found = 0;
 	int ret;
+
+	/*我是为了删除这个函数还是为了添加这个函数？
+	 * 1 - 删除
+	 * 0 - 添加
+	 */
 	int clear_filter = 0;
 
 	if (func) {
@@ -3990,6 +4064,7 @@ match_records(struct ftrace_hash *hash, char *func, int len, char *mod)
 	if (unlikely(ftrace_disabled))
 		goto out_unlock;
 
+	/*通常 type = MATCH_FULL， 这里靠index */
 	if (func_g.type == MATCH_INDEX) {
 		found = add_rec_by_index(hash, &func_g, clear_filter);
 		goto out_unlock;
@@ -4000,7 +4075,10 @@ match_records(struct ftrace_hash *hash, char *func, int len, char *mod)
 		if (rec->flags & FTRACE_FL_DISABLED)
 			continue;
 
+		/*找到符合的rec， 这里需要姐用符号表*/
 		if (ftrace_match_record(rec, &func_g, mod_match, exclude_mod)) {
+			/*这个rec 满足查找需求*/
+			/*添加或者删除*/
 			ret = enter_record(hash, rec, clear_filter);
 			if (ret < 0) {
 				found = ret;
@@ -4808,7 +4886,7 @@ static int ftrace_process_regex(struct ftrace_iterator *iter,
 				char *buff, int len, int enable)
 {
 	struct ftrace_hash *hash = iter->hash;
-	struct trace_array *tr = iter->ops->private;
+	struct trace_array *tr = iter->ops->private; /*global_trace*/
 	char *func, *command, *next = buff;
 	struct ftrace_func_command *p;
 	int ret = -EINVAL;
@@ -4826,6 +4904,10 @@ static int ftrace_process_regex(struct ftrace_iterator *iter,
 
 	/* command found */
 
+	/*
+	 * 找模块函数
+	 * xfs:xfs_mkdir
+	 */
 	command = strsep(&next, ":");
 
 	mutex_lock(&ftrace_cmd_mutex);
@@ -4856,6 +4938,7 @@ ftrace_regex_write(struct file *file, const char __user *ubuf,
 		struct seq_file *m = file->private_data;
 		iter = m->private;
 	} else
+		/*ftrace_regex_open中生成的iter*/
 		iter = file->private_data;
 
 	if (unlikely(ftrace_disabled))
@@ -4868,6 +4951,7 @@ ftrace_regex_write(struct file *file, const char __user *ubuf,
 
 	if (read >= 0 && trace_parser_loaded(parser) &&
 	    !trace_parser_cont(parser)) {
+	    /*这里是重点*/
 		ret = ftrace_process_regex(iter, parser->buffer,
 					   parser->idx, enable);
 		trace_parser_clear(parser);
@@ -6045,6 +6129,7 @@ void ftrace_create_filter_files(struct ftrace_ops *ops,
 	trace_create_file("set_ftrace_filter", 0644, parent,
 			  ops, &ftrace_filter_fops);
 
+	/*ops 作为 i_private  */
 	trace_create_file("set_ftrace_notrace", 0644, parent,
 			  ops, &ftrace_notrace_fops);
 }
@@ -6122,9 +6207,57 @@ static int ftrace_process_locs(struct module *mod,
 	if (!count)
 		return 0;
 
+	/*就地按照升序进行重新排列*/
 	sort(start, count, sizeof(*start),
 	     ftrace_cmp_ips, NULL);
 
+	/*
+
+ftrace_pages_start
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|							  | 	|arch	   |		  | 	|		   |		  |
+|next						  | 	+----------+----------+ 	+----------+----------+
+|	 (struct ftrace_page*)	  |
++-----------------------------+
+  |
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|next						  | 	|arch	   |		  | 	|		   |		  |
+|	 (struct ftrace_page*)	  | 	+----------+----------+ 	+----------+----------+
++-----------------------------+
+  |
+  |
+  v
+ftrace_page
++-----------------------------+
+|index						  |
+|size						  |
+|	 (int)					  | 	array of dyn_ftrace
+|records					  | 	+----------+----------+ 	+----------+----------+
+|	 (struct dyn_ftrace*)	  |---->|ip 	   |		  | ... |		   |		  |
+|							  | 	|flags	   |		  | 	|		   |		  |
+|next						  | 	|arch	   |		  | 	|		   |		  |
+|	 (struct ftrace_page*)	  | 	+----------+----------+ 	+----------+----------+
++-----------------------------+
+
+*/
 	start_pg = ftrace_allocate_pages(count);
 	if (!start_pg)
 		return -ENOMEM;
@@ -6136,11 +6269,13 @@ static int ftrace_process_locs(struct module *mod,
 	 * modules will free them when they are removed.
 	 * Force a new page to be allocated for modules.
 	 */
+	 /*调我的是不是个mod?    */
 	if (!mod) {
 		WARN_ON(ftrace_pages || ftrace_pages_start);
 		/* First initialization */
 		ftrace_pages = ftrace_pages_start = start_pg;
 	} else {
+		/*是mod, 把page 链接到 ftrace_pages 放到后面*/
 		if (!ftrace_pages)
 			goto out;
 
@@ -6156,6 +6291,7 @@ static int ftrace_process_locs(struct module *mod,
 	p = start;
 	pg = start_pg;
 	while (p < end) {
+		/*addr 为 call fentry 的地址*/
 		addr = ftrace_call_adjust(*p++);
 		/*
 		 * Some architecture linkers will pad between
@@ -6170,7 +6306,7 @@ static int ftrace_process_locs(struct module *mod,
 			/* We should have allocated enough */
 			if (WARN_ON(!pg->next))
 				break;
-			pg = pg->next;
+			pg = pg->next; /*pg 链表*/
 		}
 
 		rec = &pg->records[pg->index++];
@@ -6193,6 +6329,7 @@ static int ftrace_process_locs(struct module *mod,
 	 */
 	if (!mod)
 		local_irq_save(flags);
+	/* 把  call    __fentry__ 指令全部换成 nop*/
 	ftrace_update_code(mod, start_pg);
 	if (!mod)
 		local_irq_restore(flags);
@@ -6738,11 +6875,13 @@ void __init ftrace_init(void)
 	int ret;
 
 	local_irq_save(flags);
+	/*空*/
 	ret = ftrace_dyn_arch_init();
 	local_irq_restore(flags);
 	if (ret)
 		goto failed;
 
+	/*这两个地址之间存在的都是 每个 call mcount 指令的地址,也就是每个函数的起始地址*/
 	count = __stop_mcount_loc - __start_mcount_loc;
 	if (!count) {
 		pr_info("ftrace: No functions to be traced?\n");

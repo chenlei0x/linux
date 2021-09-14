@@ -818,7 +818,8 @@ static int regex_match_glob(char *str, struct regex *r, int len __maybe_unused)
  *  not returns 1 if buff started with a '!'
  *     0 otherwise.
  */
-enum regex_type filter_parse_regex(char *buff, int len, char **search, int *not)
+enum regex_type filter_parse_regex(char *buff, int len, char **search,
+				int *not)
 {
 	int type = MATCH_FULL;
 	int i;

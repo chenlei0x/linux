@@ -828,7 +828,7 @@ extern void ftrace_init(void);
 #define FTRACE_CALLSITE_SECTION	"__mcount_loc"
 #endif
 #else
-static inline void ftrace_init(void) { }
+
 #endif
 
 /*

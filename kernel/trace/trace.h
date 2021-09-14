@@ -896,6 +896,7 @@ enum {
 struct ftrace_hash {
 	unsigned long		size_bits;
 	struct hlist_head	*buckets;
+	/*__add_hash_entry*/
 	unsigned long		count;
 	unsigned long		flags;
 	struct rcu_head		rcu;
