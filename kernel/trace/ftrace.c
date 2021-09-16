@@ -4113,6 +4113,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	if (!ftrace_enabled)
 		return;
 
+	/*global_ops 没有这个flag*/
 	if (ops->flags & FTRACE_OPS_FL_ENABLED) {
 		ftrace_run_modify_code(ops, FTRACE_UPDATE_CALLS, old_hash);
 		return;
@@ -7422,6 +7423,11 @@ int ftrace_is_dead(void)
  * Note: @ops->func and all the functions it calls must be labeled
  *       with "notrace", otherwise it will go into a
  *       recursive loop.
+ */
+/*
+ * 注册一个ftrace_ops  很多地方都能注册
+ * static int klp_patch_func(struct klp_func *func)
+		ret = register_ftrace_function(&ops->fops);
  */
 int register_ftrace_function(struct ftrace_ops *ops)
 {

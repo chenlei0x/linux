@@ -81,7 +81,7 @@ ftrace_text_replace(unsigned char op, unsigned long ip, unsigned long addr)
 	return calc.code;
 }
 
-/*生成替换指令, 0xe8为call*/
+/*生成替换指令, 0xe8为call @addr*/
 static unsigned char *
 ftrace_call_replace(unsigned long ip, unsigned long addr)
 {
@@ -359,6 +359,7 @@ static int ftrace_write(unsigned long ip, const char *val, int size)
 	return 0;
 }
 
+/*如果@ip 上的指令为 old 则替换为brk指令*/
 static int add_break(unsigned long ip, const char *old)
 {
 	unsigned char replaced[MCOUNT_INSN_SIZE];
@@ -376,6 +377,7 @@ static int add_break(unsigned long ip, const char *old)
 	return ftrace_write(ip, &brk, 1);
 }
 
+/*如果是call @addr 指令,则替换为break*/
 static int add_brk_on_call(struct dyn_ftrace *rec, unsigned long addr)
 {
 	unsigned const char *old;
@@ -386,7 +388,7 @@ static int add_brk_on_call(struct dyn_ftrace *rec, unsigned long addr)
 	return add_break(rec->ip, old);
 }
 
-
+/*如果是nop  替换为brk*/
 static int add_brk_on_nop(struct dyn_ftrace *rec)
 {
 	unsigned const char *old;
@@ -478,6 +480,7 @@ static int remove_breakpoint(struct dyn_ftrace *rec)
 	return ftrace_write(ip, nop, 1);
 }
 
+/*对指令的第一个字节不做修改,应该是为了后续原子操作*/
 static int add_update_code(unsigned long ip, unsigned const char *new)
 {
 	/* skip breakpoint */
@@ -555,6 +558,7 @@ static int finish_update_nop(struct dyn_ftrace *rec)
 	return ftrace_write(ip, new, 1);
 }
 
+/*把第一个字节恢复成正常的指令*/
 static int finish_update(struct dyn_ftrace *rec, bool enable)
 {
 	unsigned long ftrace_addr;
@@ -613,6 +617,10 @@ void ftrace_replace_code(int enable)
 	int count = 0;
 	int ret;
 
+	/*
+	 * MCOUNT_INSN 这条指令的第一个字节替换为断点指令
+	 * 这样是为了让进程进入之后一直中断
+	 */
 	for_ftrace_rec_iter(iter) {
 		rec = ftrace_rec_iter_record(iter);
 
@@ -629,7 +637,10 @@ void ftrace_replace_code(int enable)
 
 	for_ftrace_rec_iter(iter) {
 		rec = ftrace_rec_iter_record(iter);
-		/*这里会强制生成nop指令*/
+		/*
+		 * 这里会强制替换成call指令,但是只是替换[1 , MCOUNT_INSN_SIZE),
+		 * 0 byte 为 breakpoint 指令
+		 */
 		ret = add_update(rec, enable);
 		if (ret)
 			goto remove_breakpoints;
@@ -643,7 +654,10 @@ void ftrace_replace_code(int enable)
 
 	for_ftrace_rec_iter(iter) {
 		rec = ftrace_rec_iter_record(iter);
-		/*这里会对每个rec 设置FTRACE_FL_ENABLED, 并生成最终的跳转代码*/
+		/*
+		 * 这里会对每个rec 设置FTRACE_FL_ENABLED, 并生成最终的跳转代码
+		 * 然后恢复 第一个字节 变为真正的jump 指令
+		 */
 		ret = finish_update(rec, enable);
 		if (ret)
 			goto remove_breakpoints;
