@@ -257,6 +257,8 @@ int ftrace_modify_call(struct dyn_ftrace *rec, unsigned long old_addr,
 static unsigned long ftrace_update_func;
 static unsigned long ftrace_update_func_call;
 
+
+/*ip 中放入 new指令*/
 static int update_ftrace_func(unsigned long ip, void *new)
 {
 	unsigned char old[MCOUNT_INSN_SIZE];
@@ -803,6 +805,135 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 	 * the iret , as well as the address of the ftrace_ops this
 	 * trampoline is used for.
 	 */
+
+	/*
+
+	0xffffffff81c01990 <ftrace_caller>:     push   %rbp
+	0xffffffff81c01991 <ftrace_caller+1>:   pushq  0x10(%rsp)
+	0xffffffff81c01995 <ftrace_caller+5>:   push   %rbp
+	0xffffffff81c01996 <ftrace_caller+6>:   mov    %rsp,%rbp
+	0xffffffff81c01999 <ftrace_caller+9>:   pushq  0x18(%rsp)
+	0xffffffff81c0199d <ftrace_caller+13>:  push   %rbp
+	0xffffffff81c0199e <ftrace_caller+14>:  mov    %rsp,%rbp
+	0xffffffff81c019a1 <ftrace_caller+17>:  sub    $0xa8,%rsp
+	0xffffffff81c019a8 <ftrace_caller+24>:  mov    %rax,0x50(%rsp)
+	0xffffffff81c019ad <ftrace_caller+29>:  mov    %rcx,0x58(%rsp)
+	0xffffffff81c019b2 <ftrace_caller+34>:  mov    %rdx,0x60(%rsp)
+	0xffffffff81c019b7 <ftrace_caller+39>:  mov    %rsi,0x68(%rsp)
+	0xffffffff81c019bc <ftrace_caller+44>:  mov    %rdi,0x70(%rsp)
+	0xffffffff81c019c1 <ftrace_caller+49>:  mov    %r8,0x48(%rsp)
+	0xffffffff81c019c6 <ftrace_caller+54>:  mov    %r9,0x40(%rsp)
+	0xffffffff81c019cb <ftrace_caller+59>:  mov    0xc8(%rsp),%rdx
+	0xffffffff81c019d3 <ftrace_caller+67>:  mov    %rdx,0x20(%rsp)
+	0xffffffff81c019d8 <ftrace_caller+72>:  mov    0xd8(%rsp),%rsi
+	0xffffffff81c019e0 <ftrace_caller+80>:  mov    0xd0(%rsp),%rdi
+	0xffffffff81c019e8 <ftrace_caller+88>:  mov    %rdi,0x80(%rsp)
+	0xffffffff81c019f0 <ftrace_caller+96>:  sub    $0x5,%rdi
+	
+	0xffffffff81c019f4 <ftrace_caller_op_ptr>:      mov    0xc43c45(%rip),%rdx        # 0xffffffff82845640 <function_trace_op>
+	0xffffffff81c019fb <ftrace_caller_op_ptr+7>:    mov    $0x0,%rcx
+	
+	0xffffffff81c01a02 <ftrace_call>:       callq  0xffffffff81c01a3b <ftrace_stub>
+	0xffffffff81c01a07 <ftrace_call+5>:     mov    0x40(%rsp),%r9
+	0xffffffff81c01a0c <ftrace_call+10>:    mov    0x48(%rsp),%r8
+	0xffffffff81c01a11 <ftrace_call+15>:    mov    0x70(%rsp),%rdi
+	0xffffffff81c01a16 <ftrace_call+20>:    mov    0x68(%rsp),%rsi
+	0xffffffff81c01a1b <ftrace_call+25>:    mov    0x60(%rsp),%rdx
+	0xffffffff81c01a20 <ftrace_call+30>:    mov    0x58(%rsp),%rcx
+	0xffffffff81c01a25 <ftrace_call+35>:    mov    0x50(%rsp),%rax
+	0xffffffff81c01a2a <ftrace_call+40>:    mov    0x20(%rsp),%rbp
+	0xffffffff81c01a2f <ftrace_call+45>:    add    $0xd0,%rsp
+	
+	0xffffffff81c01a36 <ftrace_epilogue>:   jmpq   0xffffffff81c01a3b <ftrace_stub>
+	
+	0xffffffff81c01a3b <ftrace_stub>:       retq  
+
+
+
+
+
+	0xffffffff81c01a40 <ftrace_regs_caller>:        pushfq                                                                     
+	0xffffffff81c01a41 <ftrace_regs_caller+1>:      push   %rbp                                                                
+	0xffffffff81c01a42 <ftrace_regs_caller+2>:      pushq  0x18(%rsp)
+	0xffffffff81c01a46 <ftrace_regs_caller+6>:      push   %rbp                                                                
+	0xffffffff81c01a47 <ftrace_regs_caller+7>:      mov    %rsp,%rbp
+	0xffffffff81c01a4a <ftrace_regs_caller+10>:     pushq  0x20(%rsp)
+	0xffffffff81c01a4e <ftrace_regs_caller+14>:     push   %rbp
+	0xffffffff81c01a4f <ftrace_regs_caller+15>:     mov    %rsp,%rbp
+	0xffffffff81c01a52 <ftrace_regs_caller+18>:     sub    $0xa8,%rsp
+	0xffffffff81c01a59 <ftrace_regs_caller+25>:     mov    %rax,0x50(%rsp)
+	0xffffffff81c01a5e <ftrace_regs_caller+30>:     mov    %rcx,0x58(%rsp)
+	0xffffffff81c01a63 <ftrace_regs_caller+35>:     mov    %rdx,0x60(%rsp)
+	0xffffffff81c01a68 <ftrace_regs_caller+40>:     mov    %rsi,0x68(%rsp)
+	0xffffffff81c01a6d <ftrace_regs_caller+45>:     mov    %rdi,0x70(%rsp)
+	0xffffffff81c01a72 <ftrace_regs_caller+50>:     mov    %r8,0x48(%rsp)
+	0xffffffff81c01a77 <ftrace_regs_caller+55>:     mov    %r9,0x40(%rsp)
+	0xffffffff81c01a7c <ftrace_regs_caller+60>:     mov    0xc8(%rsp),%rdx
+	0xffffffff81c01a84 <ftrace_regs_caller+68>:     mov    %rdx,0x20(%rsp)
+	0xffffffff81c01a89 <ftrace_regs_caller+73>:     mov    0xe0(%rsp),%rsi
+	0xffffffff81c01a91 <ftrace_regs_caller+81>:     mov    0xd8(%rsp),%rdi
+	0xffffffff81c01a99 <ftrace_regs_caller+89>:     mov    %rdi,0x80(%rsp)
+	0xffffffff81c01aa1 <ftrace_regs_caller+97>:     sub    $0x5,%rdi
+	
+	0xffffffff81c01aa5 <ftrace_regs_caller_op_ptr>: mov    0xc43b94(%rip),%rdx        # 0xffffffff82845640 <function_trace_op>
+	0xffffffff81c01aac <ftrace_regs_caller_op_ptr+7>:       mov    %r15,(%rsp)
+	0xffffffff81c01ab0 <ftrace_regs_caller_op_ptr+11>:      mov    %r14,0x8(%rsp)
+	0xffffffff81c01ab5 <ftrace_regs_caller_op_ptr+16>:      mov    %r13,0x10(%rsp)
+	0xffffffff81c01aba <ftrace_regs_caller_op_ptr+21>:      mov    %r12,0x18(%rsp)
+	0xffffffff81c01abf <ftrace_regs_caller_op_ptr+26>:      mov    %r11,0x30(%rsp)
+	0xffffffff81c01ac4 <ftrace_regs_caller_op_ptr+31>:      mov    %r10,0x38(%rsp)
+	0xffffffff81c01ac9 <ftrace_regs_caller_op_ptr+36>:      mov    %rbx,0x28(%rsp)
+	0xffffffff81c01ace <ftrace_regs_caller_op_ptr+41>:      mov    0xd0(%rsp),%rcx
+	0xffffffff81c01ad6 <ftrace_regs_caller_op_ptr+49>:      mov    %rcx,0x90(%rsp)
+	0xffffffff81c01ade <ftrace_regs_caller_op_ptr+57>:      mov    $0x18,%rcx
+	0xffffffff81c01ae5 <ftrace_regs_caller_op_ptr+64>:      mov    %rcx,0xa0(%rsp)
+	0xffffffff81c01aed <ftrace_regs_caller_op_ptr+72>:      mov    $0x10,%rcx
+	0xffffffff81c01af4 <ftrace_regs_caller_op_ptr+79>:      mov    %rcx,0x88(%rsp)
+	0xffffffff81c01afc <ftrace_regs_caller_op_ptr+87>:      lea    0xe0(%rsp),%rcx
+	0xffffffff81c01b04 <ftrace_regs_caller_op_ptr+95>:      mov    %rcx,0x98(%rsp)
+	0xffffffff81c01b0c <ftrace_regs_caller_op_ptr+103>:     lea    (%rsp),%rcx
+	
+	0xffffffff81c01b10 <ftrace_regs_call>:	callq  0xffffffff81c01a3b <ftrace_stub>
+	0xffffffff81c01b15 <ftrace_regs_call+5>:		mov    0x90(%rsp),%rax
+	0xffffffff81c01b1d <ftrace_regs_call+13>:		mov    %rax,0xd0(%rsp)
+	0xffffffff81c01b25 <ftrace_regs_call+21>:		mov    0x80(%rsp),%rax
+	0xffffffff81c01b2d <ftrace_regs_call+29>:		mov    %rax,0xd8(%rsp)
+	0xffffffff81c01b35 <ftrace_regs_call+37>:		mov    (%rsp),%r15
+	0xffffffff81c01b39 <ftrace_regs_call+41>:		mov    0x8(%rsp),%r14
+	0xffffffff81c01b3e <ftrace_regs_call+46>:		mov    0x10(%rsp),%r13
+	0xffffffff81c01b43 <ftrace_regs_call+51>:		mov    0x18(%rsp),%r12
+	0xffffffff81c01b48 <ftrace_regs_call+56>:		mov    0x38(%rsp),%r10
+	0xffffffff81c01b4d <ftrace_regs_call+61>:		mov    0x28(%rsp),%rbx
+	0xffffffff81c01b52 <ftrace_regs_call+66>:		mov    0x40(%rsp),%r9
+	0xffffffff81c01b57 <ftrace_regs_call+71>:		mov    0x48(%rsp),%r8
+	0xffffffff81c01b5c <ftrace_regs_call+76>:		mov    0x70(%rsp),%rdi
+	0xffffffff81c01b61 <ftrace_regs_call+81>:		mov    0x68(%rsp),%rsi
+	0xffffffff81c01b66 <ftrace_regs_call+86>:		mov    0x60(%rsp),%rdx
+	0xffffffff81c01b6b <ftrace_regs_call+91>:		mov    0x58(%rsp),%rcx
+	0xffffffff81c01b70 <ftrace_regs_call+96>:		mov    0x50(%rsp),%rax
+	0xffffffff81c01b75 <ftrace_regs_call+101>:		mov    0x20(%rsp),%rbp
+	0xffffffff81c01b7a <ftrace_regs_call+106>:		add    $0xd0,%rsp
+	0xffffffff81c01b81 <ftrace_regs_call+113>:		popfq  
+	
+	0xffffffff81c01b82 <ftrace_regs_caller_end>:	jmpq   0xffffffff81c01a36 <ftrace_epilogue>
+
+
+	trampoline 的结构（最终）
+	+--------+	  ftrace_caller(start_offset)
+	|		 |
+	|		 |	  ftrace_caller_op_ptr(op_offset)
+	|		 |
+	|  size  |	  ftrace_call(call_offset)
+	|		 |
+	+--------+	  ftrace_caller_end(end_offset)
+	|RET_SIZE|	  ftrace_stub	 <--ip
+	+--------+
+	| void * | ---> ops
+	+--------+
+
+
+
+	*/
 	trampoline = alloc_tramp(size + RET_SIZE + sizeof(void *));
 	if (!trampoline)
 		return 0;
@@ -811,6 +942,7 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 	npages = DIV_ROUND_UP(*tramp_size, PAGE_SIZE);
 
 	/* Copy ftrace_caller onto the trampoline memory */
+	/* start_offset, start_offset + size ===拷贝到===> trampoline */
 	ret = probe_kernel_read(trampoline, (void *)start_offset, size);
 	if (WARN_ON(ret < 0))
 		goto fail;
@@ -819,6 +951,11 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 
 	/* The trampoline ends with ret(q) */
 	retq = (unsigned long)ftrace_stub;
+	/*
+	 * ftrace_stub 函数的第一个字节 放到*ip中， 其实就是一个ret 指令
+	 * 0xffffffff81c01a3b <ftrace_stub>:		retq ==> 1个字节
+	 * 0xffffffff81c01a3c <ftrace_stub+1>:     nopl   0x0(%rax)
+	*/
 	ret = probe_kernel_read(ip, (void *)retq, RET_SIZE);
 	if (WARN_ON(ret < 0))
 		goto fail;
@@ -838,6 +975,7 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 	memcpy(&op_ptr, trampoline + op_offset, OP_REF_SIZE);
 
 	/* Are we pointing to the reference? */
+	/*把 trampoline*/
 	if (WARN_ON(memcmp(op_ptr.op, op_ref, 3) != 0))
 		goto fail;
 
@@ -846,7 +984,15 @@ create_trampoline(struct ftrace_ops *ops, unsigned int *tramp_size)
 	offset -= (unsigned long)trampoline + op_offset + OP_REF_SIZE;
 
 	op_ptr.offset = offset;
-
+	/*
+	 * 因为trampoline 是对每个ops 一个的,我们这里拷贝的trampoline 只是一个模板
+	 * 所以要修改成对应的ops 的trampoline
+	 * 
+	 * 这里最重要的就是这个op_ptr,
+	 * op_ptr 对应的是 movq function_trace_op(%rip), %rdx
+	 * 0x48 0x8b 0x15 <offset-to-ftrace_trace_op (4 bytes)>
+	 * 由于ftrace_trace_op 的指针就在trampoline的最下面, 所以我们希望把这个指针给rdx,
+	 * 然后调用 ftrace_stub函数
 	/* put in the new offset to the ftrace_ops */
 	memcpy(trampoline + op_offset, &op_ptr, OP_REF_SIZE);
 
@@ -902,6 +1048,7 @@ void arch_ftrace_update_trampoline(struct ftrace_ops *ops)
 		npages = PAGE_ALIGN(ops->trampoline_size) >> PAGE_SHIFT;
 		set_memory_rw(ops->trampoline, npages);
 	} else {
+		/*针对这个ops创建trampoilne*/
 		ops->trampoline = create_trampoline(ops, &size);
 		if (!ops->trampoline)
 			return;
@@ -910,14 +1057,20 @@ void arch_ftrace_update_trampoline(struct ftrace_ops *ops)
 	}
 
 	offset = calc_trampoline_call_offset(ops->flags & FTRACE_OPS_FL_SAVE_REGS);
-	ip = ops->trampoline + offset;
+	/*这个ip实际上就是 trampoline中 call ftrace_stub的地址*/
+	ip = ops->trampoline + offset; 
 
 	func = ftrace_ops_get_func(ops);
 
 	ftrace_update_func_call = (unsigned long)func;
 
 	/* Do a safe modify in case the trampoline is executing */
+	/*生成call func 指令*/
 	new = ftrace_call_replace(ip, (unsigned long)func);
+	/*
+	 * 把这个指令放到ip对应的内存中
+	 * 这样call ftrace_stub 就编程了 call ops->func
+	 */
 	ret = update_ftrace_func(ip, new);
 	set_memory_ro(ops->trampoline, npages);
 

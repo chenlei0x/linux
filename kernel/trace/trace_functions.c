@@ -230,7 +230,6 @@ static void tracing_stop_function_trace(struct trace_array *tr)
 	unregister_ftrace_function(tr->ops);
 }
 
-static struct tracer function_trace;
 
 static int
 func_set_flag(struct trace_array *tr, u32 old_flags, u32 bit, int set)
@@ -263,7 +262,7 @@ func_set_flag(struct trace_array *tr, u32 old_flags, u32 bit, int set)
 	return 0;
 }
 
-static struct tracer function_trace __tracer_data =
+static struct tracer function_trace  =
 {
 	.name		= "function",
 	.init		= function_trace_init,

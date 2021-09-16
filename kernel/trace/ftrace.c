@@ -119,7 +119,6 @@ DEFINE_MUTEX(ftrace_lock);
 
 struct ftrace_ops /*__rcu*/ *ftrace_ops_list  = &ftrace_list_end;
 ftrace_func_t ftrace_trace_function  = ftrace_stub;
-struct ftrace_ops global_ops;
 
 #if ARCH_SUPPORTS_FTRACE_OPS
 /*x86 这个函数是一个ftrace_func_t 类型的*/
@@ -183,7 +182,7 @@ static ftrace_func_t ftrace_ops_get_list_func(struct ftrace_ops *ops)
 	return ftrace_ops_get_func(ops);
 }
 
-/*更新 ftrace_trace_function 全局变量*/
+/*根据又多少个ops 更新 ftrace_trace_function 全局变量*/
 static void update_ftrace_function(void)
 {
 	ftrace_func_t func;
@@ -198,6 +197,7 @@ static void update_ftrace_function(void)
 
 	/* If there's no ftrace_ops registered, just call the stub function */
 	if (set_function_trace_op == &ftrace_list_end) {
+		/*没有一个ops*/
 		func = ftrace_stub;
 
 	/*
@@ -207,7 +207,7 @@ static void update_ftrace_function(void)
 	 */
 	} else if (rcu_dereference_protected(ftrace_ops_list->next,
 			lockdep_is_held(&ftrace_lock)) == &ftrace_list_end) {
-			/*只剩下最后一个了*/
+			/*只剩下最后一个ops了*/
 		func = ftrace_ops_get_list_func(ftrace_ops_list);
 
 	} else {
@@ -336,6 +336,7 @@ int __register_ftrace_function(struct ftrace_ops *ops)
 	if (!ftrace_enabled && (ops->flags & FTRACE_OPS_FL_PERMANENT))
 		return -EBUSY;
 
+	/*不属于kernel data*/
 	if (!core_kernel_data((unsigned long)ops))
 		ops->flags |= FTRACE_OPS_FL_DYNAMIC;
 
@@ -348,9 +349,10 @@ int __register_ftrace_function(struct ftrace_ops *ops)
 	if (ftrace_pids_enabled(ops))
 		ops->func = ftrace_pid_func;
 
-	/*每个ops都有自己的trampoline*/
+	/*创建 每个ops 自己的trampoline*/
 	ftrace_update_trampoline(ops);
 
+	/*根据又多少个ops 更新 ftrace_trace_function 全局变量*/
 	if (ftrace_enabled)
 		update_ftrace_function();
 
@@ -1515,6 +1517,7 @@ ftrace_hash_move(struct ftrace_ops *ops, int enable,
 	 */
 	ftrace_hash_rec_disable_modify(ops, enable);
 
+	/* (*dst) 是一级指针*/
 	rcu_assign_pointer(*dst, new_hash);
 
 	ftrace_hash_rec_enable_modify(ops, enable);
@@ -2547,6 +2550,8 @@ unsigned long ftrace_get_addr_curr(struct dyn_ftrace *rec)
 			/* Ftrace is shutting down, return anything */
 			return (unsigned long)FTRACE_ADDR;
 		}
+
+		/*直接走这个ops 的trampoline */
 		return ops->trampoline;
 	}
 
@@ -3814,7 +3819,8 @@ ftrace_regex_open(struct ftrace_ops *ops, int flag,
 		if (file->f_flags & O_TRUNC) {
 			iter->hash = alloc_ftrace_hash(size_bits);
 			clear_ftrace_mod_list(mod_head);
-	        } else {
+	    } else {
+			/*如果是写的话,拷贝hash, 在这个副本上进行修改*/
 			iter->hash = alloc_and_copy_ftrace_hash(size_bits, hash);
 		}
 
@@ -4075,7 +4081,7 @@ match_records(struct ftrace_hash *hash, char *func, int len, char *mod)
 		if (rec->flags & FTRACE_FL_DISABLED)
 			continue;
 
-		/*找到符合的rec， 这里需要姐用符号表*/
+		/*找到符合的rec， 这里需要借用符号表*/
 		if (ftrace_match_record(rec, &func_g, mod_match, exclude_mod)) {
 			/*这个rec 满足查找需求*/
 			/*添加或者删除*/
@@ -4130,8 +4136,11 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	} while_for_each_ftrace_op(op);
 }
 
-/*orig_hash = &ops->func_hash->filter_hash*/
-static int ftrace_hash_move_and_update_ops(struct ftrace_ops *ops,
+/*
+ * orig_hash = &ops->func_hash->filter_hash
+ */
+static int ftrace_hash_move_and_update_ops(
+					   struct ftrace_ops *ops,
 					   struct ftrace_hash **orig_hash,
 					   struct ftrace_hash *hash,
 					   int enable)
@@ -4140,12 +4149,15 @@ static int ftrace_hash_move_and_update_ops(struct ftrace_ops *ops,
 	struct ftrace_hash *old_hash;
 	int ret;
 
+	/*这里比较有意思 orig_hash 是一个二级指针*/
 	old_hash = *orig_hash;
 	/*保留原始的指针*/
 	old_hash_ops.filter_hash = ops->func_hash->filter_hash;
 	old_hash_ops.notrace_hash = ops->func_hash->notrace_hash;
 	/*hash ===[move]===> orig_hash*/
+	/*这里面会改动 *orig_hash*/
 	ret = ftrace_hash_move(ops, enable, orig_hash, hash);
+	/* *orig_hash 这时候会指向一个新的hash */
 	if (!ret) {
 		ftrace_ops_update_code(ops, &old_hash_ops);
 		free_ftrace_hash_rcu(old_hash);
@@ -4964,6 +4976,8 @@ ftrace_regex_write(struct file *file, const char __user *ubuf,
 	return ret;
 }
 
+
+/*这个主要是往ops -> func_hash 中添加函数*/
 ssize_t
 ftrace_filter_write(struct file *file, const char __user *ubuf,
 		    size_t cnt, loff_t *ppos)
@@ -5668,6 +5682,7 @@ int ftrace_regex_release(struct inode *inode, struct file *file)
 			orig_hash = &iter->ops->func_hash->notrace_hash;
 
 		mutex_lock(&ftrace_lock);
+		/*iter->hash 是 origin_hash的一个拷贝*/
 		ret = ftrace_hash_move_and_update_ops(iter->ops, orig_hash,
 						      iter->hash, filter_hash);
 		mutex_unlock(&ftrace_lock);
@@ -6154,6 +6169,8 @@ void ftrace_destroy_filter_files(struct ftrace_ops *ops)
 	mutex_unlock(&ftrace_lock);
 }
 
+
+/*@d_tracer  对应 debug/tracing */
 static __init int ftrace_init_dyn_tracefs(struct dentry *d_tracer)
 {
 
@@ -6939,9 +6956,7 @@ static int __init ftrace_nodyn_init(void)
 }
 core_initcall(ftrace_nodyn_init);
 
-static inline int ftrace_init_dyn_tracefs(struct dentry *d_tracer) { return 0; }
-static inline void ftrace_startup_enable(int command) { }
-static inline void ftrace_startup_all(int command) { }
+
 
 # define ftrace_startup_sysctl()	do { } while (0)
 # define ftrace_shutdown_sysctl()	do { } while (0)

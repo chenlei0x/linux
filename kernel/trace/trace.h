@@ -179,7 +179,7 @@ struct trace_option_dentry;
 struct trace_buffer {
 	struct trace_array		*tr;
 	struct ring_buffer		*buffer;
-	struct trace_array_cpu __percpu	*data;
+	struct trace_array_cpu /*__percpu*/	*data;
 	u64				time_start;
 	int				cpu;
 };

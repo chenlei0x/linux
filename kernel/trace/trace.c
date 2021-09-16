@@ -657,7 +657,7 @@ int tracing_is_enabled(void)
 static unsigned long		trace_buf_size = TRACE_BUF_SIZE_DEFAULT;
 
 /* trace_types holds a link list of available tracers. */
-static struct tracer		*trace_types __read_mostly;
+static struct tracer		*trace_types;
 
 /*
  * trace_types_lock is used to protect the trace_types list.
@@ -1511,7 +1511,7 @@ static ssize_t trace_seq_to_buffer(struct trace_seq *s, void *buf, size_t cnt)
 	return cnt;
 }
 
-unsigned long __read_mostly	tracing_thresh;
+unsigned long 	tracing_thresh;
 static const struct file_operations tracing_max_lat_fops;
 
 #if (defined(CONFIG_TRACER_MAX_TRACE) || defined(CONFIG_HWLAT_TRACER)) && \
@@ -5814,6 +5814,7 @@ static int tracing_set_tracer(struct trace_array *tr, const char *buf)
 	}
 #endif
 
+	/*调用trace 的init函数*/
 	if (t->init) {
 		ret = tracer_init(t, tr);
 		if (ret)
@@ -5833,6 +5834,8 @@ static ssize_t
 tracing_set_trace_write(struct file *filp, const char __user *ubuf,
 			size_t cnt, loff_t *ppos)
 {
+
+	/*这里 @tr 代表 @global_trace */
 	struct trace_array *tr = filp->private_data;
 	char buf[MAX_TRACER_SIZE+1];
 	int i;

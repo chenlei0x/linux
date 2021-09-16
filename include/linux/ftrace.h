@@ -197,14 +197,16 @@ static inline void ftrace_free_mem(struct module *mod, void *start, void *end) {
  */
 struct ftrace_ops {
 	ftrace_func_t			func;
-	struct ftrace_ops __rcu		*next;
+	struct ftrace_ops /*__rcu*/		*next;
 	unsigned long			flags;
 	void				*private;
 	ftrace_func_t			saved_func;
 #ifdef CONFIG_DYNAMIC_FTRACE
 	struct ftrace_ops_hash		local_hash;
+	/*默认指向 local_hash*/
 	struct ftrace_ops_hash		*func_hash;
 	struct ftrace_ops_hash		old_hash;
+	/*create_trampoline*/
 	unsigned long			trampoline;
 	unsigned long			trampoline_size;
 #endif
