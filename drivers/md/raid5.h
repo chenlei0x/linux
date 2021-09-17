@@ -195,6 +195,20 @@ enum reconstruct_states {
 	reconstruct_state_result,
 };
 
+struct r5dev {
+		/* rreq and rvec are used for the replacement device when
+		 * writing data to both devices.
+		 */
+		struct bio	req, rreq;
+		struct bio_vec	vec, rvec;
+		struct page	*page, *orig_page;
+		struct bio	*toread, *read, *towrite, *written;
+		sector_t	sector;			/* sector of this page */
+		unsigned long	flags;
+		u32		log_checksum;
+		unsigned short	write_hint;
+};
+
 struct stripe_head {
 	struct hlist_node	hash;
 	struct list_head	lru;	      /* inactive_list or handle_list */
@@ -246,19 +260,7 @@ struct stripe_head {
 		int 		     target, target2;
 		enum sum_check_flags zero_sum_result;
 	} ops;
-	struct r5dev {
-		/* rreq and rvec are used for the replacement device when
-		 * writing data to both devices.
-		 */
-		struct bio	req, rreq;
-		struct bio_vec	vec, rvec;
-		struct page	*page, *orig_page;
-		struct bio	*toread, *read, *towrite, *written;
-		sector_t	sector;			/* sector of this page */
-		unsigned long	flags;
-		u32		log_checksum;
-		unsigned short	write_hint;
-	} dev[1]; /* allocated with extra space depending of RAID geometry */
+	struct r5dev  dev[1]; /* allocated with extra space depending of RAID geometry */
 };
 
 /* stripe_head_state - collects and tracks the dynamic state of a stripe_head

@@ -2956,6 +2956,8 @@ sector_t raid5_compute_blocknr(struct stripe_head *sh, int i, int previous)
 			if (i > sh->pd_idx)
 				i--;
 			break;
+
+			/*常用路径:*/
 		case ALGORITHM_LEFT_SYMMETRIC:
 		case ALGORITHM_RIGHT_SYMMETRIC:
 			if (i < sh->pd_idx)
@@ -3237,11 +3239,14 @@ static int add_stripe_bio(struct stripe_head *sh, struct bio *bi, int dd_idx,
 			firstwrite = 1;
 	} else
 		bip = &sh->dev[dd_idx].toread;
+	/*bip 指针是按照磁盘地址升序排列的, 把@bi插入到合适的位置,而且不能重叠*/
 	while (*bip && (*bip)->bi_iter.bi_sector < bi->bi_iter.bi_sector) {
+		/*和已有的bio 磁盘区域重叠了*/
 		if (bio_end_sector(*bip) > bi->bi_iter.bi_sector)
 			goto overlap;
 		bip = & (*bip)->bi_next;
 	}
+	/*@bi 找到一个中间的位置,这时候需要和后面的bio比对一下,看是否重叠*/
 	if (*bip && (*bip)->bi_iter.bi_sector < bio_end_sector(bi))
 		goto overlap;
 

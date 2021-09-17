@@ -338,6 +338,7 @@ struct mddev {
 	int				new_chunk_sectors;
 	int				reshape_backwards;
 
+	/*md_thread*/
 	struct md_thread		*thread;	/* management thread */
 	struct md_thread		*sync_thread;	/* doing resync or reconstruct */
 
