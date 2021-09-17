@@ -1710,7 +1710,7 @@ ftrace_find_tramp_ops_next(struct dyn_ftrace *rec, struct ftrace_ops *ops);
 
 
 /*
- * 根据ops 更新所有的rec
+ * 根据ops 更新所有的rec 的 refcount
  * 
  */
 static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
@@ -1935,6 +1935,7 @@ static void ftrace_hash_rec_enable_modify(struct ftrace_ops *ops,
 
 /*
  * ftrace_rec 应该就是dyn_ftrace, 对每个rec更新FTRACE_FL_IPMODIFY 标记
+ *
  * Try to update IPMODIFY flag on each ftrace_rec. Return 0 if it is OK
  * or no-needed to update, -EBUSY if it detects a conflict of the flag
  * on a ftrace_rec, and -EINVAL if the new_hash tries to trace all recs.
@@ -2152,13 +2153,18 @@ void ftrace_bug(int failed, struct dyn_ftrace *rec)
 	}
 }
 
-/*检查并更新各种flag*/
-static int ftrace_check_record(struct dyn_ftrace *rec, bool enable, bool update)
+/*
+ * 检查flag
+ * update 表明是否需要更新rec->flag
+ */
+static int ftrace_check_record(struct dyn_ftrace *rec, 
+					bool enable, bool update)
 {
 	unsigned long flag = 0UL;
 
 	ftrace_bug_type = FTRACE_BUG_UNKNOWN;
 
+	/*kernel mod 中的函数初始化的时候会打上这个标记, 后面会去掉*/
 	if (rec->flags & FTRACE_FL_DISABLED)
 		return FTRACE_UPDATE_IGNORE;
 
@@ -2262,12 +2268,20 @@ static int ftrace_check_record(struct dyn_ftrace *rec, bool enable, bool update)
 		 *   from the save regs, to a non-save regs function or
 		 *   vice versa, or from a trampoline call.
 		 */
-		 /*走到这里说明 flag = FTRACE_FL_ENABLED 但是 rec->flags = !FTRACE_FL_ENABLED */
+		 /*
+		  * 走到这里说明 flag = FTRACE_FL_ENABLED 但是 
+		  * rec->flags = !FTRACE_FL_ENABLED 需要被使能
+		  * 也就是说 从 op --> call 命令
+		  */
 		if (flag & FTRACE_FL_ENABLED) {
 			ftrace_bug_type = FTRACE_BUG_CALL;
 			return FTRACE_UPDATE_MAKE_CALL;
 		}
 
+		/* 
+		 * 已经使能了, 所以需要把 那个MCOUNT位置的call指令
+		 * 改变成call 所需的函数
+		 */
 		ftrace_bug_type = FTRACE_BUG_UPDATE;
 		return FTRACE_UPDATE_MODIFY_CALL;
 	}
@@ -2488,11 +2502,13 @@ struct ftrace_ops direct_ops = {
  *
  * Returns the address of the trampoline to set to
  */
+ /* 找到@rec 应该生成的call 指令的目的地址*/
 unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec)
 {
 	struct ftrace_ops *ops;
 	unsigned long addr;
 
+	/*DIRECT_CALL 没开*/
 	if ((rec->flags & FTRACE_FL_DIRECT) &&
 	    (ftrace_rec_count(rec) == 1)) {
 		addr = ftrace_find_rec_direct(rec->ip);
@@ -2501,6 +2517,11 @@ unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec)
 		WARN_ON_ONCE(1);
 	}
 
+	/*
+	 * 如果打上了TRAMP,说明需要修改为 call 某个op->trampoline, 
+	 * 找到对应的op, 返回他的trampoline
+	 * function trace 利用的就是trampline
+	 */
 	/* Trampolines take precedence over regs */
 	if (rec->flags & FTRACE_FL_TRAMP) {
 		ops = ftrace_find_tramp_ops_new(rec);
@@ -2513,6 +2534,10 @@ unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec)
 		return ops->trampoline;
 	}
 
+	/*
+	 * 还是不行,那就返回ftrace_regs_caller
+	 * 或者  ftrace_caller
+	 */
 	if (rec->flags & FTRACE_FL_REGS)
 		return (unsigned long)FTRACE_REGS_ADDR;
 	else
@@ -2592,6 +2617,7 @@ __ftrace_replace_code(struct dyn_ftrace *rec, bool enable)
 		ftrace_bug_type = FTRACE_BUG_NOP;
 		return ftrace_make_nop(NULL, rec, ftrace_old_addr);
 
+	/*x86 平台不应该走到这个分支*/
 	case FTRACE_UPDATE_MODIFY_CALL:
 		ftrace_bug_type = FTRACE_BUG_UPDATE;
 		return ftrace_modify_call(rec, ftrace_old_addr, ftrace_addr);
@@ -2755,7 +2781,8 @@ void ftrace_modify_all_code(int command)
 	 */
 	if (update) {
 		/*
-		 * 让ftrace_caller 及ftrace_regs_caller 调用ftrace_ops_list_func
+		 * 让ftrace_caller 及ftrace_regs_caller 处的指令 调用
+		 * ftrace_ops_list_func
 		 */
 		err = ftrace_update_ftrace_func(ftrace_ops_list_func);
 		if (FTRACE_WARN_ON(err))
@@ -2823,6 +2850,7 @@ static void ftrace_run_update_code(int command)
 {
 	int ret;
 
+	/*设置text段 可读可写*/
 	ret = ftrace_arch_code_modify_prepare();
 	FTRACE_WARN_ON(ret);
 	if (ret)
@@ -4116,7 +4144,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	if (!ftrace_enabled)
 		return;
 
-	/*global_ops 没有这个flag*/
+	/*global_ops 在被设置为current tracer之后才会打上这个 flag*/
 	if (ops->flags & FTRACE_OPS_FL_ENABLED) {
 		ftrace_run_modify_code(ops, FTRACE_UPDATE_CALLS, old_hash);
 		return;
@@ -4133,6 +4161,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	do_for_each_ftrace_op(op, ftrace_ops_list) {
 		if (op->func_hash == &global_ops.local_hash &&
 		    op->flags & FTRACE_OPS_FL_ENABLED) {
+		    
 			ftrace_run_modify_code(op, FTRACE_UPDATE_CALLS, old_hash);
 			/* Only need to do this once */
 			return;

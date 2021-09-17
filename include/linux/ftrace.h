@@ -260,6 +260,7 @@ struct ftrace_func_entry {
 
 struct dyn_ftrace;
 
+/*这个默认没开*/
 #ifdef CONFIG_DYNAMIC_FTRACE_WITH_DIRECT_CALLS
 extern int ftrace_direct_func_count;
 int register_ftrace_direct(unsigned long ip, unsigned long addr);
@@ -427,6 +428,9 @@ enum {
 	 * 否则需要经过ftrace_ops_list_func,层层循环比较慢
 	 */
 	FTRACE_FL_TRAMP		= (1UL << 28),
+	/*表明当前TRAMP 已经使能, 也就是说一个rec 的mcount 指令已经被替换为
+	 * call op->trampoline
+	 */
 	FTRACE_FL_TRAMP_EN	= (1UL << 27),
 	FTRACE_FL_IPMODIFY	= (1UL << 26),
 	FTRACE_FL_DISABLED	= (1UL << 25),
@@ -465,7 +469,10 @@ enum {
 	FTRACE_UPDATE_CALLS		= (1 << 0),
 	FTRACE_DISABLE_CALLS		= (1 << 1),
 	
-	/*使ftrace_caller ftrace_regs_caller 调用ftrace_ops_list_func*/
+	/*
+	 * 使ftrace_caller ftrace_regs_caller 
+	 * 调用ftrace_ops_list_func
+	 */
 	FTRACE_UPDATE_TRACE_FUNC	= (1 << 2),
 	FTRACE_START_FUNC_RET		= (1 << 3),
 	FTRACE_STOP_FUNC_RET		= (1 << 4),

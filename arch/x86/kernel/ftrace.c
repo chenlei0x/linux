@@ -284,7 +284,7 @@ static int update_ftrace_func(unsigned long ip, void *new)
  * ftrace_caller 中 ftrace_call 指向需要替换指令的地方
  * ftrace_regs_caller 中 ftrace_regs_call 指向需要替换指令的地方
  *
- * 替换这两个地方的call 指令 使之call @func
+ * 将 call @func 覆盖 ftrace_call和ftrace_regs_call
  */
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
@@ -517,6 +517,9 @@ static int add_update(struct dyn_ftrace *rec, bool enable)
 	unsigned long ftrace_addr;
 	int ret;
 
+	/* 这个rec 使能了吗? 需要修改吗? 根据rec->flags 来确定
+	 * 有需要修改的话就继续修改, 否则 FTRACE_UPDATE_IGNORE
+	 */
 	ret = ftrace_test_record(rec, enable);
 
 	ftrace_addr  = ftrace_get_addr_new(rec);
@@ -608,7 +611,10 @@ static void run_sync(void)
 		local_irq_disable();
 }
 
-/*对每个dyn_ftrace rec ,修改其指令*/
+/*
+ * 对每个dyn_ftrace rec , !!!!只有当有需要时!!!! 才修改其指令
+ * 是否有需要 需要看 ftrace_test_record 的返回值
+ */
 void ftrace_replace_code(int enable)
 {
 	struct ftrace_rec_iter *iter;
