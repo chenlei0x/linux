@@ -1710,7 +1710,7 @@ ftrace_find_tramp_ops_next(struct dyn_ftrace *rec, struct ftrace_ops *ops);
 
 
 /*
- * 根据ops 更新所有的rec 的 refcount
+ * 根据ops 中的hash 更新所有的rec 的 refcount
  * 
  */
 static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
@@ -1883,6 +1883,7 @@ static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
 	return update;
 }
 
+/* 切换tracer 时, 调用 reset ==> unregister */
 static bool ftrace_hash_rec_disable(struct ftrace_ops *ops,
 				    int filter_hash)
 {
@@ -2164,7 +2165,7 @@ static int ftrace_check_record(struct dyn_ftrace *rec,
 
 	ftrace_bug_type = FTRACE_BUG_UNKNOWN;
 
-	/*kernel mod 中的函数初始化的时候会打上这个标记, 后面会去掉*/
+	/*kernel mod 中的函数初始化的 ftrace_update_code 时候会打上这个标记, 后面 ftrace_module_enable 会去掉*/
 	if (rec->flags & FTRACE_FL_DISABLED)
 		return FTRACE_UPDATE_IGNORE;
 
@@ -2897,6 +2898,7 @@ static void ftrace_startup_enable(int command)
 	if (!command || !ftrace_enabled)
 		return;
 
+	/**/
 	ftrace_run_update_code(command);
 }
 
@@ -2907,6 +2909,7 @@ static void ftrace_startup_all(int command)
 	update_all_ops = false;
 }
 
+/* register_ftrace_function 中调用 command = 0*/
 int ftrace_startup(struct ftrace_ops *ops, int command)
 {
 	int ret;
@@ -2939,9 +2942,11 @@ int ftrace_startup(struct ftrace_ops *ops, int command)
 		return ret;
 	}
 
+	/*根据ops 中的hash 更新rec 中的flag*/
 	if (ftrace_hash_rec_enable(ops, 1))
 		command |= FTRACE_UPDATE_CALLS;
 
+	/*根据flag 再去更新指令*/
 	ftrace_startup_enable(command);
 
 	ops->flags &= ~FTRACE_OPS_FL_ADDING;

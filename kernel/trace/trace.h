@@ -473,6 +473,7 @@ struct trace_option_dentry {
 struct tracer {
 	const char		*name;
 	int			(*init)(struct trace_array *tr);
+	/*切换tracer 的时候会调用*/
 	void			(*reset)(struct trace_array *tr);
 	void			(*start)(struct trace_array *tr);
 	void			(*stop)(struct trace_array *tr);

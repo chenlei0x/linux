@@ -433,6 +433,10 @@ enum {
 	 */
 	FTRACE_FL_TRAMP_EN	= (1UL << 27),
 	FTRACE_FL_IPMODIFY	= (1UL << 26),
+	/*
+	 * kernel mod 中的函数初始化的 ftrace_update_code 时候会打上这个标记, 
+	 * 后面 ftrace_module_enable 会去掉
+	 */
 	FTRACE_FL_DISABLED	= (1UL << 25),
 	FTRACE_FL_DIRECT	= (1UL << 24),
 	FTRACE_FL_DIRECT_EN	= (1UL << 23),
