@@ -1709,7 +1709,10 @@ static struct ftrace_ops *
 ftrace_find_tramp_ops_next(struct dyn_ftrace *rec, struct ftrace_ops *ops);
 
 
-/*根据ops 更新所有的rec*/
+/*
+ * 根据ops 更新所有的rec
+ * 
+ */
 static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
 				     int filter_hash,
 				     bool inc)

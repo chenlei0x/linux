@@ -149,6 +149,10 @@ ftrace_func_t ftrace_ops_get_func(struct ftrace_ops *ops);
  *            (internal ftrace only, should not be used by others)
  */
 enum {
+	/*
+	 * ENABLED flag 会随着改变current tracer 而改变
+	 * 只有current tracer 才会有这个标记
+	 */
 	FTRACE_OPS_FL_ENABLED			= BIT(0),
 	FTRACE_OPS_FL_DYNAMIC			= BIT(1),
 	FTRACE_OPS_FL_SAVE_REGS			= BIT(2),
@@ -436,7 +440,7 @@ enum {
 #define FTRACE_FL_MASK		(FTRACE_FL_MASKED_BITS << FTRACE_REF_MAX_SHIFT)
 #define FTRACE_REF_MAX		((1UL << FTRACE_REF_MAX_SHIFT) - 1)
 
-/*__ftrace_hash_rec_update*/
+/*__ftrace_hash_rec_update 这里做加减*/
 #define ftrace_rec_count(rec)	((rec)->flags & ~FTRACE_FL_MASK)
 
 struct dyn_ftrace {
