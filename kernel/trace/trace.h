@@ -472,10 +472,16 @@ struct trace_option_dentry {
  */
 struct tracer {
 	const char		*name;
+	
 	int			(*init)(struct trace_array *tr);
+
 	/*切换tracer 的时候会调用*/
 	void			(*reset)(struct trace_array *tr);
+	
+	/*通过echo 1 >tracing_on触发*/
 	void			(*start)(struct trace_array *tr);
+
+	/*通过echo 0 >tracing_off触发*/
 	void			(*stop)(struct trace_array *tr);
 	int			(*update_thresh)(struct trace_array *tr);
 	void			(*open)(struct trace_iterator *iter);
@@ -1094,6 +1100,7 @@ void ftrace_clear_pids(struct trace_array *tr);
 int init_function_trace(void);
 void ftrace_pid_follow_fork(struct trace_array *tr, bool enable);
 #else
+#if 0
 static inline int ftrace_trace_task(struct trace_array *tr)
 {
 	return 1;
@@ -1116,6 +1123,7 @@ static inline int init_function_trace(void) { return 0; }
 static inline void ftrace_pid_follow_fork(struct trace_array *tr, bool enable) { }
 /* ftace_func_t type is not defined, use macro instead of static inline */
 #define ftrace_init_array_ops(tr, func) do { } while (0)
+#endif
 #endif /* CONFIG_FUNCTION_TRACER */
 
 #if defined(CONFIG_FUNCTION_TRACER) && defined(CONFIG_DYNAMIC_FTRACE)

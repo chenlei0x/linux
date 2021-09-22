@@ -1594,7 +1594,7 @@ blk_tracer_set_flag(struct trace_array *tr, u32 old_flags, u32 bit, int set)
 	return 0;
 }
 
-static struct tracer blk_tracer __read_mostly = {
+static struct tracer blk_tracer  = {
 	.name		= "blk",
 	.init		= blk_tracer_init,
 	.reset		= blk_tracer_reset,

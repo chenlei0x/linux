@@ -773,6 +773,7 @@ inode_switch_wbs
 		struct rcu_head		i_rcu;
 	};
 	atomic64_t		i_version;
+	/*inode_init_always  默认初始化为1*/
 	atomic_t		i_count;
 	atomic_t		i_dio_count;
 	atomic_t		i_writecount;

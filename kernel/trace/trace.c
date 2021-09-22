@@ -5784,6 +5784,7 @@ static int tracing_set_tracer(struct trace_array *tr, const char *buf)
 
 	tr->current_trace->enabled--;
 
+	/*老tracer  reset*/
 	if (tr->current_trace->reset)
 		tr->current_trace->reset(tr);
 
@@ -5814,7 +5815,7 @@ static int tracing_set_tracer(struct trace_array *tr, const char *buf)
 	}
 #endif
 
-	/*调用trace 的init函数*/
+	/*新tracer 的init函数*/
 	if (t->init) {
 		ret = tracer_init(t, tr);
 		if (ret)
@@ -5835,7 +5836,7 @@ tracing_set_trace_write(struct file *filp, const char __user *ubuf,
 			size_t cnt, loff_t *ppos)
 {
 
-	/*这里 @tr 代表 @global_trace */
+	/*这里 @tr 代表 @global_trace 或者在instance 中新创建的*/
 	struct trace_array *tr = filp->private_data;
 	char buf[MAX_TRACER_SIZE+1];
 	int i;
@@ -8515,6 +8516,7 @@ static struct trace_array *trace_array_create(const char *name)
 
 	ftrace_init_trace_array(tr);
 
+	/*这里用来给新的dir 创建各个文件*/
 	init_tracer_tracefs(tr, tr->dir);
 	init_trace_flags_index(tr);
 	__update_tracer_options(tr);
@@ -8758,6 +8760,7 @@ init_tracer_tracefs(struct trace_array *tr, struct dentry *d_tracer)
 	trace_create_maxlat_file(tr, d_tracer);
 #endif
 
+	/*这里会申请新的ops*/
 	if (ftrace_create_function_files(tr, d_tracer))
 		WARN(1, "Could not allocate function filter files");
 

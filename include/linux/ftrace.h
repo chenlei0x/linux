@@ -882,8 +882,10 @@ extern int ftrace_graph_entry_stub(struct ftrace_graph_ent *trace);
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 
 struct fgraph_ops {
-	trace_func_graph_ent_t		entryfunc;
-	trace_func_graph_ret_t		retfunc;
+	/*ftrace_graph_entry_test 会调用这个函数*/
+	trace_func_graph_ent_t		entryfunc; /*trace_graph_entry*/
+	
+	trace_func_graph_ret_t		retfunc; /*trace_graph_return*/
 };
 
 /*

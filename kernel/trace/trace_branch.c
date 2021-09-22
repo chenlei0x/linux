@@ -170,7 +170,7 @@ static struct trace_event trace_branch_event = {
 	.funcs		= &trace_branch_funcs,
 };
 
-static struct tracer branch_trace __read_mostly =
+static struct tracer branch_trace  =
 {
 	.name		= "branch",
 	.init		= branch_trace_init,

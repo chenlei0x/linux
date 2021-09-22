@@ -50,7 +50,7 @@ static const struct file_operations tracefs_file_operations = {
 static struct tracefs_dir_ops {
 	int (*mkdir)(const char *name);
 	int (*rmdir)(const char *name);
-} tracefs_ops __ro_after_init;
+} tracefs_ops;
 
 static char *get_dname(struct dentry *dentry)
 {
@@ -125,6 +125,7 @@ static const struct inode_operations tracefs_dir_inode_operations = {
 	.rmdir		= tracefs_syscall_rmdir,
 };
 
+/*i_count = 1*/
 static struct inode *tracefs_get_inode(struct super_block *sb)
 {
 	struct inode *inode = new_inode(sb);

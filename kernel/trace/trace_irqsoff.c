@@ -637,7 +637,7 @@ static void irqsoff_tracer_reset(struct trace_array *tr)
 	__irqsoff_tracer_reset(tr);
 }
 
-static struct tracer irqsoff_tracer __read_mostly =
+static struct tracer irqsoff_tracer  =
 {
 	.name		= "irqsoff",
 	.init		= irqsoff_tracer_init,
@@ -687,7 +687,7 @@ static void preemptoff_tracer_reset(struct trace_array *tr)
 	__irqsoff_tracer_reset(tr);
 }
 
-static struct tracer preemptoff_tracer __read_mostly =
+static struct tracer preemptoff_tracer  =
 {
 	.name		= "preemptoff",
 	.init		= preemptoff_tracer_init,
@@ -722,7 +722,7 @@ static void preemptirqsoff_tracer_reset(struct trace_array *tr)
 	__irqsoff_tracer_reset(tr);
 }
 
-static struct tracer preemptirqsoff_tracer __read_mostly =
+static struct tracer preemptirqsoff_tracer  =
 {
 	.name		= "preemptirqsoff",
 	.init		= preemptirqsoff_tracer_init,

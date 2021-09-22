@@ -296,13 +296,14 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
 
 	/*new 为替换的指令*/
 	new = ftrace_call_replace(ip, (unsigned long)func);
-	/*把new 指令写入ip指向的地址中*/
+	/*把new 指令写入ip指向的地址中, 并更新 ftrace_update_func*/
 	ret = update_ftrace_func(ip, new);
 
 	/* Also update the regs callback function */
 	if (!ret) {
 		ip = (unsigned long)(&ftrace_regs_call);
 		new = ftrace_call_replace(ip, (unsigned long)func);
+		/*这里又会改动 ftrace_update_func */
 		ret = update_ftrace_func(ip, new);
 	}
 
@@ -359,7 +360,7 @@ static int ftrace_write(unsigned long ip, const char *val, int size)
 	return 0;
 }
 
-/*如果@ip 上的指令为 old 则替换为brk指令*/
+/*如果@ip 上的指令为 old 则替换为int3 指令*/
 static int add_break(unsigned long ip, const char *old)
 {
 	unsigned char replaced[MCOUNT_INSN_SIZE];
@@ -1186,6 +1187,7 @@ static unsigned char *ftrace_jmp_replace(unsigned long ip, unsigned long addr)
 	return ftrace_text_replace(0xe9, ip, addr);
 }
 
+/*  *ip  = jmp func */
 static int ftrace_mod_jmp(unsigned long ip, void *func)
 {
 	unsigned char *new;
@@ -1196,17 +1198,29 @@ static int ftrace_mod_jmp(unsigned long ip, void *func)
 	return update_ftrace_func(ip, new);
 }
 
+/*
+ * ftrace_graph_call 是ftrace_caller函数中的一个指令位置
+ * 并不是一个函数, 见ftrace_64.S
+ */
 int ftrace_enable_ftrace_graph_caller(void)
 {
+
 	unsigned long ip = (unsigned long)(&ftrace_graph_call);
 
 	return ftrace_mod_jmp(ip, &ftrace_graph_caller);
+	/*ftrace_graph_call 替换成 jmp ftrace_graph_caller*/
 }
 
+
+/*
+ * ftrace_graph_call 是ftrace_caller函数中的一个指令位置
+ * 并不是一个函数, 见ftrace_64.S
+ */
 int ftrace_disable_ftrace_graph_caller(void)
 {
 	unsigned long ip = (unsigned long)(&ftrace_graph_call);
 
+	/*替换为 jmp ftrace_stub*/
 	return ftrace_mod_jmp(ip, &ftrace_stub);
 }
 
@@ -1216,6 +1230,32 @@ int ftrace_disable_ftrace_graph_caller(void)
  * Hook the return address and push it in the stack of return addrs
  * in current thread info.
  */
+ /*
+ B()
+ {
+		A() {
+			ftrace_caller ===>@self_addr 用来记录该函数的
+			instruction_rdi
+		}
+		instru ====>@parent
+ }
+ 
+@parent 为栈中, 本call指令返回后的下一条指令
+@self_addr 当前被trace 的函数的首地址
+ftrace_graph_caller 中有一条指令为: (save_mcount_regs宏产生的)
+
+sub    $0x5,%rdi  rdi 本来指向返回地址 , 就是上图中instruction_rdi
+
+然后减去5 就是function 开头的地址, 经过替换之后,就是A的
+
+ftrace_graph_call中会调用
+	prepare_ftrace_return // 修改返回地址为 ret_to_handler
+		function_graph_enter
+			ftrace_graph_entry_test
+				trace_graph_entry
+
+	
+*/
 void prepare_ftrace_return(unsigned long self_addr, unsigned long *parent,
 			   unsigned long frame_pointer)
 {
@@ -1248,7 +1288,10 @@ void prepare_ftrace_return(unsigned long self_addr, unsigned long *parent,
 	 * ignore such a protection.
 	 */
 	asm volatile(
+		/*old = parent*/
 		"1: " _ASM_MOV " (%[parent]), %[old]\n"
+		/* parent = return_hooker */
+		/*保证A函数返回之后 能够进入return hooker*/
 		"2: " _ASM_MOV " %[return_hooker], (%[parent])\n"
 		"   movl $0, %[faulted]\n"
 		"3:\n"
@@ -1272,6 +1315,11 @@ void prepare_ftrace_return(unsigned long self_addr, unsigned long *parent,
 		return;
 	}
 
+	/*这里用来几乎graph trace */
+	/*
+	 * @self_addr 为当前函数
+	 * @parent 为父亲函数的返回地址
+	 */
 	if (function_graph_enter(old, self_addr, frame_pointer, parent))
 		*parent = old;
 }

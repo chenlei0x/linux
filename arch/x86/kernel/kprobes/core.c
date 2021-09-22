@@ -490,6 +490,7 @@ int arch_prepare_kprobe(struct kprobe *p)
 	if (!p->ainsn.insn)
 		return -ENOMEM;
 
+	/*拷贝原指令*/
 	ret = arch_copy_kprobe(p);
 	if (ret) {
 		free_insn_slot(p->ainsn.insn, 0);

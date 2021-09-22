@@ -273,7 +273,7 @@ static enum print_line_t mmio_print_line(struct trace_iterator *iter)
 	}
 }
 
-static struct tracer mmio_tracer __read_mostly =
+static struct tracer mmio_tracer =
 {
 	.name		= "mmiotrace",
 	.init		= mmio_trace_init,

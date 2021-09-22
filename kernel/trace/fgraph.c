@@ -479,7 +479,8 @@ void update_function_graph_func(void)
 		}
 	} while_for_each_ftrace_op(op);
  out:
-	if (do_test)
+ 	
+	if (do_test)/*走的这里*/
 		ftrace_graph_entry = ftrace_graph_entry_test;
 	else
 		ftrace_graph_entry = __ftrace_graph_entry;

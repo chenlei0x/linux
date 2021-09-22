@@ -301,6 +301,7 @@ static int graph_trace_init(struct trace_array *tr)
 {
 	int ret;
 
+	/*这个ops 只能被一个tr 使用*/
 	set_graph_array(tr);
 	if (tracing_thresh)
 		ret = register_ftrace_graph(&funcgraph_thresh_ops);

@@ -741,7 +741,7 @@ static void wakeup_tracer_stop(struct trace_array *tr)
 	tracer_enabled = 0;
 }
 
-static struct tracer wakeup_tracer __read_mostly =
+static struct tracer wakeup_tracer  =
 {
 	.name		= "wakeup",
 	.init		= wakeup_tracer_init,
@@ -761,7 +761,7 @@ static struct tracer wakeup_tracer __read_mostly =
 	.use_max_tr	= true,
 };
 
-static struct tracer wakeup_rt_tracer __read_mostly =
+static struct tracer wakeup_rt_tracer  =
 {
 	.name		= "wakeup_rt",
 	.init		= wakeup_rt_tracer_init,
@@ -781,7 +781,7 @@ static struct tracer wakeup_rt_tracer __read_mostly =
 	.use_max_tr	= true,
 };
 
-static struct tracer wakeup_dl_tracer __read_mostly =
+static struct tracer wakeup_dl_tracer  =
 {
 	.name		= "wakeup_dl",
 	.init		= wakeup_dl_tracer_init,

@@ -118,6 +118,7 @@ static int ftrace_disabled;
 DEFINE_MUTEX(ftrace_lock);
 
 struct ftrace_ops /*__rcu*/ *ftrace_ops_list  = &ftrace_list_end;
+/* update_ftrace_function */
 ftrace_func_t ftrace_trace_function  = ftrace_stub;
 
 #if ARCH_SUPPORTS_FTRACE_OPS
@@ -1710,7 +1711,7 @@ ftrace_find_tramp_ops_next(struct dyn_ftrace *rec, struct ftrace_ops *ops);
 
 
 /*
- * 根据ops 中的hash 更新所有的rec 的 refcount
+ * 根据ops 中的hash 更新所有的rec 的 refcount 和flag
  * 
  */
 static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
@@ -1858,6 +1859,7 @@ static bool __ftrace_hash_rec_update(struct ftrace_ops *ops,
 			 * left has a trampoline. As TRAMP can only be
 			 * enabled if there is only a single ops attached
 			 * to it.
+			 * 当只有一个ops时，refcout =1 这时候就可以用trampoline 加速
 			 */
 			if (ftrace_rec_count(rec) == 1 &&
 			    ftrace_find_tramp_ops_any(rec))
@@ -1896,16 +1898,23 @@ static bool ftrace_hash_rec_enable(struct ftrace_ops *ops,
 	return __ftrace_hash_rec_update(ops, filter_hash, 1);
 }
 
-static void ftrace_hash_rec_update_modify(struct ftrace_ops *ops,
-					  int filter_hash, int inc)
+static void ftrace_hash_rec_update_modify(
+						struct ftrace_ops *ops,
+					  int filter_hash, 
+					  int inc)
 {
 	struct ftrace_ops *op;
 
+	/*根据ops 中的hash 更新所有的rec 的 refcount 和flag*/
 	__ftrace_hash_rec_update(ops, filter_hash, inc);
 
 	if (ops->func_hash != &global_ops.local_hash)
 		return;
 
+	/*
+	 * ops->func_hash 和 global_ops.local_hash 相等
+	 * global_ops.local_hash 可能发生了变动? 所以要更新其他ops
+	 */
 	/*
 	 * If the ops shares the global_ops hash, then we need to update
 	 * all ops that are enabled and use this hash.
@@ -1923,6 +1932,7 @@ static void ftrace_hash_rec_update_modify(struct ftrace_ops *ops,
 static void ftrace_hash_rec_disable_modify(struct ftrace_ops *ops,
 					   int filter_hash)
 {
+	/*inc = 0 表示要对引用计数--*/
 	ftrace_hash_rec_update_modify(ops, filter_hash, 0);
 }
 
@@ -1931,11 +1941,14 @@ static void ftrace_hash_rec_disable_modify(struct ftrace_ops *ops,
 static void ftrace_hash_rec_enable_modify(struct ftrace_ops *ops,
 					  int filter_hash)
 {
+	/*inc = 0 表示要对引用计数 ++*/
 	ftrace_hash_rec_update_modify(ops, filter_hash, 1);
 }
 
 /*
- * ftrace_rec 应该就是dyn_ftrace, 对每个rec更新FTRACE_FL_IPMODIFY 标记
+ * ftrace_rec 应该就是dyn_ftrace, 对每个需要删除或者添加的
+ * rec更新FTRACE_FL_IPMODIFY 标记
+ *
  *
  * Try to update IPMODIFY flag on each ftrace_rec. Return 0 if it is OK
  * or no-needed to update, -EBUSY if it detects a conflict of the flag
@@ -1977,15 +1990,18 @@ static int __ftrace_hash_update_ipmodify(struct ftrace_ops *ops,
 		
 		in_old = !!ftrace_lookup_ip(old_hash, rec->ip);
 		in_new = !!ftrace_lookup_ip(new_hash, rec->ip);
+		/*既在新的又在旧的,不用理会*/
 		if (in_old == in_new)
 			continue;
 
+		/*只在新的当中,需要添加*/
 		if (in_new) {
 			/* New entries must ensure no others are using it */
 			if (rec->flags & FTRACE_FL_IPMODIFY)
 				goto rollback;
 			rec->flags |= FTRACE_FL_IPMODIFY;
 		} else /* Removed entry */
+			/*只在旧的当中,需要被删除*/
 			rec->flags &= ~FTRACE_FL_IPMODIFY;
 	} while_for_each_ftrace_rec();
 
@@ -2018,6 +2034,7 @@ err_out:
 	return -EBUSY;
 }
 
+/*更新每个rec 的 IPMODIFY标记(如果需要的话)*/
 static int ftrace_hash_ipmodify_enable(struct ftrace_ops *ops)
 {
 	struct ftrace_hash *hash = ops->func_hash->filter_hash;
@@ -2161,6 +2178,7 @@ void ftrace_bug(int failed, struct dyn_ftrace *rec)
 static int ftrace_check_record(struct dyn_ftrace *rec, 
 					bool enable, bool update)
 {
+	/*flag 记录需要被处理的标志位*/
 	unsigned long flag = 0UL;
 
 	ftrace_bug_type = FTRACE_BUG_UNKNOWN;
@@ -2225,10 +2243,10 @@ static int ftrace_check_record(struct dyn_ftrace *rec,
 	if (flag) {
 		/* Save off if rec is being enabled (for return value) */
 		flag ^= rec->flags & FTRACE_FL_ENABLED;
-
 		if (update) {
 			rec->flags |= FTRACE_FL_ENABLED;
 			if (flag & FTRACE_FL_REGS) {
+				/*REGS_EN != REGS, 根据FTRACE_FL_REGS 确定 FTRACE_FL_REGS_EN*/
 				if (rec->flags & FTRACE_FL_REGS)
 					rec->flags |= FTRACE_FL_REGS_EN;
 				else
@@ -2532,6 +2550,7 @@ unsigned long ftrace_get_addr_new(struct dyn_ftrace *rec)
 			/* Ftrace is shutting down, return anything */
 			return (unsigned long)FTRACE_ADDR;
 		}
+		/*如果是function graph 走这里*/
 		return ops->trampoline;
 	}
 
@@ -2627,6 +2646,8 @@ __ftrace_replace_code(struct dyn_ftrace *rec, bool enable)
 	return -1; /* unknown ftrace bug */
 }
 
+
+/*arch/x86/kernel/ftrace.c 里面重载了这个函数 不要看*/
 void __weak ftrace_replace_code(int mod_flags)
 {
 	struct dyn_ftrace *rec;
@@ -2761,6 +2782,10 @@ int __weak ftrace_arch_code_modify_post_process(void)
 	return 0;
 }
 
+/*修改两个调用链
+ * 1. ftrace_caller 和 ftrace_regs_caller 应该跳到哪里
+ * 2. rec 跳到哪里
+ */
 void ftrace_modify_all_code(int command)
 {
 	int update = command & FTRACE_UPDATE_TRACE_FUNC;
@@ -2780,16 +2805,19 @@ void ftrace_modify_all_code(int command)
 	 * to make sure the ops are having the right functions
 	 * traced.
 	 */
+	 /**/
 	if (update) {
 		/*
 		 * 让ftrace_caller 及ftrace_regs_caller 处的指令 调用
 		 * ftrace_ops_list_func
 		 */
+		 /*update_ftrace_function*/
 		err = ftrace_update_ftrace_func(ftrace_ops_list_func);
 		if (FTRACE_WARN_ON(err))
 			return;
 	}
 
+	/*更新每个rec 的指令*/
 	if (command & FTRACE_UPDATE_CALLS)
 		ftrace_replace_code(mod_flags | FTRACE_MODIFY_ENABLE_FL);
 	else if (command & FTRACE_DISABLE_CALLS)
@@ -2806,6 +2834,7 @@ void ftrace_modify_all_code(int command)
 			return;
 	}
 
+	/* ftrace_graph_call 做替换指令*/
 	if (command & FTRACE_START_FUNC_RET)
 		err = ftrace_enable_ftrace_graph_caller();
 	else if (command & FTRACE_STOP_FUNC_RET)
@@ -2813,6 +2842,8 @@ void ftrace_modify_all_code(int command)
 	FTRACE_WARN_ON(err);
 }
 
+/*这段代码不用*/
+/*
 static int __ftrace_modify_code(void *data)
 {
 	int *command = data;
@@ -2821,7 +2852,7 @@ static int __ftrace_modify_code(void *data)
 
 	return 0;
 }
-
+*/
 /**
  * ftrace_run_stop_machine, go back to the stop machine method
  * @command: The command to tell ftrace what to do
@@ -2829,23 +2860,29 @@ static int __ftrace_modify_code(void *data)
  * If an arch needs to fall back to the stop machine method, the
  * it can call this function.
  */
+ /*
 void ftrace_run_stop_machine(int command)
 {
 	stop_machine(__ftrace_modify_code, &command, NULL);
 }
-
+*/
 /**
  * arch_ftrace_update_code, modify the code to trace or not trace
  * @command: The command that needs to be done
  *
  * Archs can override this function if it does not need to
  * run stop_machine() to modify code.
+ *
+ * 这里不会用 
+ * x86实现在 arch_ftrace_update_code arch\x86\kernel\ftrace.c
  */
+ 
+/*
 void __weak arch_ftrace_update_code(int command)
 {
 	ftrace_run_stop_machine(command);
 }
-
+*/
 /*根据command 修改每个dyn_ftrace 对应的代码*/
 static void ftrace_run_update_code(int command)
 {
@@ -2933,6 +2970,7 @@ int ftrace_startup(struct ftrace_ops *ops, int command)
 	 */
 	ops->flags |= FTRACE_OPS_FL_ENABLED | FTRACE_OPS_FL_ADDING;
 
+	/*按需, 更新每个rec的 ip modify标记, 这个标记好像没有球用处*/
 	ret = ftrace_hash_ipmodify_enable(ops);
 	if (ret < 0) {
 		/* Rollback registration process */
@@ -2943,6 +2981,7 @@ int ftrace_startup(struct ftrace_ops *ops, int command)
 	}
 
 	/*根据ops 中的hash 更新rec 中的flag*/
+	/*有任何一个rec 需要被更新 ,就会加上 FTRACE_UPDATE_CALLS*/
 	if (ftrace_hash_rec_enable(ops, 1))
 		command |= FTRACE_UPDATE_CALLS;
 
@@ -3902,6 +3941,8 @@ static int
 ftrace_filter_open(struct inode *inode, struct file *file)
 {
 	/*ftrace_init_dyn_tracefs*/
+	/*set_ftrace_filter i_private 对应的是global_ops*/
+	/*如果是instance中的 set_ftrace_filter 这里会拿到一个新的ops*/
 	struct ftrace_ops *ops = inode->i_private;
 
 	/* Checks for tracefs lockdown */
@@ -6218,6 +6259,7 @@ static __init int ftrace_init_dyn_tracefs(struct dentry *d_tracer)
 	trace_create_file("enabled_functions", 0444,
 			d_tracer, NULL, &ftrace_enabled_fops);
 
+	/* set_ftrace_filter  set_ftrace_notrace*/
 	ftrace_create_filter_files(&global_ops, d_tracer);
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
