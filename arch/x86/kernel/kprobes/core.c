@@ -567,6 +567,7 @@ static nokprobe_inline void restore_btf(void)
 	}
 }
 
+/*这里记录了真正的返回地址*/
 void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	unsigned long *sara = stack_addr(regs);
@@ -613,6 +614,7 @@ static void setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 	if (p->opcode == BREAKPOINT_INSTRUCTION)
 		regs->ip = (unsigned long)p->addr;
 	else
+		/*让他下一条执行指令味 ainsn 这个是原始指令*/
 		regs->ip = (unsigned long)p->ainsn.insn;
 }
 NOKPROBE_SYMBOL(setup_singlestep);

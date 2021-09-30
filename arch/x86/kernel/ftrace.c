@@ -1234,18 +1234,20 @@ int ftrace_disable_ftrace_graph_caller(void)
  B()
  {
 		A() {
-			ftrace_caller ===>@self_addr 用来记录该函数的
-			instruction_rdi
+			call MCOUNT  ===>@self_addr 用来记录该函数的
+			instruction ===》 *parent
 		}
-		instru ====>@parent
+		instru
  }
  
-@parent 为栈中, 本call指令返回后的下一条指令
-@self_addr 当前被trace 的函数的首地址
+@parent 为栈中call MCOUNT 指令的下一条指令的地址在栈中的位置（由call 指令产生）
+
+@self_addr 当前被trace 的函数的首地址，也就是call MCOUNT 指令的地址
+
+
+
 ftrace_graph_caller 中有一条指令为: (save_mcount_regs宏产生的)
-
 sub    $0x5,%rdi  rdi 本来指向返回地址 , 就是上图中instruction_rdi
-
 然后减去5 就是function 开头的地址, 经过替换之后,就是A的
 
 ftrace_graph_call中会调用
@@ -1290,8 +1292,10 @@ void prepare_ftrace_return(unsigned long self_addr, unsigned long *parent,
 	asm volatile(
 		/*old = parent*/
 		"1: " _ASM_MOV " (%[parent]), %[old]\n"
-		/* parent = return_hooker */
-		/*保证A函数返回之后 能够进入return hooker*/
+		/* 
+		 *      *parent = return_hooker
+		 * 		保证A函数调用call mcount返回之后 能够进入return hooker
+		 */
 		"2: " _ASM_MOV " %[return_hooker], (%[parent])\n"
 		"   movl $0, %[faulted]\n"
 		"3:\n"

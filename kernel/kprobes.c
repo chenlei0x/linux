@@ -320,6 +320,7 @@ static inline void reset_kprobe_instance(void)
  * 				OR
  * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
  */
+ /*通过addr 找到对应的 kprobe结构体*/
 struct kprobe *get_kprobe(void *addr)
 {
 	struct hlist_head *head;
@@ -444,6 +445,7 @@ static struct kprobe *get_optimized_kprobe(unsigned long addr)
 
 	/* Don't check i == 0, since that is a breakpoint case. */
 	for (i = 1; !p && i < MAX_OPTIMIZED_LENGTH; i++)
+		/*从哈希表里面查, 看addr - i 对应的是那个probe*/
 		p = get_kprobe((void *)(addr - i));
 
 	if (p && kprobe_optready(p)) {
@@ -981,18 +983,18 @@ static struct kprobe *alloc_aggr_kprobe(struct kprobe *p)
 #endif /* CONFIG_OPTPROBES */
 
 #ifdef CONFIG_KPROBES_ON_FTRACE
-static struct ftrace_ops kprobe_ftrace_ops __read_mostly = {
+static struct ftrace_ops kprobe_ftrace_ops  = {
 	.func = kprobe_ftrace_handler,
 	.flags = FTRACE_OPS_FL_SAVE_REGS,
 };
 
-static struct ftrace_ops kprobe_ipmodify_ops __read_mostly = {
+static struct ftrace_ops kprobe_ipmodify_ops  = {
 	.func = kprobe_ftrace_handler,
 	.flags = FTRACE_OPS_FL_SAVE_REGS | FTRACE_OPS_FL_IPMODIFY,
 };
 
-static int kprobe_ipmodify_enabled;
-static int kprobe_ftrace_enabled;
+static int kprobe_ipmodify_enabled; /* 初始化为 0 */
+static int kprobe_ftrace_enabled; /* 初始化为 0 */
 
 /* Must ensure p->addr is really on ftrace */
 static int prepare_kprobe(struct kprobe *p)
@@ -1009,6 +1011,7 @@ static int __arm_kprobe_ftrace(struct kprobe *p, struct ftrace_ops *ops,
 {
 	int ret = 0;
 
+	/*把 p->addr 加入到ops->hash中*/
 	ret = ftrace_set_filter_ip(ops, (unsigned long)p->addr, 0, 0);
 	if (ret) {
 		pr_debug("Failed to arm kprobe-ftrace at %pS (%d)\n",
@@ -1017,6 +1020,7 @@ static int __arm_kprobe_ftrace(struct kprobe *p, struct ftrace_ops *ops,
 	}
 
 	if (*cnt == 0) {
+		/*第一个, 那么使能这个ops*/
 		ret = register_ftrace_function(ops);
 		if (ret) {
 			pr_debug("Failed to init kprobe-ftrace (%d)\n", ret);
@@ -1042,6 +1046,7 @@ static int arm_kprobe_ftrace(struct kprobe *p)
 
 	return __arm_kprobe_ftrace(p,
 		ipmodify ? &kprobe_ipmodify_ops : &kprobe_ftrace_ops,
+		/*这两个全局变量初始化都为 0*/
 		ipmodify ? &kprobe_ipmodify_enabled : &kprobe_ftrace_enabled);
 }
 
@@ -1531,9 +1536,11 @@ int __weak arch_check_ftrace_location(struct kprobe *p)
 {
 	unsigned long ftrace_addr;
 
+	/*这个addr 是不是ftrace rec中的一个, 也就是说对应着一个 call mcount*/
 	ftrace_addr = ftrace_location((unsigned long)p->addr);
 	if (ftrace_addr) {
 #ifdef CONFIG_KPROBES_ON_FTRACE
+		/*这个编译选项打开了*/
 		/* Given address is not on the instruction boundary */
 		if ((unsigned long)p->addr != ftrace_addr)
 			return -EILSEQ;
@@ -1595,6 +1602,10 @@ out:
 	return ret;
 }
 
+
+/*
+ * sample中p::offset p::addr 都为空
+ */
 int register_kprobe(struct kprobe *p)
 {
 	int ret;
@@ -1603,6 +1614,7 @@ int register_kprobe(struct kprobe *p)
 	kprobe_opcode_t *addr;
 
 	/* Adjust probe address from symbol */
+	/* 通过symbol name 找到地址*/
 	addr = kprobe_addr(p);
 	if (IS_ERR(addr))
 		return PTR_ERR(addr);
@@ -1891,6 +1903,7 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 			return 0;
 		}
 
+		/*保存之前的返回地址，修改为kretprobe_trampoline*/
 		arch_prepare_kretprobe(ri, regs);
 
 		/* XXX(hch): why is there no hlist_move_head? */

@@ -4217,6 +4217,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 
 /*
  * orig_hash = &ops->func_hash->filter_hash
+ * 针对ops 迁移其hash
  */
 static int ftrace_hash_move_and_update_ops(
 					   struct ftrace_ops *ops,
@@ -5092,6 +5093,7 @@ ftrace_match_addr(struct ftrace_hash *hash, unsigned long ip, int remove)
 	return add_hash_entry(hash, ip);
 }
 
+/*把 ip 或者 buf 中对应的函数 放到hash中, 并更新ops中的hash指针*/
 static int
 ftrace_set_hash(struct ftrace_ops *ops, unsigned char *buf, int len,
 		unsigned long ip, int remove, int reset, int enable)
@@ -5133,6 +5135,7 @@ ftrace_set_hash(struct ftrace_ops *ops, unsigned char *buf, int len,
 	}
 
 	mutex_lock(&ftrace_lock);
+	/*hash 已经重新生成了, 把ops中的hash 指针指向新的hash */
 	ret = ftrace_hash_move_and_update_ops(ops, orig_hash, hash, enable);
 	mutex_unlock(&ftrace_lock);
 
