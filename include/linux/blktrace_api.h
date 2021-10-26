@@ -33,7 +33,8 @@ struct blkcg;
 
 extern int blk_trace_ioctl(struct block_device *, unsigned, char __user *);
 extern void blk_trace_shutdown(struct request_queue *);
-extern __printf(3, 4)
+
+extern /*__printf(3, 4)*/
 void __trace_note_message(struct blk_trace *, struct blkcg *blkcg, const char *fmt, ...);
 
 /**
@@ -59,6 +60,7 @@ void __trace_note_message(struct blk_trace *, struct blkcg *blkcg, const char *f
 			__trace_note_message(bt, cg, fmt, ##__VA_ARGS__);\
 		rcu_read_unlock();					\
 	} while (0)
+	
 #define blk_add_trace_msg(q, fmt, ...)					\
 	blk_add_cgroup_trace_msg(q, NULL, fmt, ##__VA_ARGS__)
 #define BLK_TN_MAX_MSG		128

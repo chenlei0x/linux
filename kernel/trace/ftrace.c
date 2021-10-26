@@ -118,7 +118,9 @@ static int ftrace_disabled;
 DEFINE_MUTEX(ftrace_lock);
 
 struct ftrace_ops /*__rcu*/ *ftrace_ops_list  = &ftrace_list_end;
-/* update_ftrace_function */
+/* update_ftrace_function 
+ * 主要用来记录当前是 list function 还是某个op 的function(当只有一个op的时候)
+ */
 ftrace_func_t ftrace_trace_function  = ftrace_stub;
 
 #if ARCH_SUPPORTS_FTRACE_OPS
@@ -183,7 +185,9 @@ static ftrace_func_t ftrace_ops_get_list_func(struct ftrace_ops *ops)
 	return ftrace_ops_get_func(ops);
 }
 
-/*根据又多少个ops 更新 ftrace_trace_function 全局变量*/
+/*
+ * 根据又多少个ops 更新 ftrace_trace_function 全局变量
+ */
 static void update_ftrace_function(void)
 {
 	ftrace_func_t func;
@@ -208,7 +212,7 @@ static void update_ftrace_function(void)
 	 */
 	} else if (rcu_dereference_protected(ftrace_ops_list->next,
 			lockdep_is_held(&ftrace_lock)) == &ftrace_list_end) {
-			/*只剩下最后一个ops了*/
+		/*只剩下最后一个ops了, func 为最后一个ops 的func*/
 		func = ftrace_ops_get_list_func(ftrace_ops_list);
 
 	} else {
@@ -2782,12 +2786,14 @@ int __weak ftrace_arch_code_modify_post_process(void)
 	return 0;
 }
 
-/*修改两个调用链
+/*
+ * 修改两个调用链
  * 1. ftrace_caller 和 ftrace_regs_caller 应该跳到哪里
  * 2. rec 跳到哪里
  */
 void ftrace_modify_all_code(int command)
 {
+	/* ftrace_trace_function 全局变量变了 */
 	int update = command & FTRACE_UPDATE_TRACE_FUNC;
 	int mod_flags = 0;
 	int err = 0;
@@ -2805,7 +2811,7 @@ void ftrace_modify_all_code(int command)
 	 * to make sure the ops are having the right functions
 	 * traced.
 	 */
-	 /**/
+	/* --- 先替换ftrace_caller 和 ftrace_regs_caller --- */
 	if (update) {
 		/*
 		 * 让ftrace_caller 及ftrace_regs_caller 处的指令 调用
@@ -2817,7 +2823,7 @@ void ftrace_modify_all_code(int command)
 			return;
 	}
 
-	/*更新每个rec 的指令*/
+	/* --- 更新每个rec 的call 指令 --- */
 	if (command & FTRACE_UPDATE_CALLS)
 		ftrace_replace_code(mod_flags | FTRACE_MODIFY_ENABLE_FL);
 	else if (command & FTRACE_DISABLE_CALLS)
@@ -2918,6 +2924,11 @@ static void ftrace_run_modify_code(struct ftrace_ops *ops, int command,
 	ops->flags &= ~FTRACE_OPS_FL_MODIFYING;
 }
 
+
+/*
+ * ftrace_startup_enable in ftrace.c (kernel\trace)
+ * ftrace_shutdown 两个函数会记录 ftrace_trace_function
+ */
 static ftrace_func_t saved_ftrace_func;
 static int ftrace_start_up;
 
@@ -2970,7 +2981,7 @@ int ftrace_startup(struct ftrace_ops *ops, int command)
 	 */
 	ops->flags |= FTRACE_OPS_FL_ENABLED | FTRACE_OPS_FL_ADDING;
 
-	/*按需, 更新每个rec的 ip modify标记, 这个标记好像没有球用处*/
+	/*根据 op->hash 更新每个rec的 ip modify标记 */
 	ret = ftrace_hash_ipmodify_enable(ops);
 	if (ret < 0) {
 		/* Rollback registration process */
@@ -2981,7 +2992,7 @@ int ftrace_startup(struct ftrace_ops *ops, int command)
 	}
 
 	/*根据ops 中的hash 更新rec 中的flag*/
-	/*有任何一个rec 需要被更新 ,就会加上 FTRACE_UPDATE_CALLS*/
+	/*有任何一个rec 需要被更新 call 指令 ,ret 就会加上 FTRACE_UPDATE_CALLS*/
 	if (ftrace_hash_rec_enable(ops, 1))
 		command |= FTRACE_UPDATE_CALLS;
 
@@ -3016,6 +3027,7 @@ int ftrace_shutdown(struct ftrace_ops *ops, int command)
 	ftrace_hash_ipmodify_disable(ops);
 
 	if (ftrace_hash_rec_disable(ops, 1))
+		/* 说明需要更新 跳转的地方了 以前可能是call ftrace_list_func */
 		command |= FTRACE_UPDATE_CALLS;
 
 	ops->flags &= ~FTRACE_OPS_FL_ENABLED;
@@ -3049,6 +3061,7 @@ int ftrace_shutdown(struct ftrace_ops *ops, int command)
 	ops->old_hash.filter_hash = ops->func_hash->filter_hash;
 	ops->old_hash.notrace_hash = ops->func_hash->notrace_hash;
 
+	/*更新 每个rec 的call 指令*/
 	ftrace_run_update_code(command);
 
 	/*
@@ -5135,7 +5148,7 @@ ftrace_set_hash(struct ftrace_ops *ops, unsigned char *buf, int len,
 	}
 
 	mutex_lock(&ftrace_lock);
-	/*hash 已经重新生成了, 把ops中的hash 指针指向新的hash */
+	/*hash 已经重新生成了, 把ops中的hash 指针指向新的@hash */
 	ret = ftrace_hash_move_and_update_ops(ops, orig_hash, hash, enable);
 	mutex_unlock(&ftrace_lock);
 

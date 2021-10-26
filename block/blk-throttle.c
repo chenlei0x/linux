@@ -78,7 +78,8 @@ struct throtl_service_queue {
 	 * Bios queued directly to this service_queue or dispatched from
 	 * children throtl_grp's.
 	 *
-	 * 我这个tg中所有需要派发的bio 通过一个个qnode形式链接起来, 每个qnode代表一个tg
+	 * 我这个tg中所有需要派发的bio 通过一个个qnode形式链接起来, 
+	 * 每个qnode代表一个tg
 	 * children tg->qnode_on_parent以及自己的queue_on_self 都挂在这里
 	 */
 	struct list_head	queued[2];	/* throtl_qnode [READ/WRITE] */
@@ -220,6 +221,10 @@ struct throtl_data
 	/* Total Number of queued bios on READ and WRITE lists */
 	unsigned int nr_queued[2];
 
+	/*
+	 * #define DFL_THROTL_SLICE_HD (HZ / 10)
+	 * #define DFL_THROTL_SLICE_SSD (HZ / 50)
+	 */
 	unsigned int throtl_slice;
 
 	/* Work for dispatching throttled bios */
@@ -471,6 +476,7 @@ static struct bio *throtl_peek_queued(struct list_head *queued)
  * otherwise, *@tg_to_put is set to the throtl_grp to put and the caller is
  * responsible for putting it.
  */
+ /*每次从一个qnode 中获取一个bio 然后就把qnode 排到后面*/
 static struct bio *throtl_pop_queued(struct list_head *queued,
 				     struct throtl_grp **tg_to_put)
 {
@@ -936,6 +942,7 @@ static bool tg_with_in_iops_limit(struct throtl_grp *tg, struct bio *bio,
 	unsigned long jiffy_elapsed, jiffy_wait, jiffy_elapsed_rnd;
 	u64 tmp;
 
+	/*计算的是slice start 到 当前时间最近的一个throtl slice 之间的可派发bio的数量*/
 	jiffy_elapsed = jiffies - tg->slice_start[rw];
 
 	/* Round up to the next throttle slice, wait time must be nonzero */
@@ -1204,7 +1211,7 @@ static void tg_dispatch_one_bio(struct throtl_grp *tg, bool rw)
 	 * responsible for issuing these bios.
 	 */
 
-	/*qnode on parent 是 tg 和 parent 之间的管道*/
+	/*qnode_on_parent 是 tg 和 parent 之间的管道*/
 	if (parent_tg) {
 		/*放到本tg 的qnode_on_parent*/
 		throtl_add_bio_tg(bio, &tg->qnode_on_parent[rw], parent_tg);
@@ -1322,6 +1329,7 @@ again:
 	parent_sq = sq->parent_sq;
 	dispatched = false;
 
+	/*从 sq中选取一个个tg进行派发， 派发给parent_sq*/
 	while (true) {
 		throtl_log(sq, "dispatch nr_queued=%u read=%u write=%u",
 			   sq->nr_queued[READ] + sq->nr_queued[WRITE],
@@ -1347,6 +1355,7 @@ again:
 
 	if (parent_sq) {
 		/* @parent_sq is another throl_grp, propagate dispatch */
+		/* tg 和 sq总是一一对应的 */
 		if (tg->flags & THROTL_TG_WAS_EMPTY) {
 			tg_update_disptime(tg);
 			if (!throtl_schedule_next_dispatch(parent_sq, false)) {
@@ -2285,6 +2294,7 @@ again:
 		 * 其中child tg 是
 		 * 
 		 */
+		 /* 这里可能会调用extend slice */
 		if (!tg_may_dispatch(tg, bio, NULL)) {
 			tg->last_low_overflow_time[rw] = jiffies;
 			if (throtl_can_upgrade(td, tg)) {

@@ -284,7 +284,7 @@ void rq_qos_wait(struct rq_wait *rqw, void *private_data,
 		/* The memory barrier in set_task_state saves us here. */
 		if (data.got_token)
 			break;
-		/*对于case2： 只有我一个人睡眠？ 尝试acquire一下*/
+		/*对于case2： 0个或者多个sleeper     尝试acquire一下*/
 		if (!has_sleeper && acquire_inflight_cb(rqw, private_data)) {
 			finish_wait(&rqw->wait, &data.wq);
 

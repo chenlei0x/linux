@@ -1792,6 +1792,7 @@ static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 	}
 
 	/* find program type: socket_filter vs tracing_filter */
+	/* BPF_PROG_TYPE_TRACING  ===> tracing_prog_ops */
 	err = find_prog_type(type, prog);
 	if (err < 0)
 		goto free_prog;
@@ -1891,6 +1892,7 @@ static int bpf_tracing_prog_attach(struct bpf_prog *prog)
 {
 	int tr_fd, err;
 
+	/* sec = 0x43072f "fentry/", len = 7, prog_type = BPF_PROG_TYPE_TRACING, expected_attach_type = BPF_TRACE_FENTRY */
 	if (prog->expected_attach_type != BPF_TRACE_FENTRY &&
 	    prog->expected_attach_type != BPF_TRACE_FEXIT) {
 		err = -EINVAL;
@@ -1953,11 +1955,13 @@ static int bpf_raw_tracepoint_open(const union bpf_attr *attr)
 	if (CHECK_ATTR(BPF_RAW_TRACEPOINT_OPEN))
 		return -EINVAL;
 
+	/* fentry  这种section 只有这个prog 是有效的*/
 	prog = bpf_prog_get(attr->raw_tracepoint.prog_fd);
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
 
 	if (prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT &&
+		/* sec = 0x43072f "fentry/", len = 7, prog_type = BPF_PROG_TYPE_TRACING, expected_attach_type = BPF_TRACE_FENTRY */
 	    prog->type != BPF_PROG_TYPE_TRACING &&
 	    prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE) {
 		err = -EINVAL;
@@ -1974,7 +1978,7 @@ static int bpf_raw_tracepoint_open(const union bpf_attr *attr)
 		}
 		if (prog->expected_attach_type == BPF_TRACE_RAW_TP)
 			tp_name = prog->aux->attach_func_name;
-		else
+		else/* expected_attach_type = BPF_TRACE_FENTRY 走这里*/
 			return bpf_tracing_prog_attach(prog);
 	} else {
 		if (strncpy_from_user(buf,
@@ -3068,6 +3072,7 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 	case BPF_OBJ_GET_INFO_BY_FD:
 		err = bpf_obj_get_info_by_fd(&attr, uattr);
 		break;
+	/* fentry  类型的sec 会事先做这个操作， 其中 attr中只有fd 有效*/
 	case BPF_RAW_TRACEPOINT_OPEN:
 		err = bpf_raw_tracepoint_open(&attr);
 		break;

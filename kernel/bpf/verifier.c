@@ -9814,6 +9814,7 @@ skip_full_check:
 		/* program is valid, convert *(u32*)(ctx + off) accesses */
 		ret = convert_ctx_accesses(env);
 
+	/**/
 	if (ret == 0)
 		ret = fixup_bpf_calls(env);
 

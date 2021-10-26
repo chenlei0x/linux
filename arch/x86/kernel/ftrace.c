@@ -254,11 +254,16 @@ int ftrace_modify_call(struct dyn_ftrace *rec, unsigned long old_addr,
 	return -EINVAL;
 }
 
+/*ftrace_call 或者 ftrace_regs_call*/
 static unsigned long ftrace_update_func;
+/*
+ * 用来修改指令时, 当有代码调用这个函数, 走入int3 中断时,调用这个函数指针所指向的函数
+ * 以此来模拟
+ */
 static unsigned long ftrace_update_func_call;
 
 
-/*ip 中放入 new指令*/
+/*ip(如 ftrace_call) 中放入 new指令*/
 static int update_ftrace_func(unsigned long ip, void *new)
 {
 	unsigned char old[MCOUNT_INSN_SIZE];
@@ -296,7 +301,7 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
 
 	/*new 为替换的指令*/
 	new = ftrace_call_replace(ip, (unsigned long)func);
-	/*把new 指令写入ip指向的地址中, 并更新 ftrace_update_func*/
+	/*把new 指令写入ip(ftrace_call)指向的地址中, 并更新 ftrace_update_func*/
 	ret = update_ftrace_func(ip, new);
 
 	/* Also update the regs callback function */

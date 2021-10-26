@@ -433,6 +433,8 @@ enum {
 	 * call op->trampoline
 	 */
 	FTRACE_FL_TRAMP_EN	= (1UL << 27),
+
+	/*要修改regs->ip*/
 	FTRACE_FL_IPMODIFY	= (1UL << 26),
 	/*
 	 * kernel mod 中的函数初始化的 ftrace_update_code 时候会打上这个标记, 
@@ -471,6 +473,7 @@ void ftrace_free_filter(struct ftrace_ops *ops);
 void ftrace_ops_set_global_filter(struct ftrace_ops *ops);
 
 enum {
+	/*替换每个rec 的call 指令 */
 	FTRACE_UPDATE_CALLS		= (1 << 0),
 	FTRACE_DISABLE_CALLS		= (1 << 1),
 	
