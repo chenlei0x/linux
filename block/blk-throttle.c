@@ -887,6 +887,7 @@ static inline void throtl_trim_slice(struct throtl_grp *tg, bool rw)
 	 * renewed. Don't try to trim the slice if slice is used. A new
 	 * slice will start when appropriate.
 	 */
+	 /*jiffies 在 slice start  和 slice end之外， 就返回*/
 	if (throtl_slice_used(tg, rw))
 		return;
 

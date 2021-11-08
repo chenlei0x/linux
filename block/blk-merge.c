@@ -374,7 +374,8 @@ void __blk_queue_split(struct request_queue *q, struct bio **bio,
 		 */
 		bio_set_flag(*bio, BIO_QUEUE_ENTERED);
 
-		/*split 成为bio的parent*/
+		/*bio 成为split的parent*/
+		/**/
 		bio_chain(split, *bio);
 		trace_block_split(q, split, (*bio)->bi_iter.bi_sector);
 		/*现在的@bio 是入参的bio的后半段, 调用这个函数直接将后半段挂到 current->bio_list链表上*/
