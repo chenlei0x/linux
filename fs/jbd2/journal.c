@@ -760,6 +760,8 @@ int jbd2_log_wait_commit(journal_t *journal, tid_t tid)
  * committing that transaction before waiting for it to complete.  If
  * the transaction id is stale, it is by definition already completed,
  * so just return SUCCESS.
+ *
+ * 下达commit transaction 并等待完成
  */
 int jbd2_complete_transaction(journal_t *journal, tid_t tid)
 {

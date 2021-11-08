@@ -458,7 +458,7 @@ EXPORT_SYMBOL(blk_put_queue);
  * If not, only ELVPRIV requests are drained.  The caller is responsible
  * for ensuring that no new requests which need to be drained are queued.
  */
-static void __blk_drain_queue(struct request_queue *q, bool drain_all)
+void __blk_drain_queue(struct request_queue *q, bool drain_all)
 {
 	int i;
 
@@ -572,7 +572,7 @@ void blk_queue_bypass_start(struct request_queue *q)
 }
 EXPORT_SYMBOL_GPL(blk_queue_bypass_start);
 
-/**
+/*
  * blk_queue_bypass_end - leave queue bypass mode
  * @q: queue of interest
  *

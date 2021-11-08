@@ -557,7 +557,7 @@ static void __blk_mq_complete_request(struct request *rq)
 	}
 
 	if (!test_bit(QUEUE_FLAG_SAME_COMP, &rq->q->queue_flags)) {
-		/*blk_queue_softirq_done*/
+		/*blk_queue_softirq_done 调用mq_ops:: complete函数*/
 		rq->q->softirq_done_fn(rq);
 		return;
 	}
@@ -822,10 +822,13 @@ static void blk_mq_check_expired(struct blk_mq_hw_ctx *hctx,
 	 *   and clearing the flag in blk_mq_start_request(), so
 	 *   this rq won't be timed out too.
 	 */
-	if (time_after_eq(jiffies, rq->deadline)) {
-		if (!blk_mark_rq_complete(rq))
+	if (time_after_eq(jiffies, rq->deadline)) {/*rq 超时*/
+		if (!blk_mark_rq_complete(rq))/*成功设置COMPLETE*/
 			blk_mq_rq_timed_out(rq, reserved);
 	} else if (!data->next_set || time_after(data->next, rq->deadline)) {
+		/*
+		 * rq没超时， 找最近一个即将超时的rq的deadline
+	     */
 		data->next = rq->deadline;
 		data->next_set = 1;
 	}

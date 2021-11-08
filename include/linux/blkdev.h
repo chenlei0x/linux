@@ -160,7 +160,7 @@ struct request {
 
 	/* the following two fields are internal, NEVER access directly */
 	/*每个req(因为req是一个链表)的每个bio(每个req包含一个bio链表) 
-	  的size 之和*/
+	  的size 之和, 单位字节*/
 	unsigned int __data_len;	/* total data len */
 	int tag;
 	sector_t __sector;		/* sector cursor */
@@ -245,6 +245,7 @@ struct request {
 	unsigned short write_hint;
 
 	unsigned long deadline;
+	/* list_add_tail(&req->timeout_list, &req->q->timeout_list); */
 	struct list_head timeout_list;
 
 	/*
@@ -449,8 +450,11 @@ struct request_queue {
 	 * 其实就是blk_mq_ops 的complete 函数
 	 * blk_mq_init_allocated_queue
 	 * ====> blk_queue_softirq_done(q, set->ops->complete);
+	 *
+	 * blk_queue_softirq_done
 	 */
 	softirq_done_fn		*softirq_done_fn;
+	/*blk_queue_rq_timed_out  设置*/
 	rq_timed_out_fn		*rq_timed_out_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
 	lld_busy_fn		*lld_busy_fn;
@@ -461,7 +465,11 @@ struct request_queue {
 	/* Called from inside blk_get_request() */
 	void (*initialize_rq_fn)(struct request *rq);
 
-	/*可以用作 singlee queue 还是 multi queue 的区分标志 非空表示该queue是mq*/
+	/*
+	 * 可以用作 singlee queue 还是 multi queue 的区分标志 
+	 * 非空表示该queue是mq
+	 * virtio_mq_ops
+	 */
 	const struct blk_mq_ops	*mq_ops;
 
 	unsigned int		*mq_map;
@@ -569,13 +577,21 @@ struct request_queue {
 	 */
 	unsigned int		request_fn_active;
 
+	/*blk_queue_rq_timeout  默认30s*/
 	unsigned int		rq_timeout;
 	int			poll_nsec;
 
 	struct blk_stat_callback	*poll_cb;
 	struct blk_rq_stat	poll_stat[BLK_MQ_POLL_STATS_BKTS];
 
+	/*
+	 * blk_rq_timed_out_timer
+	 * 		kblockd_schedule_work(&q->timeout_work);
+	 */
 	struct timer_list	timeout;
+	/*	blk_mq_timeout_work
+	 * 	single queue: ?? blk_timeout_work
+	 */
 	struct work_struct	timeout_work;
 	struct list_head	timeout_list;
 

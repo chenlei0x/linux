@@ -520,6 +520,7 @@ struct jbd2_journal_handle
 	int			h_err;
 
 	/* Flags [no locking] */
+	/*ext4_handle_sync*/
 	unsigned int	h_sync:		1;
 	unsigned int	h_jdata:	1;
 	unsigned int	h_reserved:	1; /*表明 h_rsv_handle 有效*/

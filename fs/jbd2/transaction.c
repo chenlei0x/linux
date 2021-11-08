@@ -156,6 +156,7 @@ static void wait_transaction_locked(journal_t *journal)
 
 	prepare_to_wait(&journal->j_wait_transaction_locked, &wait,
 			TASK_UNINTERRUPTIBLE);
+	/*commit_request < running trans, 需要启动commit*/
 	need_to_start = !tid_geq(journal->j_commit_request, tid);
 	read_unlock(&journal->j_state_lock);
 	if (need_to_start)
