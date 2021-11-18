@@ -3787,6 +3787,7 @@ static int cgroup_seqfile_show(struct seq_file *m, void *arg)
 	return 0;
 }
 
+/*这两个的区别在于是否有seq_start*/
 static struct kernfs_ops cgroup_kf_single_ops = {
 	.atomic_write_len	= PAGE_SIZE,
 	.open			= cgroup_file_open,

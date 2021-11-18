@@ -104,8 +104,14 @@ static unsigned int blk_flush_policy(unsigned long fflags, struct request *rq)
 		policy |= REQ_FSEQ_DATA;
 
 	if (fflags & (1UL << QUEUE_FLAG_WC)) {
+		/*当设备支持cache 时， preflush 才有意义*/
 		if (rq->cmd_flags & REQ_PREFLUSH)
 			policy |= REQ_FSEQ_PREFLUSH;
+		/*
+		 * 当设备支持cache 时，caller 需要fua操作，
+		 * 但是磁盘本身不支持fua操作，这时候fua操作就被转换为一个post flush
+		 * 操作
+		 */
 		if (!(fflags & (1UL << QUEUE_FLAG_FUA)) &&
 		    (rq->cmd_flags & REQ_FUA))
 			policy |= REQ_FSEQ_POSTFLUSH;
@@ -398,6 +404,7 @@ void blk_insert_flush(struct request *rq)
 	 * advertise a write-back cache.  In this case, simply
 	 * complete the request.
 	 */
+	 /*如果磁盘没有cache 那就没有flush 的意义了，直接完成这个req*/
 	if (!policy) {
 		blk_mq_end_request(rq, 0);
 		return;
