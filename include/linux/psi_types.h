@@ -60,6 +60,9 @@ struct psi_group_cpu {
 	seqcount_t seq ____cacheline_aligned_in_smp;
 
 	/* States of the tasks belonging to this group */
+	/*
+	 * 分别对应	NR_IOWAIT,	NR_MEMSTALL, 	NR_RUNNING 三类task 的计数
+	 */
 	unsigned int tasks[NR_PSI_TASK_COUNTS];
 
 	/* Aggregate pressure state derived from the tasks */

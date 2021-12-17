@@ -783,6 +783,7 @@ void blk_mq_requeue_request(struct request *rq, bool kick_requeue_list)
 }
 EXPORT_SYMBOL(blk_mq_requeue_request);
 
+/*把requeue list中的req 重新派发*/
 static void blk_mq_requeue_work(struct work_struct *work)
 {
 	struct request_queue *q =
@@ -796,6 +797,7 @@ static void blk_mq_requeue_work(struct work_struct *work)
 	spin_unlock_irq(&q->requeue_lock);
 
 	list_for_each_entry_safe(rq, next, &rq_list, queuelist) {
+		/*先处理barrier 和 dontprep 的req*/
 		if (!(rq->rq_flags & (RQF_SOFTBARRIER | RQF_DONTPREP)))
 			continue;
 
@@ -806,7 +808,7 @@ static void blk_mq_requeue_work(struct work_struct *work)
 		 * data, so insert it to hctx dispatch list to avoid any
 		 * merge.
 		 */
-		if (rq->rq_flags & RQF_DONTPREP)
+		if (rq->rq_flags & RQF_DONTPREP)/*绕过调度器，直接放到hctx*/
 			blk_mq_request_bypass_insert(rq, false);
 		else
 			blk_mq_sched_insert_request(rq, true, false, false);

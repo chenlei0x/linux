@@ -377,6 +377,7 @@ do {									      \
 	rcu_check_sparse(p, __rcu);					      \
 									      \
 	if (__builtin_constant_p(v) && (_r_a_p__v) == (uintptr_t)NULL)	      \
+		/*这里做了个优化，如果v是常量 而且 rapv ==NULL， 则直接write one*/ \
 		WRITE_ONCE((p), (typeof(p))(_r_a_p__v));		      \
 	else								      \
 		smp_store_release(&p, RCU_INITIALIZER((typeof(p))_r_a_p__v)); \

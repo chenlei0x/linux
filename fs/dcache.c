@@ -71,14 +71,14 @@
  * If no ancestor relationship:
  * arbitrary, since it's serialized on rename_lock
  */
-int sysctl_vfs_cache_pressure __read_mostly = 100;
+int sysctl_vfs_cache_pressure /*__read_mostly*/ = 100;
 EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
 
 __cacheline_aligned_in_smp DEFINE_SEQLOCK(rename_lock);
 
 EXPORT_SYMBOL(rename_lock);
 
-static struct kmem_cache *dentry_cache __read_mostly;
+static struct kmem_cache *dentry_cache /*__read_mostly*/;
 
 const struct qstr empty_name = QSTR_INIT("", 0);
 EXPORT_SYMBOL(empty_name);
@@ -94,9 +94,9 @@ EXPORT_SYMBOL(slash_name);
  * information, yet avoid using a prime hash-size or similar.
  */
 
-static unsigned int d_hash_shift __read_mostly;
+static unsigned int d_hash_shift /*__read_mostly*/;
 
-static struct hlist_bl_head *dentry_hashtable __read_mostly;
+static struct hlist_bl_head *dentry_hashtable /*__read_mostly*/;
 
 static inline struct hlist_bl_head *d_hash(unsigned int hash)
 {
@@ -191,6 +191,7 @@ int proc_nr_dentry(struct ctl_table *table, int write, void __user *buffer,
  * In contrast, 'ct' and 'tcount' can be from a pathname, and do
  * need the careful unaligned handling.
  */
+ /*优化了一下，每8个字节进行一次比较，加速一下*/
 static inline int dentry_string_cmp(const unsigned char *cs, const unsigned char *ct, unsigned tcount)
 {
 	unsigned long a,b,mask;
@@ -261,6 +262,7 @@ struct external_name {
 
 static inline struct external_name *external_name(struct dentry *dentry)
 {
+	/*dentry->d_name.name 指向 external_name::name ，现在要释放external_name*/
 	return container_of(dentry->d_name.name, struct external_name, name[0]);
 }
 
@@ -278,11 +280,13 @@ static void __d_free_external(struct rcu_head *head)
 	kmem_cache_free(dentry_cache, dentry);
 }
 
+/*name 是不是external？*/
 static inline int dname_external(const struct dentry *dentry)
 {
 	return dentry->d_name.name != dentry->d_iname;
 }
 
+/*拷贝 dentry::name ===> name*/
 void take_dentry_name_snapshot(struct name_snapshot *name, struct dentry *dentry)
 {
 	spin_lock(&dentry->d_lock);
@@ -319,6 +323,11 @@ static inline void __d_set_inode_and_type(struct dentry *dentry,
 	flags = READ_ONCE(dentry->d_flags);
 	flags &= ~(DCACHE_ENTRY_TYPE | DCACHE_FALLTHRU);
 	flags |= type_flags;
+	/*
+	 * store 并保证前面的语句执行完
+	 * smp_store_release() writes a value back to memory, 
+	 * ensuring that the write happens after any previously-executed reads or writes.
+	 */
 	smp_store_release(&dentry->d_flags, flags);
 }
 
@@ -446,6 +455,7 @@ static void d_lru_isolate(struct list_lru_one *lru, struct dentry *dentry)
 	list_lru_isolate(lru, &dentry->d_lru);
 }
 
+/*只 -- nr_dentry_negative */
 static void d_lru_shrink_move(struct list_lru_one *lru, struct dentry *dentry,
 			      struct list_head *list)
 {
@@ -594,6 +604,10 @@ static void __dentry_kill(struct dentry *dentry)
 	cond_resched();
 }
 
+/*
+ * d_lock 已经拿到
+ * 先锁parent 再 锁dentry
+ */
 static struct dentry *__lock_parent(struct dentry *dentry)
 {
 	struct dentry *parent;
@@ -632,6 +646,11 @@ static inline struct dentry *lock_parent(struct dentry *dentry)
 	return __lock_parent(dentry);
 }
 
+/*
+ * 如果一个dentry 在dentry cache中， 则把他加入到lru 中
+ * 如果不在hash中，直接返回
+ * 说明删除的时候先从lru删除再删cache
+ */
 static inline bool retain_dentry(struct dentry *dentry)
 {
 	WARN_ON(d_in_lookup(dentry));
@@ -674,9 +693,19 @@ static struct dentry *dentry_kill(struct dentry *dentry)
 		parent = dentry->d_parent;
 		if (unlikely(!spin_trylock(&parent->d_lock))) {
 			parent = __lock_parent(dentry);
+			/*__lock_parent会短暂的释放 d_lock， 在这个时间窗口内，可能dentry->d_inode 发生改变*/
 			if (likely(inode || !dentry->d_inode))
 				goto got_locks;
+			/*
+			 * inode || !dentry->d_inode 不成立 也就是说 !inode && dentry->d_inode 成立，
+			 * 也就是说 neg ==> positives
+			 */
 			/* negative that became positive */
+			/*
+			 * 注意上锁的顺序  i_lock d_lock parent->d_lock
+			 * 这时候我已经拿了 d_lock parent->d_lock 但是现在变为positive了，所以需要拿i_lock
+			 * 所以现在得全部释放掉 按照  i_lock d_lock parent->d_lock 重新申请锁
+			 */
 			if (parent)
 				spin_unlock(&parent->d_lock);
 			inode = dentry->d_inode;
@@ -776,6 +805,10 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * around with a zero refcount.
 	 */
 	smp_rmb();
+	/*
+	 * dentry->d_flags 可能在invalidate queue中， 我需要读新的值！！！，因为之前读过这个值，
+	 * 为了防止编译器优化，比如READ_ONCE内存或者cache中读，为了保证一致性
+	 */
 	d_flags = READ_ONCE(dentry->d_flags);
 	d_flags &= DCACHE_REFERENCED | DCACHE_LRU_LIST | DCACHE_DISCONNECTED;
 
@@ -3235,7 +3268,7 @@ static void __init dcache_init(void)
 }
 
 /* SLAB cache for __getname() consumers */
-struct kmem_cache *names_cachep __read_mostly;
+struct kmem_cache *names_cachep /*__read_mostly*/;
 EXPORT_SYMBOL(names_cachep);
 
 void __init vfs_caches_init_early(void)

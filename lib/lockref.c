@@ -160,6 +160,7 @@ int lockref_put_return(struct lockref *lockref)
 	,
 		return new.count;
 	);
+	/*如果已经locked 或者dead，直接返回 -1*/
 	return -1;
 }
 EXPORT_SYMBOL(lockref_put_return);
@@ -168,6 +169,8 @@ EXPORT_SYMBOL(lockref_put_return);
  * lockref_put_or_lock - decrements count unless count <= 1 before decrement
  * @lockref: pointer to lockref structure
  * Return: 1 if count updated successfully or 0 if count <= 1 and lock taken
+ * 如果count <= 1 就锁住，然后return 0
+ * 如果count > 1 就count-- 并释放锁 return 1
  */
 int lockref_put_or_lock(struct lockref *lockref)
 {

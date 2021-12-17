@@ -21,9 +21,13 @@
  *
  * If the device has writeback cache and supports FUA, REQ_PREFLUSH is
  * translated to PREFLUSH but REQ_FUA is passed down directly with DATA.
+ * 设备支持回写cache 和FUA， 那么 PREFLUSH ==> PREFLUSH
+ * REQ_FUA ===》 DATA+ FUA
  *
  * If the device has writeback cache and doesn't support FUA, REQ_PREFLUSH
  * is translated to PREFLUSH and REQ_FUA to POSTFLUSH.
+ * 如果设备支持回写cache 但是不支持fua， 那么preflush ==》 preflush
+ / fua==》 post flush
  *
  * The actual execution of flush is double buffered.  Whenever a request
  * needs to execute PRE or POSTFLUSH, it queues at
@@ -32,6 +36,8 @@
  * completes, all the requests which were pending are proceeded to the next
  * step.  This allows arbitrary merging of different types of PREFLUSH/FUA
  * requests.
+ *
+ * PREFLUSH POSTFLUSH 其实是可以合并的，最晚的pre/post flush 可以合并前面的
  *
  * Currently, the following conditions are used to determine when to issue
  * flush.
@@ -170,6 +176,7 @@ static void blk_account_io_flush(struct request *rq)
  * RETURNS:
  * %true if requests were added to the dispatch queue, %false otherwise.
  */
+ /*@seq 我完成了什么seq*/
 static void blk_flush_complete_seq(struct request *rq,
 				   struct blk_flush_queue *fq,
 				   unsigned int seq, blk_status_t error)
@@ -187,6 +194,13 @@ static void blk_flush_complete_seq(struct request *rq,
 	else
 		seq = REQ_FSEQ_DONE;
 
+	/* 
+	 * 此时seq指 我将要做什么seq
+	 * 是 flush.seq中第一个为0的bit，也就是下一步要完成的
+	 * 如果是XXX flush，就放到pending队列中
+	 * 如果是data 就放到requeue队列中
+	 * 
+	 */
 	switch (seq) {
 	case REQ_FSEQ_PREFLUSH:
 	case REQ_FSEQ_POSTFLUSH:
@@ -259,6 +273,13 @@ static void flush_end_io(struct request *flush_rq, blk_status_t error)
 	/* account completion of the flush request */
 	fq->flush_running_idx ^= 1;
 
+	/*
+	 * running 和 pending 是两个队列， 刚开始running
+	 * 在运行的过程中，所有的flush request 全部放到pending上
+	 * running 中只要有一个完成了，意味着running 队列上的flush都完成了
+	 * 因为flush 可以合并
+	 * 所以running 队列的所有req 可以进入下一个seq
+	 */
 	/* and push the waiting requests to the next stage */
 	list_for_each_entry_safe(rq, n, running, flush.list) {
 		unsigned int seq = blk_flush_cur_seq(rq);
@@ -287,12 +308,14 @@ static void flush_end_io(struct request *flush_rq, blk_status_t error)
 static void blk_kick_flush(struct request_queue *q, struct blk_flush_queue *fq,
 			   unsigned int flags)
 {
+	/*从pending队列中拿到第一个，然后用flush_rq封装起来，派发下去*/
 	struct list_head *pending = &fq->flush_queue[fq->flush_pending_idx];
 	struct request *first_rq =
 		list_first_entry(pending, struct request, flush.list);
 	struct request *flush_rq = fq->flush_rq;
 
 	/* C1 described at the top of this file */
+	/*起初状态 pending idx == running idx*/
 	if (fq->flush_pending_idx != fq->flush_running_idx || list_empty(pending))
 		return;
 
@@ -338,8 +361,10 @@ static void blk_kick_flush(struct request_queue *q, struct blk_flush_queue *fq,
 	flush_rq->cmd_flags |= (flags & REQ_DRV) | (flags & REQ_FAILFAST_MASK);
 	flush_rq->rq_flags |= RQF_FLUSH_SEQ;
 	flush_rq->rq_disk = first_rq->rq_disk;
+	/* flush_running_idx ^=1 */
 	flush_rq->end_io = flush_end_io;
 
+	/*放到requeue list的末尾，然后kick requeue list*/
 	blk_flush_queue_rq(flush_rq, false);
 }
 
@@ -404,7 +429,10 @@ void blk_insert_flush(struct request *rq)
 	 * advertise a write-back cache.  In this case, simply
 	 * complete the request.
 	 */
-	 /*如果磁盘没有cache 那就没有flush 的意义了，直接完成这个req*/
+	 /*
+	  * 如果磁盘没有cache 而且这个request 又没有数据，
+	  * 那就没有flush 的意义了，直接完成这个req
+	  */
 	if (!policy) {
 		blk_mq_end_request(rq, 0);
 		return;
@@ -435,6 +463,12 @@ void blk_insert_flush(struct request *rq)
 	rq->end_io = mq_flush_data_end_io;
 
 	spin_lock_irq(&fq->mq_flush_lock);
+	/*
+	 * REQ_FSEQ_ACTIONS & ~policy 表明是我已经完成的一些seq
+	 *
+	 * 比如policy中不需要POSTFLUSH， 那么这里就完成这个seq
+	 * 然后把rq 挂到pending 队列或者flush_data_in_flight中去
+	 */
 	blk_flush_complete_seq(rq, fq, REQ_FSEQ_ACTIONS & ~policy, 0);
 	spin_unlock_irq(&fq->mq_flush_lock);
 }

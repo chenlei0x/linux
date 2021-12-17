@@ -1623,7 +1623,7 @@ struct super_block {
 	int s_stack_depth;
 
 	/* s_inode_list_lock protects s_inodes */
-	spinlock_t		s_inode_list_lock ____cacheline_aligned_in_smp;
+	spinlock_t		s_inode_list_lock /*____cacheline_aligned_in_smp*/;
 	/*inode_sb_list_add 函数会把所有的inode 挂在这里*/
 	struct list_head	s_inodes;	/* all inodes */
 	
@@ -1634,7 +1634,7 @@ struct super_block {
 	 */
 	spinlock_t		s_inode_wblist_lock;
 	struct list_head	s_inodes_wb;	/* writeback inodes */
-} __randomize_layout;
+} /*__randomize_layout*/;
 
 /* Helper functions so that in most cases filesystems will
  * not need to deal directly with kuid_t and kgid_t and can

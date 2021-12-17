@@ -21,18 +21,31 @@
  * The time in which a task can execute on a CPU is our baseline for
  * productivity. Pressure expresses the amount of time in which this
  * potential cannot be realized due to resource contention.
+ * 压力表达了那些由于资源竞争导致cpu潜力没能得到释放的总时间
  *
  * This concept of productivity has two components: the workload and
  * the CPU. To measure the impact of pressure on both, we define two
  * contention states for a resource: SOME and FULL.
+ * 生产力的概念有两个因素：1. 工作负载 2. CPU
+ * 有一些场景导致生产力不能完全释放：
+ * 1. 工作负载由于资源争用导致降低，但是CPU没有完全闲着，因为CPU可以干别的事情 -- SOME
+ * 2. 工作负载由于资源征用导致生产力降低，同时CPU也idle了，这种更为严重 -- FULL
+ * 也就是说SOME指工作负载潜力损失了多少
+ * FULL指CPU潜力损失了多少(FULL实际上是SOME 的一个特例)
+ * 
  *
  * In the SOME state of a given resource, one or more tasks are
  * delayed on that resource. This affects the workload's ability to
  * perform work, but the CPU may still be executing other tasks.
+ * 对于一个资源的SOME状态： 一个或多个任务在该资源上delay
+ * 这种状态影响了负载，但是并没有浪费cpu，因为cpu可以执行别的任务
  *
  * In the FULL state of a given resource, all non-idle tasks are
  * delayed on that resource such that nobody is advancing and the CPU
  * goes idle. This leaves both workload and CPU unproductive.
+ * FULL state： 所有的非idle任务但因为这个资源导致阻塞，以至于cpu空闲了
+ * FULL状态导致工作负载和CPU 都没有利用
+ *
  *
  * (Naturally, the FULL state doesn't exist for the CPU resource.)
  *
@@ -53,6 +66,8 @@
  * performed concurrently. This means that the potential that can go
  * unrealized due to resource contention *also* scales with non-idle
  * tasks and CPUs.
+ * 由于资源争用导致的没有被释放出来的潜力会随着non-idle 的任务数量和
+ * CPU数量而变化
  *
  * Consider a scenario where 257 number crunching tasks are trying to
  * run concurrently on 256 CPUs. If we simply aggregated the task
@@ -61,13 +76,20 @@
  * times. However, that is clearly not the amount of contention the
  * workload is experiencing: only one out of 256 possible exceution
  * threads will be contended at any given time, or about 0.4%.
- *
+ * 这里用来描述上述的SOME的定义是有一些问题的。比如257个任务运行在256个CPU上，
+ * 那么任意时刻都有一个任务是idle的，也就是说工作负载降低了，那么按照
+ * %SOME = time(SOME) / period 这个公式来计算，%SOME = 100%
+ * 
  * Conversely, consider a scenario of 4 tasks and 4 CPUs where at any
  * given time *one* of the tasks is delayed due to a lack of memory.
  * Again, looking purely at the task state would yield a memory FULL
  * pressure number of 0%, since *somebody* is always making forward
  * progress. But again this wouldn't capture the amount of execution
  * potential lost, which is 1 out of 4 CPUs, or 25%.
+ * 4个任务运行在4个cpu上，但是经常有内存不够用的问题。如果按照FULL来计算，任意时刻
+ * nr_running_tasks 都不为0， 所以%FULL = 0
+ * 但实际上任意一个时刻，总是有一个CPU是idle的，也就是说CPU潜能浪费25%
+ * 
  *
  * To calculate wasted potential (pressure) with multiple processors,
  * we have to base our calculation on the number of non-idle tasks in
@@ -75,6 +97,7 @@
  * of potential execution threads. SOME becomes then the proportion of
  * delayed tasks to possibe threads, and FULL is the share of possible
  * threads that are unproductive due to delays:
+ *
  *
  *	threads = min(nr_nonidle_tasks, nr_cpus)
  *	   SOME = min(nr_delayed_tasks / threads, 1)
@@ -108,9 +131,13 @@
  *
  * For each runqueue, we track:
  *
+ *
  *	   tSOME[cpu] = time(nr_delayed_tasks[cpu] != 0)
+ *		@cpu 上，有阻塞的任务
  *	   tFULL[cpu] = time(nr_delayed_tasks[cpu] && !nr_running_tasks[cpu])
+ *		@cpu上有阻塞的任务，且@cpu进入空闲
  *	tNONIDLE[cpu] = time(nr_nonidle_tasks[cpu] != 0)
+ *		@cpu上一直有running 的时段
  *
  * and then periodically aggregate:
  *

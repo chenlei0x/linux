@@ -90,6 +90,7 @@ struct dentry {
 	/* RCU lookup touched fields */
 	unsigned int d_flags;		/* protected by d_lock */
 	seqcount_t d_seq;		/* per dentry seqlock */
+	/*hash anchor点*/
 	struct hlist_bl_node d_hash;	/* lookup hash list */
 	struct dentry *d_parent;	/* parent directory */
 	struct qstr d_name;
@@ -201,7 +202,9 @@ struct dentry_operations {
 
 #define DCACHE_LRU_LIST			0x00080000
 
+/*这是一个mask*/
 #define DCACHE_ENTRY_TYPE		0x00700000
+/*以下这些type 都是互斥的*/
 #define DCACHE_MISS_TYPE		0x00000000 /* Negative dentry (maybe fallthru to nowhere) */
 #define DCACHE_WHITEOUT_TYPE		0x00100000 /* Whiteout dentry (stop pathwalk) */
 #define DCACHE_DIRECTORY_TYPE		0x00200000 /* Normal directory */
@@ -290,7 +293,7 @@ static inline unsigned d_count(const struct dentry *dentry)
 /*
  * helper function for dentry_operations.d_dname() members
  */
-extern __printf(4, 5)
+extern /*__printf(4, 5)*/
 char *dynamic_dname(struct dentry *, char *, int, const char *, ...);
 
 extern char *__d_path(const struct path *, const struct path *, char *, int);
