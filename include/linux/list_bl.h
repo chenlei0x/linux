@@ -120,6 +120,7 @@ static inline void __hlist_bl_del(struct hlist_bl_node *n)
 	LIST_BL_BUG_ON((unsigned long)n & LIST_BL_LOCKMASK);
 
 	/* pprev may be `first`, so be careful not to lose the lock bit */
+	/*重置 n->pprev 域*/
 	WRITE_ONCE(*pprev,
 		   (struct hlist_bl_node *)
 			((unsigned long)next |

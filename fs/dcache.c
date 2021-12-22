@@ -881,6 +881,7 @@ void dput(struct dentry *dentry)
 			return;
 		}
 
+		/*真的该被释放了, fast_dput中已经看到refcount 为0了, 为了后续方便,故意设置为1*/
 		/* Slow case: now with the dentry lock held */
 		rcu_read_unlock();
 
@@ -894,6 +895,7 @@ void dput(struct dentry *dentry)
 }
 EXPORT_SYMBOL(dput);
 
+/*dpu之后加入到@list中*/
 static void __dput_to_list(struct dentry *dentry, struct list_head *list)
 __must_hold(&dentry->d_lock)
 {
@@ -945,6 +947,7 @@ struct dentry *dget_parent(struct dentry *dentry)
 	rcu_read_lock();
 	seq = raw_seqcount_begin(&dentry->d_seq);
 	ret = READ_ONCE(dentry->d_parent);
+	/*refcount !=0 则 ++*/
 	gotref = lockref_get_not_zero(&ret->d_lockref);
 	rcu_read_unlock();
 	if (likely(gotref)) {
@@ -2369,6 +2372,9 @@ EXPORT_SYMBOL(d_lookup);
  * the case of failure.
  *
  * __d_lookup callers must be commented.
+ *
+ *
+ * 返回 dentry with ref++
  */
 struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
 {
@@ -2560,6 +2566,7 @@ void d_rehash(struct dentry * entry)
 }
 EXPORT_SYMBOL(d_rehash);
 
+/*给 i_dir_seq 上锁， 不允许失败*/
 static inline unsigned start_dir_add(struct inode *dir)
 {
 
@@ -2595,6 +2602,7 @@ struct dentry *d_alloc_parallel(struct dentry *parent,
 				wait_queue_head_t *wq)
 {
 	unsigned int hash = name->hash;
+	/*这里b指的是lookup hash*/
 	struct hlist_bl_head *b = in_lookup_hash(parent, hash);
 	struct hlist_bl_node *node;
 	struct dentry *new = d_alloc(parent, name);
@@ -2606,10 +2614,13 @@ struct dentry *d_alloc_parallel(struct dentry *parent,
 
 retry:
 	rcu_read_lock();
+	/*中途可能新增文件，所以需要重新搜索*/
 	seq = smp_load_acquire(&parent->d_inode->i_dir_seq);
 	r_seq = read_seqbegin(&rename_lock);
+	/*先在dcache中搜索*/
 	dentry = __d_lookup_rcu(parent, name, &d_seq);
 	if (unlikely(dentry)) {
+		/*如果已经有一个命中的dentry就ref++*/
 		if (!lockref_get_not_dead(&dentry->d_lockref)) {
 			rcu_read_unlock();
 			goto retry;
@@ -2633,6 +2644,7 @@ retry:
 		goto retry;
 	}
 
+	/*b 是 lookup hash bucket*/
 	hlist_bl_lock(b);
 	if (unlikely(READ_ONCE(parent->d_inode->i_dir_seq) != seq)) {
 		hlist_bl_unlock(b);
@@ -2646,6 +2658,7 @@ retry:
 	 * we unlock the chain.  All fields are stable in everything
 	 * we encounter.
 	 */
+	 /*再从lookup dentry hash中搜索*/
 	hlist_bl_for_each_entry(dentry, node, b, d_u.d_in_lookup_hash) {
 		if (dentry->d_name.hash != hash)
 			continue;
@@ -2666,6 +2679,7 @@ retry:
 		 * wait for them to finish
 		 */
 		spin_lock(&dentry->d_lock);
+		/*等待有人调用d_lookup_done*/
 		d_wait_lookup(dentry);
 		/*
 		 * it's not in-lookup anymore; in principle we should repeat
@@ -2690,6 +2704,7 @@ retry:
 	/* we can't take ->d_lock here; it's OK, though. */
 	new->d_flags |= DCACHE_PAR_LOOKUP;
 	new->d_wait = wq;
+	/*加入 lookup hash中*/
 	hlist_bl_add_head_rcu(&new->d_u.d_in_lookup_hash, b);
 	hlist_bl_unlock(b);
 	return new;
@@ -2700,10 +2715,13 @@ mismatch:
 }
 EXPORT_SYMBOL(d_alloc_parallel);
 
+/**/
 void __d_lookup_done(struct dentry *dentry)
 {
 	struct hlist_bl_head *b = in_lookup_hash(dentry->d_parent,
 						 dentry->d_name.hash);
+
+	/*锁住lookup hash bucket， 裁剪掉PAR_LOOKUP标记，从lookup hash中删除*/
 	hlist_bl_lock(b);
 	dentry->d_flags &= ~DCACHE_PAR_LOOKUP;
 	__hlist_bl_del(&dentry->d_u.d_in_lookup_hash);
@@ -2716,7 +2734,7 @@ void __d_lookup_done(struct dentry *dentry)
 EXPORT_SYMBOL(__d_lookup_done);
 
 /* inode->i_lock held if inode is non-NULL */
-
+/*@dentry 和 @inode 是成对关系*/
 static inline void __d_add(struct dentry *dentry, struct inode *inode)
 {
 	struct inode *dir = NULL;
@@ -2735,7 +2753,9 @@ static inline void __d_add(struct dentry *dentry, struct inode *inode)
 		raw_write_seqcount_end(&dentry->d_seq);
 		fsnotify_update_flags(dentry);
 	}
+	/*加入hash表中*/
 	__d_rehash(dentry);
+	/*解锁 i_dir_seq*/
 	if (dir)
 		end_dir_add(dir, n);
 	spin_unlock(&dentry->d_lock);
@@ -2856,6 +2876,7 @@ static void copy_name(struct dentry *dentry, struct dentry *target)
 	struct external_name *old_name = NULL;
 	if (unlikely(dname_external(dentry)))
 		old_name = external_name(dentry);
+	/*公用external name情况*/
 	if (unlikely(dname_external(target))) {
 		atomic_inc(&external_name(target)->u.count);
 		dentry->d_name = target->d_name;
@@ -2890,24 +2911,27 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 	WARN_ON(!dentry->d_inode);
 	if (WARN_ON(dentry == target))
 		return;
-
+	/*dentry 不能是target 的祖先*/
 	BUG_ON(d_ancestor(target, dentry));
 	old_parent = dentry->d_parent;
 	p = d_ancestor(old_parent, target);
-	if (IS_ROOT(dentry)) {
+	if (IS_ROOT(dentry)) {/*dentry 是一个root点，所以不用锁他的父亲*/
 		BUG_ON(p);
 		spin_lock(&target->d_parent->d_lock);
 	} else if (!p) {
 		/* target is not a descendent of dentry->d_parent */
+		/*需要锁两个parent 的d_lock*/
 		spin_lock(&target->d_parent->d_lock);
 		spin_lock_nested(&old_parent->d_lock, DENTRY_D_LOCK_NESTED);
 	} else {
 		BUG_ON(p == dentry);
+		/*只需要锁定dentry->parent*/
 		spin_lock(&old_parent->d_lock);
 		if (p != target)
 			spin_lock_nested(&target->d_parent->d_lock,
 					DENTRY_D_LOCK_NESTED);
 	}
+	/*上面 if else 用来锁父亲节点，下面开始锁dentry，这里必须遵循这个顺序*/
 	spin_lock_nested(&dentry->d_lock, 2);
 	spin_lock_nested(&target->d_lock, 3);
 
@@ -2928,19 +2952,30 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 
 	/* ... and switch them in the tree */
 	dentry->d_parent = target->d_parent;
+	/*此时dentry target 都已经unshash了*/
 	if (!exchange) {
+		/*
+		 * 这个分支中dentry 完全copy了 target，并加入target->parent
+		 * 但target 一直还在parent->d_subdirs中
+	     */
 		copy_name(dentry, target);
 		target->d_hash.pprev = NULL;
 		dentry->d_parent->d_lockref.count++;
+		/*dentry 从old_parent中消失了，所以refcound -- */
 		if (dentry != old_parent) /* wasn't IS_ROOT */
 			WARN_ON(!--old_parent->d_lockref.count);
 	} else {
+		/*
+		 * 这个分支中dentry 和 target 互换了name parent, 
+		 * target 重新加入dentry cache
+		 */
 		target->d_parent = old_parent;
 		swap_names(dentry, target);
 		list_move(&target->d_child, &target->d_parent->d_subdirs);
 		__d_rehash(target);
 		fsnotify_update_flags(target);
 	}
+	/*dentry 加入subdir*/
 	list_move(&dentry->d_child, &dentry->d_parent->d_subdirs);
 	__d_rehash(dentry);
 	fsnotify_update_flags(dentry);
@@ -3003,6 +3038,7 @@ void d_exchange(struct dentry *dentry1, struct dentry *dentry2)
  *
  * Returns the ancestor dentry of p2 which is a child of p1, if p1 is
  * an ancestor of p2, else NULL.
+ * 找到某个dentry 节点 既是p1的直接孩子，又是p2的祖先
  */
 struct dentry *d_ancestor(struct dentry *p1, struct dentry *p2)
 {
@@ -3081,6 +3117,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 	if (IS_ERR(inode))
 		return ERR_CAST(inode);
 
+	/*@dentry 此时一定是unhashed*/
 	BUG_ON(!d_unhashed(dentry));
 
 	if (!inode)
@@ -3089,11 +3126,26 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 	security_d_instantiate(dentry, inode);
 	spin_lock(&inode->i_lock);
 	if (S_ISDIR(inode->i_mode)) {
+		/*如果一个inode 是一个目录,那么他应该只有一个alias*/
+		/*第一个alias dentry  , 返回时已经ref++了*/
 		struct dentry *new = __d_find_any_alias(inode);
 		if (unlikely(new)) {
 			/* The reference to new ensures it remains an alias */
 			spin_unlock(&inode->i_lock);
 			write_seqlock(&rename_lock);
+			/*
+			 * 找到 @dentry 的祖先且是@new 的孩子的dentry
+			 *    @new
+			 		\
+			 		 \
+			 		 return
+			 		 	\
+			 		 	...
+			 		 	 \
+			 		 	 @dentry
+			 * @new @dentry 不应该有祖先关系，否则会发生loop
+			 * 两个有祖先关系的dentry 指向同一个inode会产生问题
+			 */
 			if (unlikely(d_ancestor(new, dentry))) {
 				write_sequnlock(&rename_lock);
 				dput(new);

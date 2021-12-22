@@ -486,7 +486,10 @@ EXPORT_SYMBOL(path_put);
 
 #define EMBEDDED_LEVELS 2
 struct nameidata {
-	/**/
+	/*
+	 * path 表示 parent ，如/a/b/c 则 path 表示/a/b
+	 * 见 lookup_fast
+     */
 	struct path	path;
 	struct qstr	last;
 	struct path	root;
@@ -496,18 +499,19 @@ struct nameidata {
 	int		last_type;
 	unsigned	depth; /*path_init 初始化为0 */
 	int		total_link_count;
+	/*每个软连接都要记录下来*/
 	struct saved {
 		struct path link;
 		struct delayed_call done;
 		const char *name;
 		unsigned seq;
-	} *stack, internal[EMBEDDED_LEVELS];
+	} *stack, internal[EMBEDDED_LEVELS]; /*last = nd->stack + nd->depth - 1*/
 	struct filename	*name;
 	struct nameidata *saved;
 	struct inode	*link_inode;
 	unsigned	root_seq;
 	int		dfd;
-} __randomize_layout;
+} /*__randomize_layout*/;
 
 static void set_nameidata(struct nameidata *p, int dfd, struct filename *name)
 {
@@ -1355,8 +1359,9 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 {
 	struct inode *inode = nd->inode;
 
-	/* 举例来说 /mnt/a/b/..  实际上我们需要返回的是 /mnt/a*/
+	/* 举例来说 /mnt/a/b/..  实际上我们需要返回的是 /mnt/a */
 	while (1) {
+		/* 对于 /..  这种路径,直接返回 / */
 		if (path_equal(&nd->path, &nd->root))
 			break;
 		/*假如/mnt/a/b 不是一个挂载点, 那么通过dentry 找他b的父亲, /mnt/a 		*/
@@ -1574,7 +1579,7 @@ static struct dentry *__lookup_hash(const struct qstr *name,
 	dentry = d_alloc(base, name);
 	if (unlikely(!dentry))
 		return ERR_PTR(-ENOMEM);
-
+	/*这里对应的fs 可能会把一个negtive dentry 加到cache中 */
 	old = dir->i_op->lookup(dir, dentry, flags);
 	if (unlikely(old)) {
 		dput(dentry);
@@ -1694,6 +1699,14 @@ again:
 			dentry = ERR_PTR(error);
 		}
 	} else {
+		/*
+		 * 这里会调用文件系统的lookup接口
+		 * 注意ext4 文件系统中的实现ext4_lookup，就算没有找到对应的文件，
+		 * 也会调用d_splice_alias(inode, dentry)，用来为这个空的
+		 * inode 关联到dentry上，并将dentry放到dentry cache中
+		 * 后续对该文件的搜索就会从dentry cache中直接搜索，找到这个
+		 * negative dentry
+		 */
 		old = inode->i_op->lookup(inode, dentry, flags);
 		d_lookup_done(dentry);
 		if (unlikely(old)) {
@@ -1776,12 +1789,15 @@ static int pick_link(struct nameidata *nd, struct path *link,
 	last = nd->stack + nd->depth++;
 	last->link = *link;
 	clear_delayed_call(&last->done);
+	/*get_link 中会用到*/
 	nd->link_inode = inode;
 	last->seq = seq;
 	return 1;
 }
 
-enum {WALK_FOLLOW = 1, WALK_MORE = 2};
+enum {WALK_FOLLOW = 1, /* 需不需要跟踪软连接?*/
+WALK_MORE = 2 /*当前我是不是最后一个component ?*/
+};
 
 /*
  * Do we need to follow links? We _really_ want to be able
@@ -1807,6 +1823,7 @@ static inline int step_into(struct nameidata *nd, struct path *path,
 		if (read_seqcount_retry(&path->dentry->d_seq, seq))
 			return -ECHILD;
 	}
+	/*symbol link stack中记录一下*/
 	return pick_link(nd, path, inode, seq);
 }
 
@@ -1821,16 +1838,27 @@ static int walk_component(struct nameidata *nd, int flags)
 	 * to be able to know about the current root directory and
 	 * parent relationships.
 	 */
+	 /*last 时 .. 或 .*/
 	if (unlikely(nd->last_type != LAST_NORM)) {
 		err = handle_dots(nd, nd->last_type);
+		/*
+		 * 是最后一个component, 且 depth 不为 0
+		 * /a/b/c  a->/mnt/e
+		 * 当对e 进行walk时,会没有WALK_MORE标记,表示这是一个路径的最后一个, 
+		 * 这时候就可以把栈顶元素退出了
+		 *
+	     */
 		if (!(flags & WALK_MORE) && nd->depth)
 			put_link(nd);
 		return err;
 	}
+	/*这里先尝试快速查找, 如果找到就把该component对应的 dentry 放到@path中*/
 	err = lookup_fast(nd, &path, &inode, &seq);
 	if (unlikely(err <= 0)) {
+		/*没找到*/
 		if (err < 0)
 			return err;
+		/*再尝试慢速查找@last, 注意这里nd->path一直代表last 的parent*/
 		path.dentry = lookup_slow(&nd->last, nd->path.dentry,
 					  nd->flags);
 		if (IS_ERR(path.dentry))
@@ -1845,6 +1873,10 @@ static int walk_component(struct nameidata *nd, int flags)
 		inode = d_backing_inode(path.dentry);
 	}
 
+	/*
+	 * 这个component 已经找好了, 把path 放到nd->path中, 
+	 * 因为nd->path始终指向的是父节点
+	 */
 	return step_into(nd, &path, flags, inode, seq);
 }
 
@@ -2083,6 +2115,11 @@ static inline u64 hash_name(const void *salt, const char *name)
  *
  * Returns 0 and nd will have valid dentry and mnt on success.
  * Returns error and drops reference to input namei data on failure.
+ *
+ * 这段代码只是用来找path
+ * 也就是说 对于一个路径 a/b/c/d/e
+ * 只找到 d 的dentry 就返回, 把e 设为last
+ * 对于e 的处理放到do_last中去
  */
 static int link_path_walk(const char *name, struct nameidata *nd)
 {
@@ -2090,8 +2127,10 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 
 	if (IS_ERR(name))
 		return PTR_ERR(name);
+	/*略过前面的 / */
 	while (*name=='/')
 		name++;
+	/*如果为空了, 直接返回*/
 	if (!*name)
 		return 0;
 
@@ -2149,6 +2188,23 @@ OK:
 			/* pathname body, done */
 			if (!nd->depth)
 				return 0;
+			/*
+			 * 这里弹栈
+			 * 假设一种场景寻找一个path /a/b/c/d
+			 * /a/b ===> /mnt/e
+			 * /mnt ==> /tmp/test, 
+			 * 那么实际上我们应该寻找的过程为
+			 * a -> b -> /mnt/e/ -> /mnt/e/c -> /mnt/e/c/d
+			 * 当检索到 b 时, walk_component 返回值 > 0, 调用 get_link
+			 * get_link 返回/mnt/e ,那么我们把剩下的 "c/d" 压栈
+			 * 开始walk /mnt/e , 那么当针对/mnt进行walk component时,
+			 * 又会把"/e"压入栈中 此时又开始针对 /tmp/test 进行walk_component
+			 * 此时栈中最上层为 /e --> c/d
+			 * 当 对/tmp/test 路径 walk完, 我们需要继续walk 栈顶path
+			 * 
+			 * 注意这里面并不直接弹栈, 而是通过WALK_MORE来告诉walk_component 弹栈
+			 *
+			 */
 			name = nd->stack[nd->depth - 1].name;
 			/* trailing symlink, done */
 			if (!name)
@@ -2157,6 +2213,10 @@ OK:
 			err = walk_component(nd, WALK_FOLLOW);
 		} else {
 			/* not the last component */
+			/*
+			 * WALK_MORE 表示不是最后一个component, 但是不是意味着整个path walk 的最后一个walk, 
+			 * 因为软连接会不断的把整个路径压栈
+			 */
 			err = walk_component(nd, WALK_FOLLOW | WALK_MORE);
 		}
 		if (err < 0)
@@ -2386,6 +2446,7 @@ static int path_parentat(struct nameidata *nd, unsigned flags,
 	int err = link_path_walk(s, nd);
 	if (!err)
 		err = complete_walk(nd);
+	/*nd->path 代表nd->last的parent*/
 	if (!err) {
 		*parent = nd->path;
 		nd->path.mnt = NULL;
@@ -2846,6 +2907,7 @@ struct dentry *lock_rename(struct dentry *p1, struct dentry *p2)
 
 	mutex_lock(&p1->d_sb->s_vfs_rename_mutex);
 
+	/*p2 是 p1 的父节点*/
 	p = d_ancestor(p2, p1);
 	if (p) {
 		inode_lock_nested(p2->d_inode, I_MUTEX_PARENT);
@@ -3360,6 +3422,7 @@ static int do_last(struct nameidata *nd,
 	inode = d_backing_inode(path.dentry);
 finish_lookup:
 	error = step_into(nd, &path, 0, inode, seq);
+	/*到最后一步,又是一个symlink*/
 	if (unlikely(error))
 		return error;
 finish_open:
@@ -3514,8 +3577,10 @@ static struct file *path_openat(struct nameidata *nd,
 		/*常用路径*/
 		/*初始化nd*/
 		const char *s = path_init(nd, flags);
-		while (!(error = link_path_walk(s, nd)) &&
-			(error = do_last(nd, file, op)) > 0) {
+		while (   !(error = link_path_walk(s, nd))
+							&&
+				  (error = do_last(nd, file, op)) > 0
+			) {
 			nd->flags &= ~(LOOKUP_OPEN|LOOKUP_CREATE|LOOKUP_EXCL);
 			s = trailing_symlink(nd);
 		}
@@ -4360,7 +4425,10 @@ SYSCALL_DEFINE2(link, const char __user *, oldname, const char __user *, newname
  *	   whether the target exists).  Solution: try to be smart with locking
  *	   order for inodes.  We rely on the fact that tree topology may change
  *	   only under ->s_vfs_rename_mutex _and_ that parent of the object we
- *	   move will be locked.  Thus we can rank directories by the tree
+ *	   move will be locked.  
+ *     只有在拿到 s_vfs_rename_mutex 并且inode_lock 需要move 的inode的父inode 时,才会发生
+ *     文件树拓扑的改变, 所以只要锁住这些,就可以防止树拓扑变动, 这一整套实现在 lock_rename中
+ *     Thus we can rank directories by the tree
  *	   (ancestors first) and rank all non-directories after them.
  *	   That works since everybody except rename does "lock parent, lookup,
  *	   lock child" and rename is under ->s_vfs_rename_mutex.
@@ -4469,6 +4537,7 @@ int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 			shrink_dcache_parent(new_dentry);
 			target->i_flags |= S_DEAD;
 		}
+		/*卸载掉所有的mount*/
 		dont_mount(new_dentry);
 		detach_mounts(new_dentry);
 	}
@@ -4498,6 +4567,7 @@ out:
 }
 EXPORT_SYMBOL(vfs_rename);
 
+/*这个接口用来同一个mnt 节点下的dentry 进行rename */
 static int do_renameat2(int olddfd, const char __user *oldname, int newdfd,
 			const char __user *newname, unsigned int flags)
 {
@@ -4542,6 +4612,12 @@ retry:
 	}
 
 	error = -EXDEV;
+	/*
+	 * mount point 不是同一个,直接返回
+	 * 根据实验,同一个文件系统挂载到 /a /b 两个目录上
+	 * mv /a/test.out /b/111.out
+	 * 实际是先拷贝再删除的过程
+	 */
 	if (old_path.mnt != new_path.mnt)
 		goto exit2;
 
@@ -4559,8 +4635,10 @@ retry:
 		goto exit2;
 
 retry_deleg:
+	/*锁两个dentry 的父dentry 的inode, 并加锁 s_vfs_rename_mutex*/
 	trap = lock_rename(new_path.dentry, old_path.dentry);
 
+	/*可能会io,并在dentry cache 中新增dentry*/
 	old_dentry = __lookup_hash(&old_last, old_path.dentry, lookup_flags);
 	error = PTR_ERR(old_dentry);
 	if (IS_ERR(old_dentry))
@@ -4569,20 +4647,28 @@ retry_deleg:
 	error = -ENOENT;
 	if (d_is_negative(old_dentry))
 		goto exit4;
+	/*可能会io, 并在dentry cache 中新增dentry*/
 	new_dentry = __lookup_hash(&new_last, new_path.dentry, lookup_flags | target_flags);
 	error = PTR_ERR(new_dentry);
 	if (IS_ERR(new_dentry))
 		goto exit4;
 	error = -EEXIST;
+	/* 用户指定不要覆盖dest, 那么如果new dentry 是positive的,说明对应的inode存在,则退出*/
 	if ((flags & RENAME_NOREPLACE) && d_is_positive(new_dentry))
 		goto exit5;
 	if (flags & RENAME_EXCHANGE) {
 		error = -ENOENT;
+		/*EXCHANGE 前提是新的存在,不存在互换没有意义,所以如果negative,不支持*/
 		if (d_is_negative(new_dentry))
 			goto exit5;
 
 		if (!d_is_dir(new_dentry)) {
 			error = -ENOTDIR;
+			/*
+			 * trailing slashes / new_dentry 不是dir 但是 new_last 却带slash
+			 * 也就是说 目的dentry 是 A
+			 * 但是调用rename api 时, dest 却是 A/
+		     */
 			if (new_last.name[new_last.len])
 				goto exit5;
 		}

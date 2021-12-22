@@ -1673,6 +1673,7 @@ success:
 	return bh;
 }
 
+/* 从 @dir 中 找@dentry*/
 static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
 	struct inode *inode;

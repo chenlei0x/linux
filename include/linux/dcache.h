@@ -99,6 +99,7 @@ struct dentry {
 	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
 
 	/* Ref lookup also touches following */
+	/*refcount 初始为1*/
 	struct lockref d_lockref;	/* per-dentry lock and refcount */
 	const struct dentry_operations *d_op;
 	struct super_block *d_sb;	/* The root of the dentry tree */
@@ -200,6 +201,7 @@ struct dentry_operations {
 #define DCACHE_MANAGED_DENTRY \
 	(DCACHE_MOUNTED|DCACHE_NEED_AUTOMOUNT|DCACHE_MANAGE_TRANSIT)
 
+/*这个标记表明是在一个lru表上，可能是在super 的 dentry_lru上*/
 #define DCACHE_LRU_LIST			0x00080000
 
 /*这是一个mask*/

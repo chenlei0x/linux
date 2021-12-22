@@ -577,6 +577,7 @@ int __legitimize_mnt(struct vfsmount *bastard, unsigned seq)
 		mnt_add_count(mnt, -1);
 		return 1;
 	}
+	
 	lock_mount_hash();
 	if (unlikely(bastard->mnt_flags & MNT_DOOMED)) {
 		mnt_add_count(mnt, -1);
@@ -3080,6 +3081,7 @@ long do_mount(const char *dev_name, const char __user *dir_name,
 		return -EINVAL;
 
 	/* ... and get the mountpoint */
+	/* path 为 mount point */
 	retval = user_path_at(AT_FDCWD, dir_name, LOOKUP_FOLLOW, &path);
 	if (retval)
 		return retval;

@@ -792,6 +792,7 @@ inode_switch_wbs
 		struct block_device	*i_bdev;
 		struct cdev		*i_cdev;
 		char			*i_link;
+		/*新增文件的时候会改动这个值*/
 		unsigned		i_dir_seq;
 	};
 
@@ -1947,9 +1948,17 @@ struct file_operations {
 				   struct file *file_out, loff_t pos_out,
 				   loff_t len, unsigned int remap_flags);
 	int (*fadvise)(struct file *, loff_t, loff_t, int);
-} __randomize_layout;
+} ;
 
 struct inode_operations {
+	/*
+	 * 这里会调用文件系统的lookup接口
+	 * 注意ext4 文件系统中的实现ext4_lookup，就算没有找到对应的文件，
+	 * 也会调用d_splice_alias(inode, dentry)，用来为这个空的
+	 * inode 关联到dentry上，并将dentry放到dentry cache中
+	 * 后续对该文件的搜索就会从dentry cache中直接搜索，找到这个
+	 * negative dentry
+	 */
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
 	int (*permission) (struct inode *, int);
@@ -1977,7 +1986,7 @@ struct inode_operations {
 			   umode_t create_mode);
 	int (*tmpfile) (struct inode *, struct dentry *, umode_t);
 	int (*set_acl)(struct inode *, struct posix_acl *, int);
-} ____cacheline_aligned;
+} /*____cacheline_aligned*/;
 
 static inline ssize_t call_read_iter(struct file *file, struct kiocb *kio,
 				     struct iov_iter *iter)
