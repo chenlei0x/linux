@@ -1163,6 +1163,7 @@ static void mntput_no_expire(struct mount *mnt)
 
 	list_del(&mnt->mnt_instance);
 
+	/*释放所有的mountpoint 对应的dentry*/
 	if (unlikely(!list_empty(&mnt->mnt_mounts))) {
 		struct mount *p, *tmp;
 		list_for_each_entry_safe(p, tmp, &mnt->mnt_mounts,  mnt_child) {
@@ -1520,6 +1521,7 @@ static int do_umount(struct mount *mnt, int flags)
 	 *  (1) the mark is already set (the mark is cleared by mntput())
 	 *  (2) the usage count == 1 [parent vfsmount] + 1 [sys_umount]
 	 */
+	 /*很少用的特性*/
 	if (flags & MNT_EXPIRE) {
 		if (&mnt->mnt == current->fs->root.mnt ||
 		    flags & (MNT_FORCE | MNT_DETACH))

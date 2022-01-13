@@ -499,6 +499,7 @@ struct nameidata {
 	int		last_type;
 	unsigned	depth; /*path_init 初始化为0 */
 	int		total_link_count;
+
 	/*每个软连接都要记录下来*/
 	struct saved {
 		struct path link;
@@ -1385,7 +1386,7 @@ static int follow_dotdot_rcu(struct nameidata *nd)
 			 * /mnt/a/b 是一个挂载点, 假如一个这个挂载点上面连续挂了好几个文件系统,一层
 			 *  覆盖一层, 这时候会产生root dentry 的mount point 是另外一个root dentry
 			 * 我们通过下面 {} 内的语句,用来找到被覆盖的mnt root dentry
-			 * 通过1346行的循环 我们一直找到最底部的dentry, 这个dentry 是一个mount point 但是
+			 * 通过1363行的循环 我们一直找到最底部的dentry, 这个dentry 是一个mount point 但是
 			 * 不再是一个mount root了
 			 */
 			struct mount *mnt = real_mount(nd->path.mnt);
@@ -2173,6 +2174,7 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 		nd->last.name = name;
 		nd->last_type = type;
 
+		/*name = 下一个component*/
 		name += hashlen_len(hash_len);
 		if (!*name)
 			goto OK;
@@ -2214,7 +2216,7 @@ OK:
 		} else {
 			/* not the last component */
 			/*
-			 * WALK_MORE 表示不是最后一个component, 但是不是意味着整个path walk 的最后一个walk, 
+			 * WALK_MORE 表示此次调用不是最后一个component, 但是不是意味着整个path walk 的最后一个walk, 
 			 * 因为软连接会不断的把整个路径压栈
 			 */
 			err = walk_component(nd, WALK_FOLLOW | WALK_MORE);
@@ -2232,6 +2234,11 @@ OK:
 				/* jumped */
 				put_link(nd);
 			} else {
+				/*
+				 * 记录下软连接
+				 * 比如 /mnt/a/b a ==> /tmp/test/
+				 * stack 中会记录下来 /mnt/a 对应的path 以及字符串 "b"
+				 */
 				nd->stack[nd->depth - 1].name = name;
 				name = s;
 				continue;
@@ -2383,6 +2390,7 @@ static int handle_lookup_down(struct nameidata *nd)
 }
 
 /* Returns 0 and nd will be valid on success; Retuns error, otherwise. */
+/*这个函数会被多次调用， 每次传进来的flag 不同*/
 static int path_lookupat(struct nameidata *nd, unsigned flags, struct path *path)
 {
 	const char *s = path_init(nd, flags);
@@ -3187,6 +3195,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
 	dentry = d_lookup(dir, &nd->last);
 	for (;;) {
 		if (!dentry) {
+			/*这里无论如何都会创建一个dentry*/
 			dentry = d_alloc_parallel(dir, &nd->last, &wq);
 			if (IS_ERR(dentry))
 				return PTR_ERR(dentry);
@@ -3252,6 +3261,9 @@ static int lookup_open(struct nameidata *nd, struct path *path,
 	}
 
 no_open:
+	/*
+	 * !!!! 调用lookup函数
+	 */
 	if (d_in_lookup(dentry)) {
 		struct dentry *res = dir_inode->i_op->lookup(dir_inode, dentry,
 							     nd->flags);
@@ -3366,7 +3378,7 @@ static int do_last(struct nameidata *nd,
 		inode_lock(dir->d_inode);
 	else
 		inode_lock_shared(dir->d_inode);
-	/*!!!!*/
+	/*!!!! 这里是用来创建dentry, 调用 inode_ops->create 回调 */
 	error = lookup_open(nd, &path, file, op, got_write);
 	if (open_flag & O_CREAT)
 		inode_unlock(dir->d_inode);
@@ -3422,7 +3434,7 @@ static int do_last(struct nameidata *nd,
 	inode = d_backing_inode(path.dentry);
 finish_lookup:
 	error = step_into(nd, &path, 0, inode, seq);
-	/*到最后一步,又是一个symlink*/
+	/*到最后一步,又是一个symlink, 就直接返回*/
 	if (unlikely(error))
 		return error;
 finish_open:
@@ -3457,7 +3469,7 @@ finish_open_created:
 	if (error)
 		goto out;
 	BUG_ON(file->f_mode & FMODE_OPENED); /* once it's opened, it's opened */
-	/*!!!!!!!*/
+	/*!!!!!!! 这里是用来和file 进行关联的*/
 	error = vfs_open(&nd->path, file);
 	if (error)
 		goto out;
@@ -3602,6 +3614,7 @@ static struct file *path_openat(struct nameidata *nd,
 	return ERR_PTR(error);
 }
 
+/* @op 见 build_open_flags*/
 struct file *do_filp_open(int dfd, struct filename *pathname,
 		const struct open_flags *op)
 {
@@ -3656,6 +3669,7 @@ static struct dentry *filename_create(int dfd, struct filename *name,
 	int type;
 	int err2;
 	int error;
+	/*是否是创建目录？*/
 	bool is_dir = (lookup_flags & LOOKUP_DIRECTORY);
 
 	/*

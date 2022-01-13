@@ -12,10 +12,13 @@
 	int retry = 100;							\
 	struct lockref old;							\
 	BUILD_BUG_ON(sizeof(old) != 8);						\
+	/*先获取旧值*/ \
 	old.lock_count = READ_ONCE(lockref->lock_count);			\
 	while (likely(arch_spin_value_unlocked(old.lock.rlock.raw_lock))) {  	\
+		/*old 必须处于unlock状态，才能操作refcound， 否则不会进入循环*/ \
 		struct lockref new = old, prev = old;				\
 		CODE								\
+		/*执行cas操作， 这里old 是unlock状态， 只有current == old 才能 exchange*/ \
 		old.lock_count = cmpxchg64_relaxed(&lockref->lock_count,	\
 						   old.lock_count,		\
 						   new.lock_count);		\

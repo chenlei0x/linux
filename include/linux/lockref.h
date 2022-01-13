@@ -24,6 +24,8 @@
 
 /*
  * lock 和 count 共同组成一个atomic 类型, 通过cmpxchg
+ * 操作count时，大家都可以是无锁状态， 通过atomic 语句实现
+ * 如果有锁，就没法操作count了，必须等锁释放
  * 
  */
 struct lockref {

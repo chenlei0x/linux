@@ -699,6 +699,7 @@ struct inode {
 		const unsigned int i_nlink;
 		unsigned int __i_nlink;
 	};
+	/*如果inode代表一个设备，则i_rdev的值为设备号*/
 	dev_t			i_rdev;
 
 	/*
@@ -1513,9 +1514,10 @@ struct super_block {
 	unsigned long		s_iflags;	/* internal SB_I_* flags */
 	unsigned long		s_magic;
 	struct dentry		*s_root;
+	/*读写锁, mount umount时需要写锁*/
 	struct rw_semaphore	s_umount;
 	int			s_count;
-	atomic_t		s_active;
+	atomic_t		s_active; /*主要用于统计有多少个active mount*/
 #ifdef CONFIG_SECURITY
 	void                    *s_security;
 #endif

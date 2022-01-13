@@ -497,6 +497,7 @@ static void ___d_drop(struct dentry *dentry)
 		b = d_hash(dentry->d_name.hash);
 
 	hlist_bl_lock(b);
+	/*这里只是处理上下节点之间的关系*/
 	__hlist_bl_del(&dentry->d_hash);
 	hlist_bl_unlock(b);
 }
@@ -504,7 +505,9 @@ static void ___d_drop(struct dentry *dentry)
 void __d_drop(struct dentry *dentry)
 {
 	if (!d_unhashed(dentry)) {
+		/*这里只是处理上下节点之间的关系*/
 		___d_drop(dentry);
+		/*dentry->d_hash 并没有改动*/
 		dentry->d_hash.pprev = NULL;
 		write_seqcount_invalidate(&dentry->d_seq);
 	}
@@ -667,6 +670,7 @@ static inline bool retain_dentry(struct dentry *dentry)
 			return false;
 	}
 	/* retain; LRU fodder */
+	/*此时ref count 肯定 = 1, 在fast dput中，如果发现refcount ==0了，则会设置为1*/
 	dentry->d_lockref.count--;
 	if (unlikely(!(dentry->d_flags & DCACHE_LRU_LIST)))
 		d_lru_add(dentry);
@@ -760,6 +764,7 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * .. otherwise, we can try to just decrement the
 	 * lockref optimistically.
 	 */
+	 /* 如果当前lockref处于死锁状态，或者ref值已经 <=0 ret = -1 */
 	ret = lockref_put_return(&dentry->d_lockref);
 
 	/*
@@ -767,6 +772,7 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * by somebody else, the fast path has failed. We will need to
 	 * get the lock, and then check the count again.
 	 */
+	 /*快速释放ref 失败了，只能暴力加锁解锁*/
 	if (unlikely(ret < 0)) {
 		spin_lock(&dentry->d_lock);
 		if (dentry->d_lockref.count > 1) {
@@ -774,11 +780,13 @@ static inline bool fast_dput(struct dentry *dentry)
 			spin_unlock(&dentry->d_lock);
 			return true;
 		}
+		/*还是没成功，那直接返回false*/
 		return false;
 	}
 
 	/*
 	 * If we weren't the last ref, we're done.
+	 * ret > 0直接返回false
 	 */
 	if (ret)
 		return true;
@@ -839,6 +847,7 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * lock, and we just tested that it was zero, so we can just
 	 * set it to 1.
 	 */
+	 /*重新拿到refcount*/
 	dentry->d_lockref.count = 1;
 	return false;
 }
@@ -880,9 +889,10 @@ void dput(struct dentry *dentry)
 			rcu_read_unlock();
 			return;
 		}
-
+		/*这时候dentry dlock 依然是锁定状态*/
 		/*真的该被释放了, fast_dput中已经看到refcount 为0了, 为了后续方便,故意设置为1*/
 		/* Slow case: now with the dentry lock held */
+		
 		rcu_read_unlock();
 
 		if (likely(retain_dentry(dentry))) {
@@ -890,12 +900,13 @@ void dput(struct dentry *dentry)
 			return;
 		}
 
+		/*该真正的释放了， 这时候refcount 已经为0了，但是我们在fast_dput中又加了1*/
 		dentry = dentry_kill(dentry);
 	}
 }
 EXPORT_SYMBOL(dput);
 
-/*dpu之后加入到@list中*/
+/*dput之后加入到@list中*/
 static void __dput_to_list(struct dentry *dentry, struct list_head *list)
 __must_hold(&dentry->d_lock)
 {
@@ -1103,6 +1114,7 @@ static bool shrink_lock_dentry(struct dentry *dentry)
 		spin_unlock(&dentry->d_lock);
 		spin_lock(&inode->i_lock);
 		spin_lock(&dentry->d_lock);
+		/*有人grab 了这个dentry*/
 		if (unlikely(dentry->d_lockref.count))
 			goto out;
 		/* changed inode means that somebody had grabbed it */
@@ -1153,6 +1165,7 @@ void shrink_dentry_list(struct list_head *list)
 		rcu_read_unlock();
 		d_shrink_del(dentry);
 		parent = dentry->d_parent;
+		/*顺道把parent 干了*/
 		if (parent != dentry)
 			__dput_to_list(parent, list);
 		__dentry_kill(dentry);
@@ -2248,6 +2261,7 @@ static inline bool d_same_name(const struct dentry *dentry,
  * NOTE! The caller *has* to check the resulting dentry against the sequence
  * number we've returned before using any of the resulting dentry state!
  */
+ /*！！ 不会进行ref++*/
 struct dentry *__d_lookup_rcu(const struct dentry *parent,
 				const struct qstr *name,
 				unsigned *seqp)
@@ -2279,6 +2293,7 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
 	 * See Documentation/filesystems/path-lookup.txt for more details.
 	 */
 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
+		
 		unsigned seq;
 
 seqretry:
@@ -2299,6 +2314,7 @@ seqretry:
 		 * Note that raw_seqcount_begin still *does* smp_rmb(), so
 		 * we are still guaranteed NUL-termination of ->d_name.name.
 		 */
+		/*d_move 过程中, 会对d_seq 进行写加锁, 会强制进行retry, 这时候可能会发现处于unhash状态, 直接就continue了, 让你找不到*/
 		seq = raw_seqcount_begin(&dentry->d_seq);
 		if (dentry->d_parent != parent)
 			continue;
@@ -2620,7 +2636,8 @@ retry:
 	/*先在dcache中搜索*/
 	dentry = __d_lookup_rcu(parent, name, &d_seq);
 	if (unlikely(dentry)) {
-		/*如果已经有一个命中的dentry就ref++*/
+		/*如果已经有一个命中的dentry就ref++， __d_lookup_rcu中不会增加ref++ */
+		/*如果dentry已经被上锁，则也无法执行成功，进行retry*/
 		if (!lockref_get_not_dead(&dentry->d_lockref)) {
 			rcu_read_unlock();
 			goto retry;
@@ -2644,7 +2661,10 @@ retry:
 		goto retry;
 	}
 
-	/*b 是 lookup hash bucket*/
+	/*
+	 * dentry cache中没找到， 去lookhash中找
+	 * b 是 lookup hash bucket
+	 */
 	hlist_bl_lock(b);
 	if (unlikely(READ_ONCE(parent->d_inode->i_dir_seq) != seq)) {
 		hlist_bl_unlock(b);
@@ -2681,6 +2701,7 @@ retry:
 		spin_lock(&dentry->d_lock);
 		/*等待有人调用d_lookup_done*/
 		d_wait_lookup(dentry);
+		/*走到这里 dlock 已经拿到，同时dentry 已经不再处于in lookup 状态了*/
 		/*
 		 * it's not in-lookup anymore; in principle we should repeat
 		 * everything from dcache lookup, but it's likely to be what
@@ -2941,10 +2962,12 @@ static void __d_move(struct dentry *dentry, struct dentry *target,
 		__d_lookup_done(target);
 	}
 
+	/*seq*/
 	write_seqcount_begin(&dentry->d_seq);
 	write_seqcount_begin_nested(&target->d_seq, DENTRY_D_LOCK_NESTED);
 
 	/* unhash both */
+	/*从dcache中全部摘下来, 如果不是exchange, target 就不会再被rehash了*/
 	if (!d_unhashed(dentry))
 		___d_drop(dentry);
 	if (!d_unhashed(target))
@@ -3120,6 +3143,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 	/*@dentry 此时一定是unhashed*/
 	BUG_ON(!d_unhashed(dentry));
 
+	/*negative dentry*/
 	if (!inode)
 		goto out;
 

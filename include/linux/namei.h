@@ -18,21 +18,26 @@ enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT, LAST_BIND};
 
 /* pathwalk mode */
 #define LOOKUP_FOLLOW		0x0001	/* follow links at the end */
+/*最后一个目录项必须是目录*/
 #define LOOKUP_DIRECTORY	0x0002	/* require a directory */
 #define LOOKUP_AUTOMOUNT	0x0004  /* force terminal automount */
 #define LOOKUP_EMPTY		0x4000	/* accept empty path [user_... only] */
 #define LOOKUP_DOWN		0x8000	/* follow mounts in the starting point */
 
+/*不信任dcache，直接从磁盘查找*/
 #define LOOKUP_REVAL		0x0020	/* tell ->d_revalidate() to trust no cache */
 #define LOOKUP_RCU		0x0040	/* RCU pathwalk mode; semi-internal */
 
 /* These tell filesystem methods that we are dealing with the final component... */
+/*试图打开一个文件*/
 #define LOOKUP_OPEN		0x0100	/* ... in open */
+/*如果不存在会试图创建一个文件*/
 #define LOOKUP_CREATE		0x0200	/* ... in object creation */
 #define LOOKUP_EXCL		0x0400	/* ... in exclusive creation */
 #define LOOKUP_RENAME_TARGET	0x0800	/* ... in destination of rename() */
 
 /* internal use only */
+/*查找父目录*/
 #define LOOKUP_PARENT		0x0010
 /*last 为..*/
 #define LOOKUP_JUMPED		0x1000
