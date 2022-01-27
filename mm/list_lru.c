@@ -228,12 +228,13 @@ restart:
 		if (!*nr_to_walk)
 			break;
 		--*nr_to_walk;
-
+		/*dentry_lru_isolate*/
 		ret = isolate(item, l, &nlru->lock, cb_arg);
 		switch (ret) {
 		case LRU_REMOVED_RETRY:
 			assert_spin_locked(&nlru->lock);
 			/* fall through */
+		/*一个item只要离开了lru 链表都算REMOVED*/
 		case LRU_REMOVED:
 			isolated++;
 			nlru->nr_items--;
@@ -302,6 +303,7 @@ unsigned long list_lru_walk_node(struct list_lru *lru, int nid,
 	long isolated = 0;
 	int memcg_idx;
 
+	/*NULL 代表root cgroup*/
 	isolated += list_lru_walk_one(lru, nid, NULL, isolate, cb_arg,
 				      nr_to_walk);
 	if (*nr_to_walk > 0 && list_lru_memcg_aware(lru)) {

@@ -75,7 +75,8 @@ struct page {
 	 * avoid collision and false-positive PageTail().
 	 */
 	union {
-		struct {	/* Page cache and anonymous pages */
+		struct {	
+			/* Page cache and anonymous pages */
 			/**
 			 * @lru: Pageout list, eg. active_list protected by
 			 * pgdat->lru_lock.  Sometimes used as a generic list
@@ -99,17 +100,20 @@ struct page {
 			 */
 			unsigned long private;
 		};
-		struct {	/* page_pool used by netstack */
+		struct {	
+			/* page_pool used by netstack */
 			/**
 			 * @dma_addr: might require a 64-bit value even on
 			 * 32-bit architectures.
 			 */
 			dma_addr_t dma_addr;
 		};
-		struct {	/* slab, slob and slub */
+		struct {	
+			/* slab, slob and slub */
 			union {
 				struct list_head slab_list;
-				struct {	/* Partial pages */
+				struct {	
+					/* Partial pages */
 					struct page *next;
 #ifdef CONFIG_64BIT
 					int pages;	/* Nr of pages left */
@@ -126,14 +130,16 @@ struct page {
 			union {
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
-				struct {			/* SLUB */
+				struct {			
+					/* SLUB */
 					unsigned inuse:16;
 					unsigned objects:15;
 					unsigned frozen:1;
 				};
 			};
 		};
-		struct {	/* Tail pages of compound page */
+		struct {	
+			/* Tail pages of compound page */
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
@@ -143,13 +149,15 @@ struct page {
 			unsigned char compound_order;
 			atomic_t compound_mapcount;
 		};
-		struct {	/* Second tail page of compound page */
+		struct {	
+			/* Second tail page of compound page */
 			unsigned long _compound_pad_1;	/* compound_head */
 			unsigned long _compound_pad_2;
 			/* For both global and memcg */
 			struct list_head deferred_list;
 		};
-		struct {	/* Page table pages */
+		struct {
+			/* Page table pages */
 			unsigned long _pt_pad_1;	/* compound_head */
 			pgtable_t pmd_huge_pte; /* protected by page->ptl */
 			unsigned long _pt_pad_2;	/* mapping */

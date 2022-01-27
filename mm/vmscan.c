@@ -442,6 +442,7 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 	if (!(shrinker->flags & SHRINKER_NUMA_AWARE))
 		nid = 0;
 
+	/*super_cache_count*/
 	freeable = shrinker->count_objects(shrinker, shrinkctl);
 	if (freeable == 0 || freeable == SHRINK_EMPTY)
 		return freeable;
@@ -454,10 +455,11 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 	nr = atomic_long_xchg(&shrinker->nr_deferred[nid], 0);
 
 	total_scan = nr;
+	/* 优先级越高*/
 	if (shrinker->seeks) {
 		delta = freeable >> priority;
 		delta *= 4;
-		do_div(delta, shrinker->seeks);
+		do_div(delta, shrinker->seeks); /* DEFAULT_SEEKS = 2*/
 	} else {
 		/*
 		 * These objects don't require any IO to create. Trim
@@ -479,11 +481,18 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 	/*
 	 * We need to avoid excessive windup on filesystem shrinkers
 	 * due to large numbers of GFP_NOFS allocations causing the
-	 * shrinkers to return -1 all the time. This results in a large
+	 * shrinkers to return -1 all the time. 
+	 * 需要避免过度的唤醒fs shrinker。因为GFP_NOFS 申请内存会引起shrinkers
+	 * 一直返回-1
+	 * 
+	 * This results in a large
 	 * nr being built up so when a shrink that can do some work
 	 * comes along it empties the entire cache due to nr >>>
 	 * freeable. This is bad for sustaining a working set in
 	 * memory.
+	 *
+	 * 这样的话可能会造成nr过大，当某个shrink操作可以工作时，
+	 * 由于nr 远大于freeable，这个shrink会清空所有的cache entry
 	 *
 	 * Hence only allow the shrinker to scan the entire cache when
 	 * a large delta change is calculated directly.
@@ -524,6 +533,7 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 
 		shrinkctl->nr_to_scan = nr_to_scan;
 		shrinkctl->nr_scanned = nr_to_scan;
+		/*super_cache_scan*/
 		ret = shrinker->scan_objects(shrinker, shrinkctl);
 		if (ret == SHRINK_STOP)
 			break;
@@ -2930,6 +2940,7 @@ static inline bool compaction_ready(struct zone *zone, struct scan_control *sc)
  *
  * If a zone is deemed to be full of pinned pages then just give it a light
  * scan then give up on it.
+ * 直接回收路径
  */
 static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 {
@@ -3249,6 +3260,7 @@ static bool throttle_direct_reclaim(gfp_t gfp_mask, struct zonelist *zonelist,
 	 * blocked waiting on the same lock. Instead, throttle for up to a
 	 * second before continuing.
 	 */
+	 /*没有__GFP_FS 这个flag 表示不能进入fs路径*/
 	if (!(gfp_mask & __GFP_FS)) {
 		wait_event_interruptible_timeout(pgdat->pfmemalloc_wait,
 			allow_direct_reclaim(pgdat), HZ);

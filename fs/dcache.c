@@ -588,6 +588,7 @@ static void __dentry_kill(struct dentry *dentry)
 	dentry_unlist(dentry, parent);
 	if (parent)
 		spin_unlock(&parent->d_lock);
+	/*和inode 解绑了*/
 	if (dentry->d_inode)
 		dentry_unlink_inode(dentry);
 	else
@@ -597,6 +598,10 @@ static void __dentry_kill(struct dentry *dentry)
 		dentry->d_op->d_release(dentry);
 
 	spin_lock(&dentry->d_lock);
+	/*
+	 * 还在shrink 队列上挂载着呢，交给dentry shrink 流程处理
+	 * shrink_dentry_list 中对DCACHE_MAY_FREE 有特殊处理
+	 */
 	if (dentry->d_flags & DCACHE_SHRINK_LIST) {
 		dentry->d_flags |= DCACHE_MAY_FREE;
 		can_free = false;
@@ -670,7 +675,10 @@ static inline bool retain_dentry(struct dentry *dentry)
 			return false;
 	}
 	/* retain; LRU fodder */
-	/*此时ref count 肯定 = 1, 在fast dput中，如果发现refcount ==0了，则会设置为1*/
+	/*
+	 * 此时ref count 肯定 = 1, 在fast dput中，如果发现refcount ==0了，
+	 * 则会设置为1
+	 */
 	dentry->d_lockref.count--;
 	if (unlikely(!(dentry->d_flags & DCACHE_LRU_LIST)))
 		d_lru_add(dentry);
@@ -697,7 +705,10 @@ static struct dentry *dentry_kill(struct dentry *dentry)
 		parent = dentry->d_parent;
 		if (unlikely(!spin_trylock(&parent->d_lock))) {
 			parent = __lock_parent(dentry);
-			/*__lock_parent会短暂的释放 d_lock， 在这个时间窗口内，可能dentry->d_inode 发生改变*/
+			/*
+			 * __lock_parent会短暂的释放 d_lock，
+			 * 在这个时间窗口内，可能dentry->d_inode 可能从null 转换为 non-null发生改变
+			 */
 			if (likely(inode || !dentry->d_inode))
 				goto got_locks;
 			/*
@@ -706,7 +717,7 @@ static struct dentry *dentry_kill(struct dentry *dentry)
 			 */
 			/* negative that became positive */
 			/*
-			 * 注意上锁的顺序  i_lock d_lock parent->d_lock
+			 * 注意上锁的顺序  i_lock d_lock lock_parent parent->d_lock
 			 * 这时候我已经拿了 d_lock parent->d_lock 但是现在变为positive了，所以需要拿i_lock
 			 * 所以现在得全部释放掉 按照  i_lock d_lock parent->d_lock 重新申请锁
 			 */
@@ -721,6 +732,10 @@ static struct dentry *dentry_kill(struct dentry *dentry)
 
 slow_positive:
 	spin_unlock(&dentry->d_lock);
+	/*
+	 * inode 和 dentry 的绑定关系不会变，
+	 * 所以不用担心d_lock 释放又加锁的期间inode变化
+	 */
 	spin_lock(&inode->i_lock);
 	spin_lock(&dentry->d_lock);
 	parent = lock_parent(dentry);
@@ -764,7 +779,11 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * .. otherwise, we can try to just decrement the
 	 * lockref optimistically.
 	 */
-	 /* 如果当前lockref处于死锁状态，或者ref值已经 <=0 ret = -1 */
+	 /*
+	  * 如果当前lockref处于dead状态，或者ref值已经 <=0 ret = -1
+	  * 如果 ref  >1 ret = ref - 1
+	  * 如果 ref = 1 ret = 0
+	  */
 	ret = lockref_put_return(&dentry->d_lockref);
 
 	/*
@@ -787,10 +806,13 @@ static inline bool fast_dput(struct dentry *dentry)
 	/*
 	 * If we weren't the last ref, we're done.
 	 * ret > 0直接返回false
+	 * 表明ref 在put之前 > 1 我们并不是最后一个ref put
+	 * 所以不需要特殊处理
 	 */
 	if (ret)
 		return true;
 
+	/*饿， 比较复杂了，我们是put 最后一个ref*/
 	/*
 	 * Careful, careful. The reference count went down
 	 * to zero, but we don't hold the dentry lock, so
@@ -814,13 +836,26 @@ static inline bool fast_dput(struct dentry *dentry)
 	 */
 	smp_rmb();
 	/*
-	 * dentry->d_flags 可能在invalidate queue中， 我需要读新的值！！！，因为之前读过这个值，
+	 * dentry->d_flags 可能在invalidate queue中， 我需要读新的值！！！，
+	 * 因为之前读过这个值，
 	 * 为了防止编译器优化，比如READ_ONCE内存或者cache中读，为了保证一致性
 	 */
 	d_flags = READ_ONCE(dentry->d_flags);
 	d_flags &= DCACHE_REFERENCED | DCACHE_LRU_LIST | DCACHE_DISCONNECTED;
 
 	/* Nothing to do? Dropping the reference was all we needed? */
+	/*
+	 * 已经在lru 上了， 而且最近才被放到lru上， 同时也在hash table上
+	 * 出现这种场景在于针对一个dentry 进行dput后，被retain，然后在回收
+	 * 之前又被引用了
+	 * 这样的话，就算当前ref 从0 变为 1 也没事，因为已经在lru上了，迟早会被
+	 * shrink
+	 *
+	 * 注意这里有个点 必须是 d_flags == (DCACHE_REFERENCED | DCACHE_LRU_LIST)
+	 * 的情况下，才返回true，如果 d_flags == DCACHE_LRU_LIST 那么如果此时
+	 * refcount == 0 时，依然会返回false， 并将refcount 置为1
+	 * 同时返回false， 这样在retain_dentry中会打上 DCACHE_REFERENCED 的标记
+	 */
 	if (d_flags == (DCACHE_REFERENCED | DCACHE_LRU_LIST) && !d_unhashed(dentry))
 		return true;
 
@@ -1118,6 +1153,11 @@ static bool shrink_lock_dentry(struct dentry *dentry)
 		if (unlikely(dentry->d_lockref.count))
 			goto out;
 		/* changed inode means that somebody had grabbed it */
+		/*
+		 * 这里是个优化场景， 虽然refcount 已经为0了， 但是inode变了
+		 * 那么这个dentry可能是一个最近刚用到的dentry
+		 * 这时候就暂时不释放他
+		 */
 		if (unlikely(inode != dentry->d_inode))
 			goto out;
 	}
@@ -1128,12 +1168,14 @@ static bool shrink_lock_dentry(struct dentry *dentry)
 
 	spin_unlock(&dentry->d_lock);
 	spin_lock(&parent->d_lock);
+	/*父亲又变了， 热dentry*/
 	if (unlikely(parent != dentry->d_parent)) {
 		spin_unlock(&parent->d_lock);
 		spin_lock(&dentry->d_lock);
 		goto out;
 	}
 	spin_lock_nested(&dentry->d_lock, DENTRY_D_LOCK_NESTED);
+	/*确实可以释放了， 这时候inode 也是呗锁着的，parent 也是锁住的*/
 	if (likely(!dentry->d_lockref.count))
 		return true;
 	spin_unlock(&parent->d_lock);
@@ -1155,6 +1197,7 @@ void shrink_dentry_list(struct list_head *list)
 			bool can_free = false;
 			rcu_read_unlock();
 			d_shrink_del(dentry);
+			/*<0 的场景在于 dentry_kill 中已经把refcount destroy 掉了*/
 			if (dentry->d_lockref.count < 0)
 				can_free = dentry->d_flags & DCACHE_MAY_FREE;
 			spin_unlock(&dentry->d_lock);
@@ -1163,6 +1206,10 @@ void shrink_dentry_list(struct list_head *list)
 			continue;
 		}
 		rcu_read_unlock();
+		/*
+		 * 当前dentry d_lru 已经挂在@list 上， 
+		 * 而非s_dentry_lru上，所以可以直接删除
+		 */
 		d_shrink_del(dentry);
 		parent = dentry->d_parent;
 		/*顺道把parent 干了*/
@@ -1171,6 +1218,12 @@ void shrink_dentry_list(struct list_head *list)
 		__dentry_kill(dentry);
 	}
 }
+
+/*
+ * 返回REMOVED有两种情况：
+ * 1. 这个dentry ref!=0 从lru中删除
+ * 2. 这个dentry ref=0 那么放入shrink list中
+ */
 
 static enum lru_status dentry_lru_isolate(struct list_head *item,
 		struct list_lru_one *lru, spinlock_t *lru_lock, void *arg)
@@ -1192,9 +1245,12 @@ static enum lru_status dentry_lru_isolate(struct list_head *item,
 	 * counts, just remove them from the LRU. Otherwise give them
 	 * another pass through the LRU.
 	 */
+	 /*有用，放回去*/
 	if (dentry->d_lockref.count) {
+		/*从lru上摘除，同时控制nr dentry之类的计数*/
 		d_lru_isolate(lru, dentry);
 		spin_unlock(&dentry->d_lock);
+
 		return LRU_REMOVED;
 	}
 
@@ -1223,7 +1279,7 @@ static enum lru_status dentry_lru_isolate(struct list_head *item,
 		 */
 		return LRU_ROTATE;
 	}
-
+	/*放到freeable 上，准备被shrink吧， 这里仅仅处理 nr_dentry_negative*/
 	d_lru_shrink_move(lru, dentry, freeable);
 	spin_unlock(&dentry->d_lock);
 
@@ -1247,12 +1303,17 @@ long prune_dcache_sb(struct super_block *sb, struct shrink_control *sc)
 	LIST_HEAD(dispose);
 	long freed;
 
+	/*
+	 * list_lru 是 per cgroup per node 对应一个list_lru_one
+	 * 这里会根据sc 只选择一个 list_lru_one 
+	 */
 	freed = list_lru_shrink_walk(&sb->s_dentry_lru, sc,
 				     dentry_lru_isolate, &dispose);
 	shrink_dentry_list(&dispose);
 	return freed;
 }
 
+/*umount 的时候会调用到，比较强力，不care refcount*/
 static enum lru_status dentry_lru_isolate_shrink(struct list_head *item,
 		struct list_lru_one *lru, spinlock_t *lru_lock, void *arg)
 {
@@ -1267,9 +1328,11 @@ static enum lru_status dentry_lru_isolate_shrink(struct list_head *item,
 	if (!spin_trylock(&dentry->d_lock))
 		return LRU_SKIP;
 
+	/*把dentry move 到 freeable上*/
 	d_lru_shrink_move(lru, dentry, freeable);
 	spin_unlock(&dentry->d_lock);
 
+	/*注意这里REMOVED代表 dentry 进入shrink list中*/
 	return LRU_REMOVED;
 }
 
@@ -1286,6 +1349,7 @@ void shrink_dcache_sb(struct super_block *sb)
 	do {
 		LIST_HEAD(dispose);
 
+		/*walk 每一个 list_lru_one*/
 		list_lru_walk(&sb->s_dentry_lru,
 			dentry_lru_isolate_shrink, &dispose, 1024);
 		shrink_dentry_list(&dispose);

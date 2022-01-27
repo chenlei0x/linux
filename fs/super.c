@@ -90,6 +90,10 @@ static unsigned long super_cache_scan(struct shrinker *shrink,
 		total_objects = 1;
 
 	/* proportion the scan between the caches */
+	/* 
+	 * 按比例分配看dentries 占total objects的比例
+	 * sc->nr_to_scan * (dentries / total_objects)
+	 */
 	dentries = mult_frac(sc->nr_to_scan, dentries, total_objects);
 	inodes = mult_frac(sc->nr_to_scan, inodes, total_objects);
 	fs_objects = mult_frac(sc->nr_to_scan, fs_objects, total_objects);

@@ -1034,6 +1034,7 @@ static inline void put_page(struct page *page)
 	if (put_devmap_managed_page(page))
 		return;
 
+	/*如果page = 1 则返回true*/
 	if (put_page_testzero(page))
 		__put_page(page);
 }
