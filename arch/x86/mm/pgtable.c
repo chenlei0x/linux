@@ -122,6 +122,8 @@ static void pgd_ctor(struct mm_struct *mm, pgd_t *pgd)
 	    (CONFIG_PGTABLE_LEVELS == 3 && SHARED_KERNEL_PMD) ||
 	    CONFIG_PGTABLE_LEVELS >= 4) {
 		clone_pgd_range(pgd + KERNEL_PGD_BOUNDARY,
+				/*每个pgd 中 KERNEL_PGD_BOUNDARY ~ 511项都是一样的，
+				他们的内容存储再swapper_pg_dir + KERNEL_PGD_BOUNDARY 中*/
 				swapper_pg_dir + KERNEL_PGD_BOUNDARY,
 				KERNEL_PGD_PTRS);
 	}
@@ -415,6 +417,7 @@ static inline void _pgd_free(pgd_t *pgd)
 }
 #endif /* CONFIG_X86_PAE */
 
+/*申请一个pgd，并绑定mm*/
 pgd_t *pgd_alloc(struct mm_struct *mm)
 {
 	pgd_t *pgd;
@@ -428,9 +431,12 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 
 	mm->pgd = pgd;
 
+	/*x64中PAE 没有开  
+	 PREALLOCATED_PMDS=0 */
 	if (preallocate_pmds(mm, pmds, PREALLOCATED_PMDS) != 0)
 		goto out_free_pgd;
 
+	/* PREALLOCATED_USER_PMDS 0*/
 	if (preallocate_pmds(mm, u_pmds, PREALLOCATED_USER_PMDS) != 0)
 		goto out_free_pmds;
 

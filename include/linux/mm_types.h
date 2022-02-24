@@ -330,6 +330,7 @@ struct vm_area_struct {
 	/* Second cache line starts here. */
 
 	struct mm_struct *vm_mm;	/* The address space we belong to. */
+	/*pte 中的相关权限位*/
 	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
 	unsigned long vm_flags;		/* Flags, see mm.h. */
 
@@ -519,12 +520,12 @@ struct mm_struct {
 		 * new_owner->mm == mm
 		 * new_owner->alloc_lock is held
 		 */
-		struct task_struct __rcu *owner;
+		struct task_struct /*__rcu*/ *owner;
 #endif
 		struct user_namespace *user_ns;
 
 		/* store ref to file /proc/<pid>/exe symlink points to */
-		struct file __rcu *exe_file;
+		struct file /*__rcu*/ *exe_file;
 #ifdef CONFIG_MMU_NOTIFIER
 		struct mmu_notifier_mm *mmu_notifier_mm;
 #endif

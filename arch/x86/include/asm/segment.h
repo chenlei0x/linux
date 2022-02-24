@@ -210,6 +210,9 @@
  *
  * Note, selectors also need to have a correct RPL,
  * expressed with the +3 value for user-space selectors:
+ *
+ * cs ds 寄存器的内容！！！
+ * +3 是为了RPL 
  */
 #define __KERNEL32_CS			(GDT_ENTRY_KERNEL32_CS*8)
 #define __KERNEL_CS			(GDT_ENTRY_KERNEL_CS*8)

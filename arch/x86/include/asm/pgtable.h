@@ -1019,7 +1019,11 @@ static inline int pgd_none(pgd_t pgd)
  */
 #define pgd_offset_k(address) pgd_offset(&init_mm, (address))
 
+/*一个PGD页有512项， 其中X~511 项是属于内核的
+KERNEL_PGD_BOUNDARY 就代表X
+KERNEL_PGD_PTRS = 512 - x
 
+*/
 #define KERNEL_PGD_BOUNDARY	pgd_index(PAGE_OFFSET)
 #define KERNEL_PGD_PTRS		(PTRS_PER_PGD - KERNEL_PGD_BOUNDARY)
 
