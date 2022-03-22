@@ -136,7 +136,8 @@ static bool check_pte(struct page_vma_mapped_walk *pvmw)
  * use page_vma_mapped_walk_done(). It will do the housekeeping.
  *
  * pvmw->page 对应的页表项 , 该page 可能被映射不止一次, 但是默认肯定是从
- * @pvmw->address开始的连续的一次或者多次该函数用来找到address 对应的所有
+ * @pvmw->address开始的连续的一次或者多次 
+ * 该函数用来找到address 对应的所有
  * 页表项, 看是不是对应的page,如果是则返回继续循环,下次再次调用时address+=PAGE_SIZE
  */
 bool page_vma_mapped_walk(struct page_vma_mapped_walk *pvmw)

@@ -1201,6 +1201,7 @@ struct kvm_x86_ops {
 	void (*apicv_post_state_restore)(struct kvm_vcpu *vcpu);
 	bool (*dy_apicv_has_pending_interrupt)(struct kvm_vcpu *vcpu);
 
+	/*vmx_set_hv_timer*/
 	int (*set_hv_timer)(struct kvm_vcpu *vcpu, u64 guest_deadline_tsc,
 			    bool *expired);
 	void (*cancel_hv_timer)(struct kvm_vcpu *vcpu);

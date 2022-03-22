@@ -141,6 +141,7 @@ enum pageflags {
 	PG_checked = PG_owner_priv_1,
 
 	/* SwapBacked */
+	/*表示页面是否分配了swap空间*/
 	PG_swapcache = PG_owner_priv_1,	/* Swap page: swp_entry_t in private */
 
 	/* Two page bits are conscripted by FS-Cache to maintain local caching

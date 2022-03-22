@@ -536,6 +536,7 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 		return;
 
 	/* Some processes are using the page */
+	/*如果还有人用就不释放*/
 	if (page_mapped(page))
 		return;
 

@@ -1497,6 +1497,7 @@ static int __kvm_set_msr(struct kvm_vcpu *vcpu, u32 index, u64 data,
 	msr.index = index;
 	msr.host_initiated = host_initiated;
 
+	/*vmx_set_msr*/
 	return kvm_x86_ops->set_msr(vcpu, &msr);
 }
 
@@ -6606,6 +6607,7 @@ int kvm_skip_emulated_instruction(struct kvm_vcpu *vcpu)
 	unsigned long rflags = kvm_x86_ops->get_rflags(vcpu);
 	int r;
 
+	/*skip_emulated_instruction*/
 	r = kvm_x86_ops->skip_emulated_instruction(vcpu);
 	if (unlikely(!r))
 		return 0;
@@ -8341,6 +8343,8 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		kvm_lapic_sync_from_vapic(vcpu);
 
 	vcpu->arch.gpa_available = false;
+	/* 解决vmexit*/
+	/*vmx_handle_exit*/
 	r = kvm_x86_ops->handle_exit(vcpu);
 	return r;
 

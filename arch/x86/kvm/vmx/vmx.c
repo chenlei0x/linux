@@ -5934,6 +5934,7 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 	if (!kvm_vmx_exit_handlers[exit_reason])
 		goto unexpected_vmexit;
 
+	/*这里*/
 	return kvm_vmx_exit_handlers[exit_reason](vcpu);
 
 unexpected_vmexit:
@@ -7831,7 +7832,7 @@ static __exit void hardware_unsetup(void)
 	free_kvm_area();
 }
 
-static struct kvm_x86_ops vmx_x86_ops __ro_after_init = {
+static struct kvm_x86_ops vmx_x86_ops /*__ro_after_init*/ = {
 	.cpu_has_kvm_support = cpu_has_kvm_support,
 	.disabled_by_bios = vmx_disabled_by_bios,
 	.hardware_setup = hardware_setup,
