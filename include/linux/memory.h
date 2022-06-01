@@ -21,7 +21,7 @@
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 
-#define MIN_MEMORY_BLOCK_SIZE     (1UL << SECTION_SIZE_BITS)
+#define MIN_MEMORY_BLOCK_SIZE     (1UL << SECTION_SIZE_BITS) /*一个section = 一个block*/
 
 struct memory_block {
 	unsigned long start_section_nr;

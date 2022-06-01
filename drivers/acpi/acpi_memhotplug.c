@@ -77,11 +77,13 @@ acpi_memory_get_resource(struct acpi_resource *resource, void *context)
 	struct acpi_memory_info *info, *new;
 	acpi_status status;
 
+	/*从 resource 中地址空间*/
 	status = acpi_resource_to_address64(resource, &address64);
 	if (ACPI_FAILURE(status) ||
 	    (address64.resource_type != ACPI_MEMORY_RANGE))
 		return AE_OK;
 
+	/*这个地址空间是不是和已有的连续？*/
 	list_for_each_entry(info, &mem_device->res_list, list) {
 		/* Can we combine the resource range information? */
 		if ((info->caching == address64.info.mem.caching) &&
@@ -124,6 +126,7 @@ acpi_memory_get_device_resources(struct acpi_memory_device *mem_device)
 	if (!list_empty(&mem_device->res_list))
 		return 0;
 
+	/*获取的不止一个resource ？*/
 	status = acpi_walk_resources(mem_device->device->handle, METHOD_NAME__CRS,
 				     acpi_memory_get_resource, mem_device);
 	if (ACPI_FAILURE(status)) {
@@ -304,6 +307,7 @@ static int acpi_memory_device_add(struct acpi_device *device,
 		return result;
 	}
 
+	/*待查： mem_device 拿到了几个地址空间？*/
 	/* Set the device state */
 	mem_device->state = MEMORY_POWER_ON_STATE;
 

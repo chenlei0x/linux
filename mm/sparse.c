@@ -874,6 +874,7 @@ int __meminit sparse_add_section(int nid, unsigned long start_pfn,
 	struct page *memmap;
 	int ret;
 
+	/*这里申请section */
 	ret = sparse_index_init(section_nr, nid);
 	if (ret < 0)
 		return ret;

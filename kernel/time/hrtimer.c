@@ -916,8 +916,10 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 	u64 orun = 1;
 	ktime_t delta;
 
+	/*now - expire 时刻*/
 	delta = ktime_sub(now, hrtimer_get_expires(timer));
 
+	/*now 在 exipre 之前，也就是说hrtimer 被提前trigger 了*/
 	if (delta < 0)
 		return 0;
 
@@ -927,6 +929,7 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 	if (interval < hrtimer_resolution)
 		interval = hrtimer_resolution;
 
+	/*hrtimer 超时已经大于 interval 了， 不太可能*/
 	if (unlikely(delta >= interval)) {
 		s64 incr = ktime_to_ns(interval);
 

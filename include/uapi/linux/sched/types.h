@@ -107,6 +107,7 @@ struct sched_attr {
 	__s32 sched_nice;
 
 	/* SCHED_FIFO, SCHED_RR */
+	/* rt 调度类型的 priority*/
 	__u32 sched_priority;
 
 	/* SCHED_DEADLINE */

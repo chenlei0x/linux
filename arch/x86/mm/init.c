@@ -469,7 +469,7 @@ bool pfn_range_is_mapped(unsigned long start_pfn, unsigned long end_pfn)
 unsigned long __ref init_memory_mapping(unsigned long start,
 					       unsigned long end)
 {
-	struct map_range mr[NR_RANGE_MR];
+	struct map_range mr[NR_RANGE_MR]; /*NR_RANGE_MR = 5*/
 	unsigned long ret = 0;
 	int nr_range, i;
 
@@ -479,6 +479,7 @@ unsigned long __ref init_memory_mapping(unsigned long start,
 	memset(mr, 0, sizeof(mr));
 	nr_range = split_mem_range(mr, 0, start, end);
 
+	/*这里主要是操作页表，使得内核可以访问到 start-end 之间的物理内存*/
 	for (i = 0; i < nr_range; i++)
 		ret = kernel_physical_mapping_init(mr[i].start, mr[i].end,
 						   mr[i].page_size_mask);

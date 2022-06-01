@@ -1061,6 +1061,7 @@ int __ref add_memory_resource(int nid, struct resource *res)
 	new_node = ret;
 
 	/* call arch's memory hotadd */
+	/*arch/x86/mm/init_64.c*/
 	ret = arch_add_memory(nid, start, size, &restrictions);
 	if (ret < 0)
 		goto error;

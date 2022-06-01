@@ -23,9 +23,10 @@ static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 
 	raw_spin_lock(&rt_b->rt_runtime_lock);
 	for (;;) {
+		/*往后推一个 period */
 		overrun = hrtimer_forward_now(timer, rt_b->rt_period);
 		if (!overrun)
-			break;
+			break;/*说明我提前被发动了*/
 
 		raw_spin_unlock(&rt_b->rt_runtime_lock);
 		idle = do_sched_rt_period_timer(rt_b, overrun);

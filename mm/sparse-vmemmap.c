@@ -203,6 +203,7 @@ p4d_t * __meminit vmemmap_p4d_populate(pgd_t *pgd, unsigned long addr, int node)
 
 pgd_t * __meminit vmemmap_pgd_populate(unsigned long addr, int node)
 {
+	/*内核的页表pdg中， addr对应的的一项*/
 	pgd_t *pgd = pgd_offset_k(addr);
 	if (pgd_none(*pgd)) {
 		void *p = vmemmap_alloc_block_zero(PAGE_SIZE, node);
@@ -260,6 +261,7 @@ struct page * __meminit __populate_section_memmap(unsigned long pfn,
 	pfn &= PAGE_SUBSECTION_MASK;
 	nr_pages = end - pfn;
 
+	/* [ pfn, pfn + nrpages ] 这些struct page 数组的起始虚拟地址*/
 	start = (unsigned long) pfn_to_page(pfn);
 	end = start + nr_pages * sizeof(struct page);
 

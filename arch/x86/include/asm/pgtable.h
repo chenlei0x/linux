@@ -833,6 +833,7 @@ static inline unsigned long pte_index(unsigned long address)
 
 static inline pte_t *pte_offset_kernel(pmd_t *pmd, unsigned long address)
 {
+	/*返回一组pte_t 数组的首地址，也就是一个page table的页的地址 */
 	return (pte_t *)pmd_page_vaddr(*pmd) + pte_index(address);
 }
 

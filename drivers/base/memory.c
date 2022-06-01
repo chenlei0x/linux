@@ -713,6 +713,7 @@ int create_memory_block_devices(unsigned long start, unsigned long size)
 		return -EINVAL;
 
 	for (block_id = start_block_id; block_id != end_block_id; block_id++) {
+		/*没有就创建，这里mem 是一个二级指针*/
 		ret = init_memory_block(&mem, block_id, MEM_OFFLINE);
 		if (ret)
 			break;
@@ -804,6 +805,7 @@ void __init memory_dev_init(void)
 	block_sz = memory_block_size_bytes();
 	if (!is_power_of_2(block_sz) || block_sz < MIN_MEMORY_BLOCK_SIZE)
 		panic("Memory block size not suitable: 0x%lx\n", block_sz);
+	/*64位 下， MIN_MEMORY_BLOCK_SIZE = 128MB*/
 	sections_per_block = block_sz / MIN_MEMORY_BLOCK_SIZE;
 
 	ret = subsys_system_register(&memory_subsys, memory_root_attr_groups);
@@ -851,6 +853,7 @@ int walk_memory_blocks(unsigned long start, unsigned long size,
 		return 0;
 
 	for (block_id = start_block_id; block_id <= end_block_id; block_id++) {
+		/*这里不会新建memory_block*/
 		mem = find_memory_block_by_id(block_id);
 		if (!mem)
 			continue;

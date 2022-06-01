@@ -318,7 +318,9 @@ static inline p4dval_t native_p4d_val(p4d_t p4d)
 }
 #else
 #include <asm-generic/pgtable-nop4d.h>
-
+/*走这里*/
+/*4级页表 struct { pgd_t pgd; } p4d_t;*/
+/**/
 static inline p4d_t native_make_p4d(pudval_t val)
 {
 	return (p4d_t) { .pgd = native_make_pgd((pgdval_t)val) };
@@ -332,7 +334,7 @@ static inline p4dval_t native_p4d_val(p4d_t p4d)
 
 #if CONFIG_PGTABLE_LEVELS > 3
 typedef struct { pudval_t pud; } pud_t;
-
+/*pud 的一项 指向一个pmd*/
 static inline pud_t native_make_pud(pmdval_t val)
 {
 	return (pud_t) { val };

@@ -406,6 +406,7 @@ void acpi_device_hotplug(struct acpi_device *adev, u32 src)
 	if (adev->flags.is_dock_station) {
 		error = dock_notify(adev, src);
 	} else if (adev->flags.hotplug_notify) {
+		/*内存热插拔走这里*/
 		error = acpi_generic_hotplug_event(adev, src);
 	} else {
 		int (*notify)(struct acpi_device *, u32);

@@ -8267,6 +8267,8 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		vcpu->arch.switch_db_regs &= ~KVM_DEBUGREG_RELOAD;
 	}
 
+	/*执行虚拟机*/
+	/*vmx_vcpu_run*/
 	kvm_x86_ops->run(vcpu);
 
 	/*
@@ -8299,6 +8301,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	vcpu->mode = OUTSIDE_GUEST_MODE;
 	smp_wmb();
 
+	/*vmx_handle_exit_irqoff*/
 	kvm_x86_ops->handle_exit_irqoff(vcpu);
 
 	/*

@@ -2996,6 +2996,7 @@ int device_online(struct device *dev)
 	device_lock(dev);
 	if (device_supports_offline(dev)) {
 		if (dev->offline) {
+			/*对于memory_block  , 这里bus = memory_subsys*/
 			ret = dev->bus->online(dev);
 			if (!ret) {
 				kobject_uevent(&dev->kobj, KOBJ_ONLINE);

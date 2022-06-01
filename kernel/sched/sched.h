@@ -653,7 +653,15 @@ struct rt_rq {
 	int			rt_queued;
 
 	int			rt_throttled;
+	/*
+	 * update_curr_rt
+	 * 	rt_rq->rt_time += delta_exec;
+	 */
 	u64			rt_time;
+	/*
+	 * rt_time 的限额， 当 rt_time > rt_runtime的时候， rt thread 就要被throttle了
+	 * __enable_runtime
+	 */
 	u64			rt_runtime;
 	/* Nests inside the rq lock: */
 	raw_spinlock_t		rt_runtime_lock;
@@ -946,7 +954,7 @@ struct rq {
 	struct mm_struct	*prev_mm;
 
 	unsigned int		clock_update_flags;
-	/*update_rq_clock 中进行更新*/
+	/*update_rq_clock 中进行更新, 当前的时间线*/
 	u64			clock;
 	/* Ensure that all clocks are in the same cache line */
 	/*task 运行时间合计*/

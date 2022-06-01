@@ -66,9 +66,9 @@ struct task_struct init_task
 	.stack		= init_stack,
 	.usage		= REFCOUNT_INIT(2),
 	.flags		= PF_KTHREAD,
-	.prio		= MAX_PRIO - 20,
-	.static_prio	= MAX_PRIO - 20,
-	.normal_prio	= MAX_PRIO - 20,
+	.prio		= MAX_PRIO - 20, /*100*/
+	.static_prio	= MAX_PRIO - 20, /*100*/
+	.normal_prio	= MAX_PRIO - 20, /*100*/
 	.policy		= SCHED_NORMAL,
 	.cpus_ptr	= &init_task.cpus_mask,
 	.cpus_mask	= CPU_MASK_ALL,

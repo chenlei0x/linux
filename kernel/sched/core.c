@@ -1359,9 +1359,9 @@ static inline int normal_prio(struct task_struct *p)
 	int prio;
 
 	if (task_has_dl_policy(p))
-		prio = MAX_DL_PRIO-1;
+		prio = MAX_DL_PRIO-1; /*-1*/
 	else if (task_has_rt_policy(p))
-		prio = MAX_RT_PRIO-1 - p->rt_priority;
+		prio = MAX_RT_PRIO-1 - p->rt_priority; /* 99 - p->rt_priority*/
 	else
 		prio = __normal_prio(p);
 	return prio;
@@ -1383,7 +1383,8 @@ static int effective_prio(struct task_struct *p)
 	 * to the normal priority:
 	 */
 	if (!rt_prio(p->prio))
-		return p->normal_prio;
+		return p->normal_prio; /* 如果进程是 非rt 的，那么这个值等于 p->static_prio;*/
+	/*如果是rt 的， 返回 p->prio*/
 	return p->prio;
 }
 

@@ -69,10 +69,10 @@ static inline void fname##_init(struct mm_struct *mm,		\
 		fname(mm, arg1, arg2);				\
 }
 
-DEFINE_POPULATE(p4d_populate, p4d, pud, init)
-DEFINE_POPULATE(pgd_populate, pgd, p4d, init)
-DEFINE_POPULATE(pud_populate, pud, pmd, init)
-DEFINE_POPULATE(pmd_populate_kernel, pmd, pte, init)
+DEFINE_POPULATE(p4d_populate, p4d, pud, init);
+DEFINE_POPULATE(pgd_populate, pgd, p4d, init);
+DEFINE_POPULATE(pud_populate, pud, pmd, init);
+DEFINE_POPULATE(pmd_populate_kernel, pmd, pte, init);
 
 #define DEFINE_ENTRY(type1, type2, init)			\
 static inline void set_##type1##_init(type1##_t *arg1,		\
@@ -161,6 +161,7 @@ static void sync_global_pgds_l5(unsigned long start, unsigned long end)
 	}
 }
 
+/*目前 lscpu | grep -i la57  才支持l5，大多数l4*/
 static void sync_global_pgds_l4(unsigned long start, unsigned long end)
 {
 	unsigned long addr;
@@ -181,6 +182,7 @@ static void sync_global_pgds_l4(unsigned long start, unsigned long end)
 			continue;
 
 		spin_lock(&pgd_lock);
+		/*更新所有的pgd */
 		list_for_each_entry(page, &pgd_list, lru) {
 			pgd_t *pgd;
 			p4d_t *p4d;
@@ -196,6 +198,7 @@ static void sync_global_pgds_l4(unsigned long start, unsigned long end)
 				BUG_ON(p4d_page_vaddr(*p4d)
 				       != p4d_page_vaddr(*p4d_ref));
 
+			/*p4d 对应的就是 pud*/
 			if (p4d_none(*p4d))
 				set_p4d(p4d, *p4d_ref);
 
@@ -724,6 +727,7 @@ __kernel_physical_mapping_init(unsigned long paddr_start,
 			       unsigned long page_size_mask,
 			       bool init)
 {
+	/*这里先处理页表*/
 	bool pgd_changed = false;
 	unsigned long vaddr, vaddr_start, vaddr_end, vaddr_next, paddr_last;
 
@@ -733,13 +737,16 @@ __kernel_physical_mapping_init(unsigned long paddr_start,
 	vaddr_start = vaddr;
 
 	for (; vaddr < vaddr_end; vaddr = vaddr_next) {
+		/* 拿到 pgd 表中的一项的指针*/
 		pgd_t *pgd = pgd_offset_k(vaddr);
 		p4d_t *p4d;
 
 		vaddr_next = (vaddr & PGDIR_MASK) + PGDIR_SIZE;
 
 		if (pgd_val(*pgd)) {
+			/* 拿到 *pdg 所对应的 pgd_t 所指向的页的vaddr*/
 			p4d = (p4d_t *)pgd_page_vaddr(*pgd);
+			/*如果是4级页表，p4d = */
 			paddr_last = phys_p4d_init(p4d, __pa(vaddr),
 						   __pa(vaddr_end),
 						   page_size_mask,
@@ -747,6 +754,7 @@ __kernel_physical_mapping_init(unsigned long paddr_start,
 			continue;
 		}
 
+		/*这时候申请的是pud，也就是第二级表所在的页*/
 		p4d = alloc_low_page();
 		paddr_last = phys_p4d_init(p4d, __pa(vaddr), __pa(vaddr_end),
 					   page_size_mask, init);
@@ -762,6 +770,7 @@ __kernel_physical_mapping_init(unsigned long paddr_start,
 		pgd_changed = true;
 	}
 
+	/*pgd 页表有改动*/
 	if (pgd_changed)
 		sync_global_pgds(vaddr_start, vaddr_end - 1);
 
@@ -864,8 +873,10 @@ int arch_add_memory(int nid, u64 start, u64 size,
 	unsigned long start_pfn = start >> PAGE_SHIFT;
 	unsigned long nr_pages = size >> PAGE_SHIFT;
 
+	/*这里主要是操作页表*/
 	init_memory_mapping(start, start + size);
 
+	/*这里用来创建struct page*/
 	return add_pages(nid, start_pfn, nr_pages, restrictions);
 }
 
@@ -1410,6 +1421,7 @@ static unsigned long probe_memory_block_size(void)
 	unsigned long bz;
 
 	/* If memory block size has been set, then use it */
+	/*这个为 0*/
 	bz = set_memory_block_size;
 	if (bz)
 		goto done;
