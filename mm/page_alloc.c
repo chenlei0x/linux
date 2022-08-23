@@ -5012,8 +5012,9 @@ static void build_zonelists_in_node_order(pg_data_t *pgdat, int *node_order,
 		int nr_zones;
 
 		pg_data_t *node = NODE_DATA(node_order[i]);
-
+		/* zonerefs[0...2] = node->zone[0]  node->zone[1] node->zone[0]*/
 		nr_zones = build_zonerefs_node(node, zonerefs);
+		/* node 偏移*/
 		zonerefs += nr_zones;
 	}
 	zonerefs->zone = NULL;
@@ -5064,14 +5065,16 @@ static void build_zonelists(pg_data_t *pgdat)
 		 */
 		if (node_distance(local_node, node) !=
 		    node_distance(local_node, prev_node))
+		    /**/
 			node_load[node] = load;
 
 		node_order[nr_nodes++] = node;
 		prev_node = node;
 		load--;
 	}
-
+	/* 构建 FALLBACK   zonelist */
 	build_zonelists_in_node_order(pgdat, node_order, nr_nodes);
+	/* 构建 NONE FALLBACK  zonelist */
 	build_thisnode_zonelists(pgdat);
 }
 

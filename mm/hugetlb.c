@@ -1317,6 +1317,7 @@ static void prep_new_huge_page(struct hstate *h, struct page *page, int nid)
 	h->nr_huge_pages++;
 	h->nr_huge_pages_node[nid]++;
 	spin_unlock(&hugetlb_lock);
+	/* free_huge_page */
 	put_page(page); /* free it into the hugepage allocator */
 }
 
@@ -2386,13 +2387,20 @@ static struct hstate *kobj_to_hstate(struct kobject *kobj, int *nidp)
 {
 	int i;
 
+	/*
+	 * 写入 nr_hugepages_mempolicy 的时候,我们用这种方式:
+	   numactl -m <node-list> echo 20 >/proc/sys/vm/nr_hugepages_mempolicy
+
+	*/
 	for (i = 0; i < HUGE_MAX_HSTATE; i++)
+		/*全局的 hstate 对应的 kobjs */
 		if (hstate_kobjs[i] == kobj) {
 			if (nidp)
 				*nidp = NUMA_NO_NODE;
 			return &hstates[i];
 		}
 
+	/*找 node_hstate 对应的 hstate */
 	return kobj_to_node_hstate(kobj, nidp);
 }
 
@@ -2424,6 +2432,10 @@ static ssize_t __nr_hugepages_store_common(bool obey_mempolicy,
 		goto out;
 	}
 
+	/* obey_mempolicy = true 时会走下面的路径
+		numactl -m <node-list> echo 20 >/proc/sys/vm/nr_hugepages_mempolicy
+
+	*/
 	if (nid == NUMA_NO_NODE) {
 		/*
 		 * global hstate attribute
@@ -2439,10 +2451,12 @@ static ssize_t __nr_hugepages_store_common(bool obey_mempolicy,
 		 * but restrict alloc/free to the specified node.
 		 */
 		count += h->nr_huge_pages - h->nr_huge_pages_node[nid];
+		/* 设置 nodes_allowed = nid */
 		init_nodemask_of_node(nodes_allowed, nid);
 	} else
 		nodes_allowed = &node_states[N_MEMORY];
 
+	/* 这里需要申请大页了*/
 	h->max_huge_pages = set_max_huge_pages(h, count, nodes_allowed);
 
 	if (nodes_allowed != &node_states[N_MEMORY])

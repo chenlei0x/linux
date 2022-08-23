@@ -452,6 +452,7 @@ blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 	nr_pages = iov_iter_npages(iter, BIO_MAX_PAGES + 1);
 	if (!nr_pages)
 		return 0;
+	/*如果是libaio     is_sync_kiocb 返回false*/
 	if (is_sync_kiocb(iocb) && nr_pages <= BIO_MAX_PAGES)
 		return __blkdev_direct_IO_simple(iocb, iter, nr_pages);
 

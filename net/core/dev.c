@@ -3006,6 +3006,7 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 
 	len = skb->len;
 	trace_net_dev_start_xmit(skb, dev);
+	/* loopback_xmit */
 	rc = netdev_start_xmit(skb, dev, txq, more);
 	trace_net_dev_xmit(skb, rc, dev, len);
 
@@ -3522,6 +3523,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 
 			if (!netif_xmit_stopped(txq)) {
 				__this_cpu_inc(xmit_recursion);
+				/* 走这里  */
 				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
 				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {

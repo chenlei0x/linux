@@ -2781,6 +2781,7 @@ void release_sock(struct sock *sk)
 	/* Warning : release_cb() might need to release sk ownership,
 	 * ie call sock_release_ownership(sk) before us.
 	 */
+	 /* tcp_release_cb */
 	if (sk->sk_prot->release_cb)
 		sk->sk_prot->release_cb(sk);
 

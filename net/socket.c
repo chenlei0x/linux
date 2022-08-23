@@ -643,6 +643,7 @@ EXPORT_SYMBOL(__sock_tx_timestamp);
 
 static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg)
 {
+	/* tcp_sendmsg_locked */
 	int ret = sock->ops->sendmsg(sock, msg, msg_data_left(msg));
 	BUG_ON(ret == -EIOCBQUEUED);
 	return ret;

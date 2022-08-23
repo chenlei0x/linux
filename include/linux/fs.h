@@ -300,6 +300,7 @@ enum rw_hint {
 struct kiocb {
 	struct file		*ki_filp;
 	loff_t			ki_pos;/*写入时的文件偏移*/
+	/* aio 中 这里 = aio_complete*/
 	void (*ki_complete)(struct kiocb *iocb, long ret, long ret2);
 	void			*private;
 	int			ki_flags;

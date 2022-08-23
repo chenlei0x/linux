@@ -1127,6 +1127,10 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	memset(skb->cb, 0, max(sizeof(struct inet_skb_parm),
 			       sizeof(struct inet6_skb_parm)));
 
+	/*
+	 * ipv4_specific in tcp_ipv4.c (net\ipv4) : 	.queue_xmit	   = ip_queue_xmit,
+	 * ipv6_specific in tcp_ipv6.c (net\ipv6) : 	.queue_xmit	   = inet6_csk_xmit
+     */
 	err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl);
 
 	if (unlikely(err > 0)) {
@@ -2379,6 +2383,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		if (tcp_small_queue_check(sk, skb, 0))
 			break;
 
+		/*这里这里*/
 		if (unlikely(tcp_transmit_skb(sk, skb, 1, gfp)))
 			break;
 

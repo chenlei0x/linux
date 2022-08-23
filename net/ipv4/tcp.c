@@ -1312,6 +1312,7 @@ new_segment:
 			if (sk_check_csum_caps(sk))
 				skb->ip_summed = CHECKSUM_PARTIAL;
 
+			/*这个skb 先放到 write queue中， 因为这个skb 后面可能还要重传，所以需要ACK 之后才能删除*/
 			skb_entail(sk, skb);
 			copy = size_goal;
 			max = size_goal;
@@ -1357,6 +1358,7 @@ new_segment:
 			if (!sk_wmem_schedule(sk, copy))
 				goto wait_for_memory;
 
+			/*这里比较耗费cpu */
 			err = skb_copy_to_page_nocache(sk, &msg->msg_iter, skb,
 						       pfrag->page,
 						       pfrag->offset,
@@ -1399,6 +1401,7 @@ new_segment:
 		if (skb->len < max || (flags & MSG_OOB) || unlikely(tp->repair))
 			continue;
 
+		/*无论如何 都要调用 tcp_write_xmit 函数用来发送*/
 		if (forced_push(tp)) {
 			tcp_mark_push(tp, skb);
 			__tcp_push_pending_frames(sk, mss_now, TCP_NAGLE_PUSH);

@@ -145,6 +145,7 @@ static struct sk_buff *dequeue_skb(struct Qdisc *q, bool *validate,
 	}
 	if (!(q->flags & TCQ_F_ONETXQUEUE) ||
 	    !netif_xmit_frozen_or_stopped(txq))
+	    /*fq_codel_dequeue*/
 		skb = q->dequeue(q);
 	if (skb) {
 bulk:

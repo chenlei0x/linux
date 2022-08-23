@@ -189,6 +189,7 @@ bool ip_call_ra_chain(struct sk_buff *skb)
 	return false;
 }
 
+/*函数处理原始套接字的数据接收，并调用上层协议的包接收函数，将数据包传递到传输层；*/
 static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	__skb_pull(skb, skb_network_header_len(skb));
@@ -213,6 +214,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 				}
 				nf_reset(skb);
 			}
+			/*tcp_protocol udp_protocol */
 			ret = ipprot->handler(skb);
 			if (ret < 0) {
 				protocol = -ret;
@@ -241,6 +243,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 
 /*
  * 	Deliver IP Packets to the higher protocol layers.
+ * 当ip包收上来，查路由，发现是发往本地的数据包时，会调用ip_local_deliver函数；
  */
 int ip_local_deliver(struct sk_buff *skb)
 {
@@ -307,6 +310,7 @@ drop:
 	return true;
 }
 
+/* ip 层接收包 ，最终会调用路由的 input 回调*/
 static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	const struct iphdr *iph = ip_hdr(skb);

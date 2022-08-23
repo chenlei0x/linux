@@ -1464,6 +1464,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 				sk->sk_rx_dst = NULL;
 			}
 		}
+		/* 进入 receive queue */
 		tcp_rcv_established(sk, skb, tcp_hdr(skb));
 		return 0;
 	}
@@ -1486,6 +1487,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	} else
 		sock_rps_save_rxhash(sk, skb);
 
+	/*如果不是 ESTABLISHED 最终会走到这里 */
 	if (tcp_rcv_state_process(sk, skb)) {
 		rsk = sk;
 		goto reset;
@@ -1737,6 +1739,7 @@ process:
 	bh_lock_sock_nested(sk);
 	tcp_segs_in(tcp_sk(sk), skb);
 	ret = 0;
+	/* 用户态进程正在对 @sk 调用 tcp_recvmsg */
 	if (!sock_owned_by_user(sk)) {
 		ret = tcp_v4_do_rcv(sk, skb);
 	} else if (tcp_add_backlog(sk, skb)) {

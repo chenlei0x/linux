@@ -120,6 +120,7 @@ int ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb)
 	int err;
 
 	err = __ip_local_out(net, sk, skb);
+	/* ip_output */
 	if (likely(err == 1))
 		err = dst_output(net, sk, skb);
 
@@ -501,6 +502,7 @@ packet_routed:
 	skb->priority = sk->sk_priority;
 	skb->mark = sk->sk_mark;
 
+	/*!!!!!!!*/
 	res = ip_local_out(net, sk, skb);
 	rcu_read_unlock();
 	return res;

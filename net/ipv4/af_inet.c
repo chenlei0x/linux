@@ -1810,7 +1810,7 @@ static int __init ipv4_offload_init(void)
 
 fs_initcall(ipv4_offload_init);
 
-static struct packet_type ip_packet_type __read_mostly = {
+static struct packet_type ip_packet_type /*__read_mostly*/ = {
 	.type = cpu_to_be16(ETH_P_IP),
 	.func = ip_rcv,
 };

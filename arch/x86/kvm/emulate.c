@@ -3727,6 +3727,7 @@ static int em_clts(struct x86_emulate_ctxt *ctxt)
 
 static int em_hypercall(struct x86_emulate_ctxt *ctxt)
 {
+	/*emulator_fix_hypercall*/
 	int rc = ctxt->ops->fix_hypercall(ctxt);
 
 	if (rc != X86EMUL_CONTINUE)

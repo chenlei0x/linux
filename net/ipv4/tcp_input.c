@@ -5515,6 +5515,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 			NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPHPHITS);
 
 			/* Bulk data transfer: receiver */
+			/* 进入 receive queue */
 			eaten = tcp_queue_rcv(sk, skb, tcp_header_len,
 					      &fragstolen);
 

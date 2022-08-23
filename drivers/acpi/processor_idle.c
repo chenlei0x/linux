@@ -1434,6 +1434,8 @@ int acpi_processor_power_init(struct acpi_processor *pr)
 
 	acpi_processor_cstate_first_run_checks();
 
+
+	/* 这里会置 flags.power */
 	if (!acpi_processor_get_power_info(pr))
 		pr->flags.power_setup_done = 1;
 
@@ -1443,6 +1445,7 @@ int acpi_processor_power_init(struct acpi_processor *pr)
 	 * platforms that only support C1.
 	 */
 	if (pr->flags.power) {
+		/*这里没走进来*/
 		/* Register acpi_idle_driver if not already registered */
 		if (!acpi_processor_registered) {
 			acpi_processor_setup_cpuidle_states(pr);
